@@ -67,7 +67,7 @@ function calculateDailyPace(challengeAnimeCount) {
 
     const desc = document.createElement('p');
     desc.className = 'pace-description';
-    desc.innerHTML = `Anime per day. <br>Proj. Comp: **${formattedProjection}**`;
+    desc.innerHTML = `Anime per day. <br>Proj. Comp: <b>${formattedProjection}</b>`;
     dailyPaceCard.appendChild(desc);
 
     const totalChallengeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -370,7 +370,7 @@ function renderAllAnimeList() {
                     <img src="${imageUrl}" alt="Poster">
                     <div class="backlog-info">
                         <h4>${getEnglishTitle(anime)} (${anime.type || 'N/A'})</h4>
-                        <p>MAL Score: ${anime.score || 'N/A'} | **My Score: ${anime.user_score || 'N/A'}**</p>
+                        <p>MAL Score: ${anime.score || 'N/A'} | <b>My Score: ${anime.user_score || 'N/A'}</b></p>
                         <p style="margin-top: 2px; font-size: 10px; color: var(--text-secondary);">Year: ${anime.year || 'N/A'} | Studio: ${studios} | Genres: ${genres}</p>
                         <p style="margin-top: 2px; font-size: 10px; color: var(--text-secondary);">${sourceText}</p>
                     </div>
