@@ -7,7 +7,21 @@ const ANIPACE_STORAGE_KEY = 'anipace_separate_data';
 const API_URL = 'https://api.jikan.moe/v4/anime';
 const TIME_PER_EPISODE = 24;
 
-const todayDateString = new Date().toISOString().split('T')[0];
+// --- UTILS (Hoisted) ---
+function getLocalDateString(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function parseLocalDate(dateStr) {
+    if (!dateStr) return new Date();
+    const parts = dateStr.split('-');
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+}
+
+const todayDateString = getLocalDateString(new Date());
 
 let challengeData = { 
     days: {}, 
@@ -139,14 +153,14 @@ function loadChallengeData() {
     
     const merged = { ...challengeData, ...saved };
     
-    startDate = new Date(merged.challengeStart);
-    endDate = new Date(merged.challengeEnd);
+    startDate = parseLocalDate(merged.challengeStart);
+    endDate = parseLocalDate(merged.challengeEnd);
     
     if (startDate.getTime() >= endDate.getTime()) {
         merged.challengeStart = todayDateString;
         merged.challengeEnd = '2026-12-31';
-        startDate = new Date(merged.challengeStart);
-        endDate = new Date(merged.challengeEnd);
+        startDate = parseLocalDate(merged.challengeStart);
+        endDate = parseLocalDate(merged.challengeEnd);
         console.warn("Challenge dates were invalid and reset to defaults.");
     }
 
@@ -157,7 +171,7 @@ function loadAniPaceData() {
     const localData = localStorage.getItem(ANIPACE_STORAGE_KEY);
     const saved = localData ? JSON.parse(localData) : {};
     
-    const todayKey = new Date().toISOString().split('T')[0];
+    const todayKey = getLocalDateString(new Date());
     const merged = { ...anipaceData, ...saved };
     
     if (merged.lastLogDate !== todayKey) {
@@ -173,13 +187,6 @@ function loadAniPaceData() {
 }
 
 // --- HELPER FUNCTIONS ---
-
-function getLocalDateString(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
 
 function getEnglishTitle(anime) { 
     if (!anime) return 'Unknown Title'; 
@@ -310,7 +317,7 @@ function calculateDailyPace(challengeAnimeCount) {
     }
 
     const diffTime = endDate.getTime() - today.getTime();
-    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    const daysRemaining = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
     const remainingNeeded = currentGoal - challengeAnimeCount;
 
     if (daysRemaining <= 0) {
@@ -885,11 +892,9 @@ function initializeChallengeLayout() {
     const todayKey = getLocalDateString(new Date());
     
     // Create a proper local date from the start date string
-    const startParts = challengeData.challengeStart.split('-');
-    let currentDate = new Date(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2]));
+    let currentDate = parseLocalDate(challengeData.challengeStart);
     
-    const endParts = challengeData.challengeEnd.split('-');
-    const stopDate = new Date(parseInt(endParts[0]), parseInt(endParts[1]) - 1, parseInt(endParts[2]));
+    const stopDate = parseLocalDate(challengeData.challengeEnd);
     stopDate.setDate(stopDate.getDate() + 1);
 
     while (currentDate < stopDate) {
@@ -1113,8 +1118,8 @@ function initializeApp() {
             return;
         }
         
-        const start = new Date(newStart);
-        const end = new Date(newEnd);
+        const start = parseLocalDate(newStart);
+        const end = parseLocalDate(newEnd);
         
         if (start.getTime() >= end.getTime()) {
             showNotification('Start date must be before the end date.', 'error');
