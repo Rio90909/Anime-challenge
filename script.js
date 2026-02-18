@@ -1,13 +1,7 @@
 // ===============================================
-// APP CONFIGURATION (LOCAL STORAGE ONLY)
+// UTILITIES
 // ===============================================
 
-const STORAGE_KEY = 'animeDashboard_v6_combined';
-const ANIPACE_STORAGE_KEY = 'anipace_separate_data';
-const API_URL = 'https://api.jikan.moe/v4/anime';
-const TIME_PER_EPISODE = 24;
-
-// --- UTILS (Hoisted) ---
 function getLocalDateString(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -21,13 +15,61 @@ function parseLocalDate(dateStr) {
     return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
 }
 
+function getEnglishTitle(anime) {
+    if (!anime) return 'Unknown Title';
+    const englishTitle = (anime.titles || []).find(t => t.type === 'English');
+    return englishTitle ? englishTitle.title : anime.title || 'Unknown Title';
+}
+
+function countGenre(allAnime, genre) {
+    return allAnime.filter(a => !a.isManual && (a.genres || []).some(g => g.name === genre)).length;
+}
+
+function promptForRating(title) {
+    let rating = null;
+    while (rating === null) {
+        const input = prompt(`Please enter your personal rating (1-10) for: ${title}\n(Enter 0 or leave blank to skip/N/A)`);
+        if (input === "" || input === null) {
+            return null;
+        }
+
+        const num = parseFloat(input);
+        if (!isNaN(num) && num >= 0 && num <= 10) {
+            if (num === 0) return null;
+            return num;
+        }
+        alert("Invalid rating. Please enter a number between 1 and 10.");
+    }
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// ===============================================
+// DATA & STATE MANAGEMENT
+// ===============================================
+
+const STORAGE_KEY = 'animeDashboard_v6_combined';
+const ANIPACE_STORAGE_KEY = 'anipace_separate_data';
+const API_URL = 'https://api.jikan.moe/v4/anime';
+const TIME_PER_EPISODE = 24;
+
 const todayDateString = getLocalDateString(new Date());
 
-let challengeData = { 
-    days: {}, 
-    unlockedAchievements: [], 
+let challengeData = {
+    days: {},
+    unlockedAchievements: [],
     backlog: [],
-    challengeStart: todayDateString, 
+    challengeStart: todayDateString,
     challengeEnd: '2026-12-31'
 };
 
@@ -40,9 +82,8 @@ let anipaceData = {
     history: []
 };
 
-let analyticsChartInstance = null;
-let startDate; 
-let endDate; 
+let startDate;
+let endDate;
 let bannerTimeoutId = null;
 
 const GOAL_TIERS = [10, 30, 50, 100, 200, 400, 600, 800, 1000];
@@ -58,20 +99,20 @@ const achievements = [
     { id: 'total_400', title: 'Anime Legend', description: 'Log 400 different anime.', check: (data) => data.allAnime.length >= 400 },
     { id: 'total_500', title: 'Anime Mythic', description: 'Log 500 different anime.', check: (data) => data.allAnime.length >= 500 },
     { id: 'total_1000', title: 'Anime Immortal', description: 'Log 1000 different anime.', check: (data) => data.allAnime.length >= 1000 },
-    
-    ...['Romance', 'Action', 'Comedy', 'Fantasy', 'Sci-Fi', 'Harem', 'Slice of Life', 'Isekai', 'Drama', 'Mystery', 
+
+    ...['Romance', 'Action', 'Comedy', 'Fantasy', 'Sci-Fi', 'Harem', 'Slice of Life', 'Isekai', 'Drama', 'Mystery',
         'Horror', 'Adventure', 'Supernatural', 'Mecha', 'Sports', 'Psychological', 'Thriller', 'Music', 'Historical', 'Military'].map(genre => ([
         { id: `${genre.toLowerCase()}_1`, title: `${genre} Fan`, description: `Watch 5 ${genre} anime.`, check: (data) => countGenre(data.allAnime, genre) >= 5 },
         { id: `${genre.toLowerCase()}_2`, title: `${genre} Enthusiast`, description: `Watch 15 ${genre} anime.`, check: (data) => countGenre(data.allAnime, genre) >= 15 },
         { id: `${genre.toLowerCase()}_3`, title: `${genre} Master`, description: `Watch 30 ${genre} anime.`, check: (data) => countGenre(data.allAnime, genre) >= 30 }
     ])).flat(),
-    
+
     { id: 'decade_80s', title: '80s Nostalgia', description: 'Watch 3 anime from the 1980s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 1980 && a.year < 1990).length >= 3 },
     { id: 'decade_90s', title: '90s Nostalgia', description: 'Watch 5 anime from the 1990s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 1990 && a.year < 2000).length >= 5 },
     { id: 'decade_2000s', title: 'Millennium Kid', description: 'Watch 10 anime from the 2000s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2000 && a.year < 2010).length >= 10 },
     { id: 'decade_2010s', title: 'Modern Classic', description: 'Watch 15 anime from the 2010s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2010 && a.year < 2020).length >= 15 },
     { id: 'decade_2020s', title: 'Current Era', description: 'Watch 20 anime from the 2020s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2020).length >= 20 },
-    
+
     { id: 'studio_kyoani', title: 'KyoAni Fan', description: 'Watch 3 anime from Kyoto Animation.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Kyoto Animation')).length >= 3 },
     { id: 'studio_ghibli', title: 'Ghibli Lover', description: 'Watch 3 anime from Studio Ghibli.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Studio Ghibli')).length >= 3 },
     { id: 'studio_madhouse', title: 'Madhouse Marathoner', description: 'Watch 5 anime from Madhouse.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Madhouse')).length >= 5 },
@@ -82,7 +123,7 @@ const achievements = [
     { id: 'studio_cloverworks', title: 'Clover Collector', description: 'Watch 3 anime from CloverWorks.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'CloverWorks')).length >= 3 },
     { id: 'studio_a1', title: 'A-1 Productions', description: 'Watch 5 anime from A-1 Pictures.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'A-1 Pictures')).length >= 5 },
     { id: 'studio_production_ig', title: 'IG Enthusiast', description: 'Watch 3 anime from Production I.G.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Production I.G')).length >= 3 },
-    
+
     { id: 'binge_watcher', title: 'Binge Watcher', description: 'Watch 5+ anime on a single day.', check: (data) => Object.values(data.days).some(d => (d.watched || []).length >= 5) },
     { id: 'critics_choice', title: 'Critic\'s Choice', description: 'Watch 5 anime with a score of 8.5 or higher.', check: (data) => data.allAnime.filter(a => !a.isManual && a.score >= 8.5).length >= 5 },
     { id: 'hidden_gems', title: 'Hidden Gems', description: 'Watch 5 anime with a score below 7.0.', check: (data) => data.allAnime.filter(a => !a.isManual && a.score < 7.0).length >= 5 },
@@ -103,13 +144,13 @@ const achievements = [
         const dates = Object.keys(data.days).sort();
         let maxStreak = 0;
         let currentStreak = 1;
-        
+
         for (let i = 1; i < dates.length; i++) {
             const prevDate = new Date(dates[i-1]);
             const currDate = new Date(dates[i]);
             const diffTime = currDate.getTime() - prevDate.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
+
             if (diffDays === 1) {
                 currentStreak++;
                 maxStreak = Math.max(maxStreak, currentStreak);
@@ -117,18 +158,18 @@ const achievements = [
                 currentStreak = 1;
             }
         }
-        
+
         return maxStreak >= 7;
     }},
     { id: 'completionist', title: 'Completionist', description: 'Complete 5 anime series (watch all episodes).', check: (data) => data.allAnime.filter(a => !a.isManual && a.watched_episodes === a.episodes).length >= 5 }
 ];
 
-const ranks = [ 
-    { min: 0, title: 'Newbie' }, 
-    { min: 10, title: 'Novice' }, 
-    { min: 25, title: 'Apprentice' }, 
-    { min: 50, title: 'Adept' }, 
-    { min: 75, title: 'Expert' }, 
+const ranks = [
+    { min: 0, title: 'Newbie' },
+    { min: 10, title: 'Novice' },
+    { min: 25, title: 'Apprentice' },
+    { min: 50, title: 'Adept' },
+    { min: 75, title: 'Expert' },
     { min: 100, title: 'Veteran' },
     { min: 200, title: 'Master' },
     { min: 400, title: 'Grandmaster' },
@@ -139,7 +180,7 @@ const ranks = [
 
 // --- DATA PERSISTENCE FUNCTIONS ---
 
-function saveData() { 
+function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(challengeData));
 }
 
@@ -150,12 +191,12 @@ function saveAniPaceData() {
 function loadChallengeData() {
     const localData = localStorage.getItem(STORAGE_KEY);
     const saved = localData ? JSON.parse(localData) : {};
-    
+
     const merged = { ...challengeData, ...saved };
-    
+
     startDate = parseLocalDate(merged.challengeStart);
     endDate = parseLocalDate(merged.challengeEnd);
-    
+
     if (startDate.getTime() >= endDate.getTime()) {
         merged.challengeStart = todayDateString;
         merged.challengeEnd = '2026-12-31';
@@ -170,49 +211,23 @@ function loadChallengeData() {
 function loadAniPaceData() {
     const localData = localStorage.getItem(ANIPACE_STORAGE_KEY);
     const saved = localData ? JSON.parse(localData) : {};
-    
+
     const todayKey = getLocalDateString(new Date());
     const merged = { ...anipaceData, ...saved };
-    
+
     if (merged.lastLogDate !== todayKey) {
         merged.episodesToday = 0;
         merged.minutesToday = 0;
         merged.lastLogDate = todayKey;
     }
-    
+
     if (!merged.history) merged.history = [];
     if (!merged.playbackSpeed) merged.playbackSpeed = 1.0;
 
     return merged;
 }
 
-// --- HELPER FUNCTIONS ---
-
-function getEnglishTitle(anime) { 
-    if (!anime) return 'Unknown Title'; 
-    const englishTitle = (anime.titles || []).find(t => t.type === 'English'); 
-    return englishTitle ? englishTitle.title : anime.title || 'Unknown Title'; 
-}
-
-function countGenre(allAnime, genre) { 
-    return allAnime.filter(a => !a.isManual && (a.genres || []).some(g => g.name === genre)).length; 
-}
-
-function showNotification(message, type = 'success') {
-    clearTimeout(bannerTimeoutId);
-    const banner = document.getElementById('achievement-banner');
-    const messageElement = document.getElementById('achievement-message');
-    
-    messageElement.textContent = message;
-    banner.style.backgroundColor = type === 'error' ? 'var(--error-color)' : 'var(--primary-color)';
-    banner.classList.add('show');
-    if (type === 'achievement') { 
-        document.getElementById('milestoneSound').play(); 
-        messageElement.textContent = `🏆 ${message}`; 
-    }
-    
-    bannerTimeoutId = setTimeout(() => { banner.classList.remove('show'); }, 4000);
-}
+// --- DATA GETTERS ---
 
 function getChallengeAnime() {
     const dailyWatchedAnime = Object.values(challengeData.days).flatMap(day => day.watched || []);
@@ -241,7 +256,7 @@ function getBacklogAnime() {
 function getUniqueAnime() {
     const dailyWatchedAnime = Object.values(challengeData.days).flatMap(day => day.watched || []);
     const allWatchedAnime = [...dailyWatchedAnime, ...(challengeData.backlog || [])];
-    
+
     const uniqueMap = new Map();
     allWatchedAnime.forEach(item => {
         const key = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
@@ -252,46 +267,37 @@ function getUniqueAnime() {
     return Array.from(uniqueMap.values());
 }
 
-function promptForRating(title) {
-    let rating = null;
-    while (rating === null) {
-        const input = prompt(`Please enter your personal rating (1-10) for: ${title}\n(Enter 0 or leave blank to skip/N/A)`);
-        if (input === "" || input === null) {
-            return null;
-        }
-        
-        const num = parseFloat(input);
-        if (!isNaN(num) && num >= 0 && num <= 10) {
-            if (num === 0) return null;
-            return num;
-        }
-        alert("Invalid rating. Please enter a number between 1 and 10.");
-    }
-}
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// --- CORE LOGIC ---
-
 function processAchievements() {
-    const achievementData = { allAnime: getUniqueAnime(), days: challengeData.days }; 
+    const achievementData = { allAnime: getUniqueAnime(), days: challengeData.days };
     achievements.forEach(ach => {
         if (!challengeData.unlockedAchievements.includes(ach.id) && ach.check(achievementData)) {
             challengeData.unlockedAchievements.push(ach.id);
             showNotification(`Achievement Unlocked: ${ach.title}`, 'achievement');
         }
     });
-    saveData(); 
+    saveData();
+}
+
+// ===============================================
+// MAIN APPLICATION LOGIC
+// ===============================================
+
+let analyticsChartInstance = null;
+
+function showNotification(message, type = 'success') {
+    clearTimeout(bannerTimeoutId);
+    const banner = document.getElementById('achievement-banner');
+    const messageElement = document.getElementById('achievement-message');
+
+    messageElement.textContent = message;
+    banner.style.backgroundColor = type === 'error' ? 'var(--error-color)' : 'var(--primary-color)';
+    banner.classList.add('show');
+    if (type === 'achievement') {
+        document.getElementById('milestoneSound').play();
+        messageElement.textContent = `🏆 ${message}`;
+    }
+
+    bannerTimeoutId = setTimeout(() => { banner.classList.remove('show'); }, 4000);
 }
 
 function calculateDailyPace(challengeAnimeCount) {
@@ -341,7 +347,7 @@ function calculateDailyPace(challengeAnimeCount) {
 
     const desc = document.createElement('p');
     desc.className = 'pace-description';
-    desc.innerHTML = `Anime per day. <br>Proj. Comp: **${formattedProjection}**`;
+    desc.innerHTML = `Anime per day. <br>Proj. Comp: <b>${formattedProjection}</b>`;
     dailyPaceCard.appendChild(desc);
 
     const totalChallengeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -524,8 +530,6 @@ function populateYearFilter(animeList) {
     }
 }
 
-// --- CHART & MODAL FUNCTIONS ---
-
 function createOrUpdateChart(dataType = 'genres') {
     if (analyticsChartInstance) { analyticsChartInstance.destroy(); }
     const uniqueAnime = getUniqueAnime().filter(a => !a.isManual); 
@@ -646,7 +650,7 @@ function renderAllAnimeList() {
                     <img src="${imageUrl}" alt="Poster">
                     <div class="backlog-info">
                         <h4>${getEnglishTitle(anime)} (${anime.type || 'N/A'})</h4>
-                        <p>MAL Score: ${anime.score || 'N/A'} | **My Score: ${anime.user_score || 'N/A'}**</p>
+                        <p>MAL Score: ${anime.score || 'N/A'} | <b>My Score: ${anime.user_score || 'N/A'}</b></p>
                         <p style="margin-top: 2px; font-size: 10px; color: var(--text-secondary);">Year: ${anime.year || 'N/A'} | Studio: ${studios} | Genres: ${genres}</p>
                         <p style="margin-top: 2px; font-size: 10px; color: var(--text-secondary);">${sourceText}</p>
                     </div>
@@ -700,7 +704,6 @@ function showSearchResults(results, onSelect) {
     modal.classList.remove('hidden');
 }
 
-// --- FIXED: Day Entry Creation with proper date handling ---
 function createDayEntry(date) {
     const div = document.createElement('div');
     div.className = 'day-entry';
@@ -806,7 +809,6 @@ function createDayEntry(date) {
     return div;
 }
 
-// --- ANIPACE LOGIC ---
 function calculatePlan() { 
     const startTime = document.getElementById('start-time').value;
     const endTime = document.getElementById('end-time').value;
@@ -840,7 +842,6 @@ function calculatePlan() {
     resultsEl.classList.remove('hidden');
 }
 
-// --- SCREEN SWITCHING LOGIC ---
 function switchToScreen(screenId) {
     const challengeScreen = document.getElementById('challenge-screen');
     const backlogScreen = document.getElementById('backlog-manager-screen');
@@ -883,15 +884,12 @@ function switchToScreen(screenId) {
     }
 }
 
-// --- FIXED: Challenge Layout with proper date handling ---
 function initializeChallengeLayout() {
     const app = document.getElementById('app');
     app.innerHTML = '';
     
-    // FIX: Use local date string to avoid timezone issues
     const todayKey = getLocalDateString(new Date());
     
-    // Create a proper local date from the start date string
     let currentDate = parseLocalDate(challengeData.challengeStart);
     
     const stopDate = parseLocalDate(challengeData.challengeEnd);
@@ -901,7 +899,6 @@ function initializeChallengeLayout() {
         const dateKey = getLocalDateString(currentDate);
         const hasData = (challengeData.days[dateKey]?.watched || []).length > 0;
         
-        // FIX: Compare date strings instead of timestamps
         if (dateKey >= todayKey || hasData) {
             app.appendChild(createDayEntry(new Date(currentDate)));
         }
@@ -910,7 +907,6 @@ function initializeChallengeLayout() {
     }
 }
 
-// --- INITIALIZATION & EVENT LISTENERS ---
 function initializeApp() {
     challengeData = loadChallengeData();
     anipaceData = loadAniPaceData();
