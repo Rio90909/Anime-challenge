@@ -4,8 +4,89 @@
 
 const STORAGE_KEY = 'animeDashboard_v6_combined';
 const ANIPACE_STORAGE_KEY = 'anipace_separate_data';
-const API_URL = 'https://api.jikan.moe/v4/anime';
+const API_URL = 'https://kitsu.io/api/edge/anime';
 const TIME_PER_EPISODE = 24;
+
+// Normalizes Kitsu API response structure into Jikan format
+function normalizeKitsuResponse(searchData) {
+    const included = searchData.included || [];
+    const data = searchData.data || [];
+
+    return data.map(anime => {
+        const attrs = anime.attributes || {};
+        const mal_id = parseInt(anime.id) || anime.id;
+
+        // Get genres matching this anime's relationships
+        const genreIds = (anime.relationships?.genres?.data || []).map(g => g.id);
+        const genres = included
+            .filter(item => item.type === 'genres' && genreIds.includes(item.id))
+            .map(item => ({ name: item.attributes?.name }));
+
+        // Get studios/producers
+        const studios = included
+            .filter(item => item.type === 'producers')
+            .map(p => ({ name: p.attributes?.name }));
+
+        // Map subtype to Jikan-like type
+        let animeType = attrs.subtype || 'TV';
+        if (animeType.toLowerCase() === 'tv') animeType = 'TV';
+        else if (animeType.toLowerCase() === 'movie') animeType = 'Movie';
+        else if (animeType.toLowerCase() === 'ova') animeType = 'OVA';
+        else if (animeType.toLowerCase() === 'ona') animeType = 'ONA';
+        else if (animeType.toLowerCase() === 'special') animeType = 'Special';
+
+        // Map titles
+        const titles = [];
+        const canonical = attrs.canonicalTitle || attrs.titles?.en_jp || attrs.titles?.en || '';
+        if (canonical) {
+            titles.push({ type: 'Default', title: canonical });
+        }
+
+        let englishTitle = attrs.titles?.en || attrs.titles?.en_us || '';
+        if (englishTitle) {
+            titles.push({ type: 'English', title: englishTitle });
+        } else {
+            // fallback
+            englishTitle = canonical;
+            titles.push({ type: 'English', title: englishTitle });
+        }
+
+        const title = englishTitle || canonical;
+
+        // Map score
+        const score = attrs.averageRating ? parseFloat((parseFloat(attrs.averageRating) / 10).toFixed(2)) : null;
+
+        // Map year
+        const startDateStr = attrs.startDate;
+        const year = startDateStr ? new Date(startDateStr).getFullYear() : null;
+
+        // Map poster images
+        const posterUrl = attrs.posterImage?.medium || attrs.posterImage?.small || attrs.posterImage?.original || '';
+        const smallPosterUrl = attrs.posterImage?.small || attrs.posterImage?.tiny || '';
+        const images = {
+            jpg: {
+                image_url: posterUrl,
+                small_image_url: smallPosterUrl
+            }
+        };
+
+        const episodes = attrs.episodeCount || null;
+
+        return {
+            mal_id,
+            title,
+            titles,
+            genres,
+            studios,
+            type: animeType,
+            score,
+            year,
+            images,
+            episodes,
+            isManual: false
+        };
+    });
+}
 
 // --- UTILS (Hoisted) ---
 function getLocalDateString(date) {
@@ -758,9 +839,10 @@ function createDayEntry(date) {
         addOnlineBtn.textContent = 'Searching...'; 
         addOnlineBtn.disabled = true; 
         try { 
-            const response = await fetch(`${API_URL}?q=${encodeURIComponent(title)}&limit=10`); 
+            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,animeProductions.producer`);
             const searchData = await response.json(); 
-            showSearchResults(searchData.data, (selectedAnime) => { 
+            const normalizedData = normalizeKitsuResponse(searchData);
+            showSearchResults(normalizedData, (selectedAnime) => {
                 
                 const rating = promptForRating(getEnglishTitle(selectedAnime));
                 const newAnime = { ...selectedAnime, date_added: new Date().toISOString() };
@@ -1022,9 +1104,10 @@ function initializeApp() {
         addBacklogOnlineBtn.textContent = 'Searching...'; 
         addBacklogOnlineBtn.disabled = true; 
         try { 
-            const response = await fetch(`${API_URL}?q=${encodeURIComponent(title)}&limit=10`); 
+            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,animeProductions.producer`);
             const searchData = await response.json(); 
-            showSearchResults(searchData.data, (selectedAnime) => { 
+            const normalizedData = normalizeKitsuResponse(searchData);
+            showSearchResults(normalizedData, (selectedAnime) => {
                 
                 const rating = promptForRating(getEnglishTitle(selectedAnime));
                 const newAnime = { ...selectedAnime, date_added: new Date().toISOString() };
