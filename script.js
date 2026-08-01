@@ -22,6 +22,19 @@ function normalizeKitsuResponse(searchData) {
             .filter(item => item.type === 'genres' && genreIds.includes(item.id))
             .map(item => ({ name: item.attributes?.name }));
 
+        // Get categories matching this anime's relationships as fallback/additional genres
+        const categoryIds = (anime.relationships?.categories?.data || []).map(c => c.id);
+        const categories = included
+            .filter(item => item.type === 'categories' && categoryIds.includes(item.id))
+            .map(item => ({ name: item.attributes?.title || item.attributes?.name }))
+            .filter(Boolean);
+
+        // Combine and deduplicate genres and categories
+        const allGenresMap = {};
+        genres.forEach(g => { if (g.name) allGenresMap[g.name] = true; });
+        categories.forEach(c => { if (c.name) allGenresMap[c.name] = true; });
+        const combinedGenres = Object.keys(allGenresMap).map(name => ({ name }));
+
         // Get studios/producers matching this anime's relationships
         const animeProductionData = anime.relationships?.animeProductions?.data || [];
         const animeProductionIds = animeProductionData.map(ap => ap.id);
@@ -88,7 +101,7 @@ function normalizeKitsuResponse(searchData) {
             mal_id,
             title,
             titles,
-            genres,
+            genres: combinedGenres,
             studios,
             type: animeType,
             score,
@@ -947,7 +960,7 @@ function createDayEntry(date) {
         addOnlineBtn.textContent = 'Searching...'; 
         addOnlineBtn.disabled = true; 
         try { 
-            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,animeProductions.producer`);
+            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,categories,animeProductions.producer`);
             const searchData = await response.json(); 
             const normalizedData = normalizeKitsuResponse(searchData);
             showSearchResults(normalizedData, (selectedAnime) => {
@@ -1241,7 +1254,7 @@ function initializeApp() {
         addBacklogOnlineBtn.textContent = 'Searching...'; 
         addBacklogOnlineBtn.disabled = true; 
         try { 
-            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,animeProductions.producer`);
+            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,categories,animeProductions.producer`);
             const searchData = await response.json(); 
             const normalizedData = normalizeKitsuResponse(searchData);
             showSearchResults(normalizedData, (selectedAnime) => {
