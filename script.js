@@ -770,7 +770,7 @@ function renderAllAnimeList() {
                     </div>
                 `;
             } else {
-                const studios = (anime.studios || []).map(s => s.name).join(', ') || 'N/A';
+                const studios = (anime.studios || []).map(s => s.name)[0] || 'N/A';
                 const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
                 const imageUrl = anime.images?.jpg?.small_image_url || 'https://via.placeholder.com/80x110?text=N/A';
                 const synopsis = anime.synopsis || '';
@@ -899,7 +899,7 @@ function createDayEntry(date) {
                 `;
             } else {
                 const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/60x85?text=N/A';
-                const studios = (anime.studios || []).map(s => s.name).join(', ') || 'N/A';
+                const studios = (anime.studios || []).map(s => s.name)[0] || 'N/A';
                 const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
                 const synopsis = anime.synopsis || '';
 
