@@ -100,13 +100,19 @@ body.backlog-active .manual-add-btn {
 
 /* Specific backlog screen styling */
 body.backlog-active #backlog-manager-screen .backlog-anime-list-item {
-    background-color: #F8F8F8;
-    border: 1px solid #DDD;
+    background-color: #FFFFFF;
+    border: 1px solid #E0E0E0;
     color: #121212;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+body.backlog-active #backlog-manager-screen .backlog-anime-list-item:hover {
+    background-color: #F9F9F9;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
 }
 
 body.backlog-active #backlog-manager-screen .backlog-info h4 {
-    color: #121212;
+    color: #111111;
 }
 
 body.backlog-active #backlog-filter-controls input,
@@ -114,6 +120,59 @@ body.backlog-active #backlog-filter-controls select {
     background-color: #FFF;
     border: 1px solid #CCC;
     color: #121212;
+}
+
+/* Beautiful distinct light mode backlog tags */
+body.backlog-active .backlog-tag {
+    font-weight: bold;
+}
+
+body.backlog-active .backlog-tag.type-tag {
+    background-color: #E1F5FE !important;
+    color: #0288D1 !important;
+    border: 1px solid #B3E5FC !important;
+}
+
+body.backlog-active .backlog-tag.year-tag {
+    background-color: #E8F5E9 !important;
+    color: #2E7D32 !important;
+    border: 1px solid #C8E6C9 !important;
+}
+
+body.backlog-active .backlog-tag.mal-score-tag {
+    background-color: #FFF3E0 !important;
+    color: #E65100 !important;
+    border: 1px solid #FFE0B2 !important;
+}
+
+body.backlog-active .backlog-tag.my-score-tag {
+    background-color: #FFFDE7 !important;
+    color: #F57F17 !important;
+    border: 1px solid #FFF59D !important;
+}
+
+body.backlog-active .backlog-tag.manual-tag {
+    background-color: #F3E5F5 !important;
+    color: #6A1B9A !important;
+    border: 1px solid #E1BEE7 !important;
+}
+
+body.backlog-active .backlog-tag.source-tag {
+    background-color: #ECEFF1 !important;
+    color: #37474F !important;
+    border: 1px solid #CFD8DC !important;
+}
+
+body.backlog-active .backlog-text-meta {
+    border-top-color: rgba(0,0,0,0.06) !important;
+}
+
+body.backlog-active .backlog-text-meta p {
+    color: #555555;
+}
+
+body.backlog-active .backlog-text-meta strong {
+    color: #222222;
 }
 /* End STYLES for Black & White Backlog Screen */
 
@@ -316,43 +375,120 @@ header h1 { margin: 0; font-size: 24px; color: var(--primary-color); }
 
 .backlog-anime-list-item { 
     display: flex; 
-    align-items: center; 
+    align-items: flex-start;
     justify-content: space-between;
-    background-color: rgba(0,0,0,0.2); 
-    border-radius: 8px; 
-    padding: 10px; 
-    margin-top: 10px; 
-    transition: background-color 0.2s;
+    background-color: rgba(255,255,255,0.03);
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .backlog-anime-list-item:hover {
-    background-color: rgba(0,0,0,0.4);
+    background-color: rgba(255,255,255,0.06);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 /* MODIFIED IMAGE SIZE */
 .backlog-anime-list-item img { 
     width: 80px; /* Increased for better visibility */
     height: 110px; /* Increased for better visibility */
     object-fit: cover; 
-    border-radius: 4px; 
-    margin-right: 15px; 
+    border-radius: 8px;
+    margin-right: 18px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 /* END MODIFIED IMAGE SIZE */
 
 .backlog-info { 
     flex-grow: 1; 
     padding-right: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 }
-.backlog-info h4 { 
-    margin: 0; 
-    font-size: 16px; 
+
+.backlog-title {
+    margin: 0 0 8px 0 !important;
+    font-size: 18px !important;
+    font-weight: 600;
     color: var(--primary-color);
+    line-height: 1.3;
 }
-body.backlog-active .backlog-info h4 {
-    color: #121212;
+
+/* Badges and Tags */
+.backlog-badges-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
 }
-.backlog-info p { 
+
+.backlog-tag {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.type-tag {
+    background-color: rgba(52, 152, 219, 0.15);
+    color: #5dade2;
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.year-tag {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: #58d68d;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.mal-score-tag {
+    background-color: rgba(230, 126, 34, 0.15);
+    color: #f5b041;
+    border: 1px solid rgba(230, 126, 34, 0.3);
+}
+
+.my-score-tag {
+    background-color: rgba(241, 196, 15, 0.2);
+    color: #f4d03f;
+    border: 1px solid rgba(241, 196, 15, 0.5);
+    box-shadow: 0 0 5px rgba(241, 196, 15, 0.1);
+}
+
+.manual-tag {
+    background-color: rgba(155, 89, 182, 0.15);
+    color: #af7ac5;
+    border: 1px solid rgba(155, 89, 182, 0.3);
+}
+
+.source-tag {
+    background-color: rgba(149, 165, 166, 0.15);
+    color: #bdc3c7;
+    border: 1px solid rgba(149, 165, 166, 0.3);
+}
+
+.backlog-text-meta {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.backlog-text-meta p {
     margin: 4px 0 0 0; 
-    font-size: 12px; 
+    font-size: 13px;
     color: var(--text-secondary); 
+    line-height: 1.5;
+}
+
+.backlog-text-meta strong {
+    color: var(--text-color);
 }
 
 /* ENHANCED FIX FOR CHART OVERLAY GLITCH */

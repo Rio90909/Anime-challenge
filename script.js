@@ -22,9 +22,20 @@ function normalizeKitsuResponse(searchData) {
             .filter(item => item.type === 'genres' && genreIds.includes(item.id))
             .map(item => ({ name: item.attributes?.name }));
 
-        // Get studios/producers
+        // Get studios/producers matching this anime's relationships
+        const animeProductionData = anime.relationships?.animeProductions?.data || [];
+        const animeProductionIds = animeProductionData.map(ap => ap.id);
+
+        const animeProductions = included.filter(item =>
+            item.type === 'animeProductions' && animeProductionIds.includes(item.id)
+        );
+
+        const producerIds = animeProductions
+            .map(ap => ap.relationships?.producer?.data?.id)
+            .filter(Boolean);
+
         const studios = included
-            .filter(item => item.type === 'producers')
+            .filter(item => item.type === 'producers' && producerIds.includes(item.id))
             .map(p => ({ name: p.attributes?.name }));
 
         // Map subtype to Jikan-like type
@@ -737,9 +748,12 @@ function renderAllAnimeList() {
                 itemDiv.innerHTML = `
                     <img src="https://via.placeholder.com/80x110?text=Manual" alt="Poster">
                     <div class="backlog-info">
-                        <h4>${anime.title} (Manual Entry)</h4>
-                        <p>My Score: ${anime.user_score || 'N/A'}</p>
-                        <p style="margin-top: 2px; font-size: 10px; color: var(--text-secondary);">${sourceText}</p>
+                        <h4 class="backlog-title">${anime.title}</h4>
+                        <div class="backlog-badges-container">
+                            <span class="backlog-tag manual-tag">Manual Entry</span>
+                            <span class="backlog-tag my-score-tag">My Score: ${anime.user_score || 'N/A'}</span>
+                            <span class="backlog-tag source-tag">${sourceText}</span>
+                        </div>
                     </div>
                 `;
             } else {
@@ -749,10 +763,18 @@ function renderAllAnimeList() {
                 itemDiv.innerHTML = `
                     <img src="${imageUrl}" alt="Poster">
                     <div class="backlog-info">
-                        <h4>${getEnglishTitle(anime)} (${anime.type || 'N/A'})</h4>
-                        <p>MAL Score: ${anime.score || 'N/A'} | **My Score: ${anime.user_score || 'N/A'}**</p>
-                        <p style="margin-top: 2px; font-size: 10px; color: var(--text-secondary);">Year: ${anime.year || 'N/A'} | Studio: ${studios} | Genres: ${genres}</p>
-                        <p style="margin-top: 2px; font-size: 10px; color: var(--text-secondary);">${sourceText}</p>
+                        <h4 class="backlog-title">${getEnglishTitle(anime)}</h4>
+                        <div class="backlog-badges-container">
+                            <span class="backlog-tag type-tag">${anime.type || 'N/A'}</span>
+                            <span class="backlog-tag year-tag">${anime.year || 'N/A'}</span>
+                            <span class="backlog-tag mal-score-tag">MAL: ${anime.score || 'N/A'}</span>
+                            <span class="backlog-tag my-score-tag">My Score: ${anime.user_score || 'N/A'}</span>
+                            <span class="backlog-tag source-tag">${sourceText}</span>
+                        </div>
+                        <div class="backlog-text-meta">
+                            <p><strong>Studio:</strong> ${studios}</p>
+                            <p><strong>Genres:</strong> ${genres}</p>
+                        </div>
                     </div>
                 `;
             }
