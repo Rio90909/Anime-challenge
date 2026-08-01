@@ -43,13 +43,30 @@ function normalizeKitsuResponse(searchData) {
             item.type === 'animeProductions' && animeProductionIds.includes(item.id)
         );
 
-        const producerIds = animeProductions
-            .map(ap => ap.relationships?.producer?.data?.id)
-            .filter(Boolean);
+        // Map each animeProduction to its producer name and role
+        const mappedProductions = animeProductions.map(ap => {
+            const role = ap.attributes?.role || 'producer';
+            const producerId = ap.relationships?.producer?.data?.id;
+            const producerObj = producerId ? included.find(p => p.type === 'producers' && p.id === producerId) : null;
+            const name = producerObj?.attributes?.name;
+            return { name, role };
+        }).filter(item => item.name);
 
-        const studios = included
-            .filter(item => item.type === 'producers' && producerIds.includes(item.id))
-            .map(p => ({ name: p.attributes?.name }));
+        // Prioritize by role: studio > producer > licensor
+        const studiosWithRole = mappedProductions.filter(p => p.role === 'studio');
+        const producersWithRole = mappedProductions.filter(p => p.role === 'producer');
+        const licensorsWithRole = mappedProductions.filter(p => p.role === 'licensor');
+
+        let finalStudios = [];
+        if (studiosWithRole.length > 0) {
+            finalStudios = studiosWithRole.map(s => ({ name: s.name }));
+        } else if (producersWithRole.length > 0) {
+            finalStudios = producersWithRole.map(p => ({ name: p.name }));
+        } else if (licensorsWithRole.length > 0) {
+            finalStudios = licensorsWithRole.map(l => ({ name: l.name }));
+        }
+
+        const studios = finalStudios;
 
         // Map subtype to Jikan-like type
         let animeType = attrs.subtype || 'TV';
@@ -783,7 +800,7 @@ function renderAllAnimeList() {
                     </div>
                 `;
             } else {
-                const studios = (anime.studios || []).map(s => s.name)[0] || 'N/A';
+                const studioName = (anime.studios || []).map(s => s.name)[0] || '';
                 const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
                 const imageUrl = anime.images?.jpg?.small_image_url || 'https://via.placeholder.com/80x110?text=N/A';
                 const synopsis = anime.synopsis || '';
@@ -799,7 +816,7 @@ function renderAllAnimeList() {
                             <span class="backlog-tag source-tag">${sourceText}</span>
                         </div>
                         <div class="backlog-text-meta">
-                            <p><strong>Studio:</strong> ${studios}</p>
+                            ${studioName ? `<p><strong>Studio:</strong> ${studioName}</p>` : ''}
                             <p><strong>Genres:</strong> ${genres}</p>
                         </div>
                         ${synopsis ? `
@@ -912,7 +929,7 @@ function createDayEntry(date) {
                 `;
             } else {
                 const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/60x85?text=N/A';
-                const studios = (anime.studios || []).map(s => s.name)[0] || 'N/A';
+                const studioName = (anime.studios || []).map(s => s.name)[0] || '';
                 const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
                 const synopsis = anime.synopsis || '';
 
@@ -927,7 +944,7 @@ function createDayEntry(date) {
                             ${anime.user_score ? `<span class="anime-info-badge user-score-badge">My: ${anime.user_score}</span>` : ''}
                         </div>
                         <div class="anime-info-details">
-                            <p><strong>Studio:</strong> ${studios}</p>
+                            ${studioName ? `<p><strong>Studio:</strong> ${studioName}</p>` : ''}
                             <p><strong>Genres:</strong> ${genres}</p>
                         </div>
                         ${synopsis ? `
