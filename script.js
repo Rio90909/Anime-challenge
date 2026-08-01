@@ -82,6 +82,7 @@ function normalizeKitsuResponse(searchData) {
         };
 
         const episodes = attrs.episodeCount || null;
+        const synopsis = attrs.synopsis || attrs.description || '';
 
         return {
             mal_id,
@@ -94,6 +95,7 @@ function normalizeKitsuResponse(searchData) {
             year,
             images,
             episodes,
+            synopsis,
             isManual: false
         };
     });
@@ -121,6 +123,17 @@ function parseBulkLine(line) {
 
     return { title: line, rating: null };
 }
+
+window.toggleSynopsis = function(btn) {
+    const p = btn.nextElementSibling;
+    if (p.classList.contains('hidden')) {
+        p.classList.remove('hidden');
+        btn.textContent = 'Hide Story ▴';
+    } else {
+        p.classList.add('hidden');
+        btn.textContent = 'Read Story ▾';
+    }
+};
 
 // --- UTILS (Hoisted) ---
 function getLocalDateString(date) {
@@ -760,6 +773,7 @@ function renderAllAnimeList() {
                 const studios = (anime.studios || []).map(s => s.name).join(', ') || 'N/A';
                 const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
                 const imageUrl = anime.images?.jpg?.small_image_url || 'https://via.placeholder.com/80x110?text=N/A';
+                const synopsis = anime.synopsis || '';
                 itemDiv.innerHTML = `
                     <img src="${imageUrl}" alt="Poster">
                     <div class="backlog-info">
@@ -775,6 +789,12 @@ function renderAllAnimeList() {
                             <p><strong>Studio:</strong> ${studios}</p>
                             <p><strong>Genres:</strong> ${genres}</p>
                         </div>
+                        ${synopsis ? `
+                        <div class="backlog-synopsis-container" style="margin-top: 8px;">
+                            <button class="backlog-synopsis-toggle-btn" onclick="toggleSynopsis(this)">Read Story ▾</button>
+                            <p class="backlog-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary);">${synopsis}</p>
+                        </div>
+                        ` : ''}
                     </div>
                 `;
             }
@@ -817,8 +837,19 @@ function showSearchResults(results, onSelect) {
             const title = getEnglishTitle(anime);
             
             const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/100x140?text=No+Image';
+            const genresStr = (anime.genres || []).slice(0, 2).map(g => g.name).join(', ') || 'N/A';
 
-            item.innerHTML = `<img src="${imageUrl}" alt="Poster"><h4 style="color: var(--text-color);">${title}</h4><button>Add</button>`;
+            item.innerHTML = `
+                <img src="${imageUrl}" alt="Poster">
+                <h4 style="color: var(--text-color);">${title}</h4>
+                <div class="search-result-meta" style="font-size: 11.5px; font-weight: bold; color: var(--primary-color); margin-bottom: 2px;">
+                    ${anime.type || 'N/A'} • ${anime.year || 'N/A'}
+                </div>
+                <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+                    ${genresStr}
+                </div>
+                <button>Add</button>
+            `;
             item.querySelector('button').onclick = () => { onSelect(anime); modal.classList.add('hidden'); };
             grid.appendChild(item);
         });
@@ -856,14 +887,46 @@ function createDayEntry(date) {
         (savedDayData.watched || []).forEach((anime, index) => {
             const animeDiv = document.createElement('div');
             animeDiv.className = 'anime-info-item';
-            let scoreDisplay = anime.user_score ? ` (My Score: ${anime.user_score})` : '';
             if (anime.isManual) { 
-                animeDiv.innerHTML = `<div class="anime-info-text"><h4>${anime.title} (Manual)${scoreDisplay}</h4></div>`;
+                animeDiv.innerHTML = `
+                    <div class="anime-info-text">
+                        <h4 class="anime-info-title">${anime.title} <span class="manual-entry-badge">(Manual)</span></h4>
+                        <div class="anime-info-badges">
+                            ${anime.user_score ? `<span class="anime-info-badge user-score-badge">My: ${anime.user_score}</span>` : ''}
+                        </div>
+                    </div>
+                    <button class="remove-btn" data-index="${index}">&times;</button>
+                `;
             } else {
-                const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/40x60?text=N/A';
-                animeDiv.innerHTML = `<img src="${imageUrl}" alt="Poster"><div class="anime-info-text"><h4>${getEnglishTitle(anime)}${scoreDisplay}</h4><p>${(anime.genres || []).map(g => g.name).join(', ')}</p></div>`;
+                const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/60x85?text=N/A';
+                const studios = (anime.studios || []).map(s => s.name).join(', ') || 'N/A';
+                const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
+                const synopsis = anime.synopsis || '';
+
+                animeDiv.innerHTML = `
+                    <img src="${imageUrl}" alt="Poster" class="anime-info-img">
+                    <div class="anime-info-text">
+                        <h4 class="anime-info-title">${getEnglishTitle(anime)}</h4>
+                        <div class="anime-info-badges">
+                            <span class="anime-info-badge type-badge">${anime.type || 'N/A'}</span>
+                            <span class="anime-info-badge year-badge">${anime.year || 'N/A'}</span>
+                            ${anime.score ? `<span class="anime-info-badge mal-score-badge">MAL: ${anime.score}</span>` : ''}
+                            ${anime.user_score ? `<span class="anime-info-badge user-score-badge">My: ${anime.user_score}</span>` : ''}
+                        </div>
+                        <div class="anime-info-details">
+                            <p><strong>Studio:</strong> ${studios}</p>
+                            <p><strong>Genres:</strong> ${genres}</p>
+                        </div>
+                        ${synopsis ? `
+                        <div class="anime-synopsis-container">
+                            <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)">Read Story ▾</button>
+                            <p class="anime-synopsis-text hidden">${synopsis}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                    <button class="remove-btn" data-index="${index}">&times;</button>
+                `;
             }
-            animeDiv.innerHTML += `<button class="remove-btn" data-index="${index}">&times;</button>`;
             animeListContainer.appendChild(animeDiv);
         });
         animeListContainer.querySelectorAll('.remove-btn').forEach(btn => {
