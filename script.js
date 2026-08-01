@@ -88,6 +88,29 @@ function normalizeKitsuResponse(searchData) {
     });
 }
 
+// Parses a single line for bulk imports, extracting optional rating at the end
+function parseBulkLine(line) {
+    const separatorMatch = line.match(/^(.*?)(?:\s*[-:[({]\s*([0-9]+(?:\.[0-9]+)?)\s*[)\]}]?)$/);
+    if (separatorMatch) {
+        const title = separatorMatch[1].trim();
+        const rating = parseFloat(separatorMatch[2]);
+        if (!isNaN(rating) && rating >= 1 && rating <= 10) {
+            return { title, rating };
+        }
+    }
+
+    const spaceMatch = line.match(/^(.*?)\s+([0-9]+(?:\.[0-9]+)?)$/);
+    if (spaceMatch) {
+        const title = spaceMatch[1].trim();
+        const rating = parseFloat(spaceMatch[2]);
+        if (!isNaN(rating) && rating >= 1 && rating <= 10) {
+            return { title, rating };
+        }
+    }
+
+    return { title: line, rating: null };
+}
+
 // --- UTILS (Hoisted) ---
 function getLocalDateString(date) {
     const year = date.getFullYear();
@@ -866,22 +889,51 @@ function createDayEntry(date) {
     };
     
     addManualBtn.onclick = () => { 
-        const title = animeInput.value.trim(); 
-        if (!title) return; 
+        const rawInput = animeInput.value.trim();
+        if (!rawInput) return;
 
-        const rating = promptForRating(title);
+        const lines = rawInput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         
-        savedDayData.watched.push({ 
-            title: title, 
-            isManual: true,
-            user_score: rating,
-            date_added: new Date().toISOString()
-        }); 
-        animeInput.value = ''; 
-        saveData(); 
-        renderWatchedList(); 
-        updateAllDisplays(); 
-        processAchievements(); 
+        if (lines.length > 1) {
+            let addedCount = 0;
+            lines.forEach(line => {
+                const parsed = parseBulkLine(line);
+                savedDayData.watched.push({
+                    title: parsed.title,
+                    isManual: true,
+                    user_score: parsed.rating,
+                    date_added: new Date().toISOString()
+                });
+                addedCount++;
+            });
+            animeInput.value = '';
+            saveData();
+            renderWatchedList();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Successfully bulk-logged ${addedCount} anime!`);
+        } else {
+            const title = lines[0];
+            const parsed = parseBulkLine(title);
+
+            let rating = parsed.rating;
+            if (rating === null) {
+                rating = promptForRating(parsed.title);
+            }
+
+            savedDayData.watched.push({
+                title: parsed.title,
+                isManual: true,
+                user_score: rating,
+                date_added: new Date().toISOString()
+            });
+            animeInput.value = '';
+            saveData();
+            renderWatchedList();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Logged ${parsed.title}!`);
+        }
     };
     
     renderWatchedList();
@@ -1131,22 +1183,53 @@ function initializeApp() {
     };
 
     addBacklogManualBtn.onclick = () => { 
-        const title = backlogInput.value.trim(); 
-        if (!title) return; 
+        const rawInput = backlogInput.value.trim();
+        if (!rawInput) return;
         
-        const rating = promptForRating(title);
+        const lines = rawInput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-        challengeData.backlog.push({ 
-            title: title, 
-            isManual: true,
-            user_score: rating,
-            date_added: new Date().toISOString()
-        }); 
-        backlogInput.value = ''; 
-        saveData(); 
-        renderAllAnimeList(); 
-        updateAllDisplays(); 
-        processAchievements();
+        if (lines.length > 1) {
+            // Bulk add mode
+            let addedCount = 0;
+            lines.forEach(line => {
+                const parsed = parseBulkLine(line);
+                challengeData.backlog.push({
+                    title: parsed.title,
+                    isManual: true,
+                    user_score: parsed.rating,
+                    date_added: new Date().toISOString()
+                });
+                addedCount++;
+            });
+            backlogInput.value = '';
+            saveData();
+            renderAllAnimeList();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Successfully bulk-imported ${addedCount} anime into your backlog!`);
+        } else {
+            // Single add mode with prompt
+            const title = lines[0];
+            const parsed = parseBulkLine(title);
+
+            let rating = parsed.rating;
+            if (rating === null) {
+                rating = promptForRating(parsed.title);
+            }
+
+            challengeData.backlog.push({
+                title: parsed.title,
+                isManual: true,
+                user_score: rating,
+                date_added: new Date().toISOString()
+            });
+            backlogInput.value = '';
+            saveData();
+            renderAllAnimeList();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Added ${parsed.title} to your backlog!`);
+        }
     };
     
     document.getElementById('anipace-log-form').onsubmit = async (e) => {
