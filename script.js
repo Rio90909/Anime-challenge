@@ -1646,6 +1646,7 @@ function initializeFirebase() {
     const firebaseConfig = {
       apiKey: "AIzaSyDNOVz7Q0jL0FYs_LIb8gyil_7widhEwPE",
       authDomain: "anime-challenge-2ed29.firebaseapp.com",
+      databaseURL: "https://anime-challenge-2ed29-default-rtdb.firebaseio.com",
       projectId: "anime-challenge-2ed29",
       storageBucket: "anime-challenge-2ed29.firebasestorage.app",
       messagingSenderId: "278845737524",
@@ -1656,19 +1657,31 @@ function initializeFirebase() {
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
 
+    const statusEl = document.getElementById('firebase-sync-status');
+    const infoEl = document.getElementById('firebase-user-info');
+    const authForm = document.getElementById('firebase-auth-form');
+    const accDetails = document.getElementById('firebase-account-details');
+    const userEmailEl = document.getElementById('firebase-user-email');
+
     // Observe Auth state and load/sync user database entries
     firebase.auth().onAuthStateChanged(user => {
-        const statusEl = document.getElementById('firebase-sync-status');
-        const infoEl = document.getElementById('firebase-user-info');
-
         if (user) {
             firebaseUser = user;
             if (statusEl) {
-                statusEl.textContent = 'Connected (Cloud Synced)';
-                statusEl.style.color = '#2ecc71'; // var(--success-color)
+                statusEl.textContent = user.isAnonymous ? 'Guest Mode (Cloud Synced)' : 'Account Synced ☁️';
+                statusEl.style.color = '#2ecc71';
             }
             if (infoEl) {
-                infoEl.textContent = `UID: ${user.uid} (${user.isAnonymous ? 'Anonymous Auth' : 'Authenticated'})`;
+                infoEl.textContent = `UID: ${user.uid}`;
+            }
+
+            if (user.isAnonymous) {
+                if (authForm) authForm.classList.remove('hidden');
+                if (accDetails) accDetails.classList.add('hidden');
+            } else {
+                if (authForm) authForm.classList.add('hidden');
+                if (accDetails) accDetails.classList.remove('hidden');
+                if (userEmailEl) userEmailEl.textContent = user.email;
             }
 
             // One-time pull and merge of data from Firebase upon connection
@@ -1677,12 +1690,14 @@ function initializeFirebase() {
                 if (cloud) {
                     let updated = false;
                     if (cloud.challengeData) {
-                        challengeData = cloud.challengeData;
+                        // Merge fields safely to retain original object references
+                        Object.assign(challengeData, cloud.challengeData);
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(challengeData));
                         updated = true;
                     }
                     if (cloud.anipaceData) {
-                        anipaceData = cloud.anipaceData;
+                        // Merge fields safely to retain original object references
+                        Object.assign(anipaceData, cloud.anipaceData);
                         localStorage.setItem(ANIPACE_STORAGE_KEY, JSON.stringify(anipaceData));
                         updated = true;
                     }
@@ -1700,8 +1715,8 @@ function initializeFirebase() {
             }).catch(err => {
                 console.error("Firebase read error:", err);
                 if (statusEl) {
-                    statusEl.textContent = 'Sync Error';
-                    statusEl.style.color = '#e74c3c'; // var(--error-color)
+                    statusEl.textContent = 'Sync Access Denied';
+                    statusEl.style.color = '#e74c3c';
                 }
             });
         } else {
@@ -1710,6 +1725,9 @@ function initializeFirebase() {
                 statusEl.textContent = 'Connecting...';
                 statusEl.style.color = 'var(--text-secondary)';
             }
+            if (authForm) authForm.classList.remove('hidden');
+            if (accDetails) accDetails.classList.add('hidden');
+
             // Auto-sign-in anonymously to create credentials and resolve security rules cleanly
             firebase.auth().signInAnonymously().catch(err => {
                 console.error("Anonymous authentication failed:", err);
@@ -1720,7 +1738,101 @@ function initializeFirebase() {
             });
         }
     });
+
+    // Login Event Handler
+    document.getElementById('firebase-login-btn').onclick = () => {
+        const email = document.getElementById('firebase-email').value.trim();
+        const password = document.getElementById('firebase-password').value;
+        if (!email || !password) {
+            showNotification('Please fill in both email and password.', 'error');
+            return;
+        }
+
+        firebase.auth().signInWithEmailAndPassword(email, password)
+            .then((result) => {
+                showNotification('Signed in successfully!');
+                // Reset form inputs
+                document.getElementById('firebase-email').value = '';
+                document.getElementById('firebase-password').value = '';
+            })
+            .catch(err => {
+                showNotification(err.message, 'error');
+            });
+    };
+
+    // Register Event Handler
+    document.getElementById('firebase-register-btn').onclick = () => {
+        const email = document.getElementById('firebase-email').value.trim();
+        const password = document.getElementById('firebase-password').value;
+        if (!email || !password) {
+            showNotification('Please fill in both email and password.', 'error');
+            return;
+        }
+        if (password.length < 6) {
+            showNotification('Password must be at least 6 characters.', 'error');
+            return;
+        }
+
+        // Copy current guest data so we can upload it to the new account after registration
+        const guestChallenge = challengeData;
+        const guestAnipace = anipaceData;
+
+        firebase.auth().createUserWithEmailAndPassword(email, password)
+            .then((result) => {
+                showNotification('Account created successfully!');
+                const uid = result.user.uid;
+
+                // Upload current list data to the newly created account
+                firebase.database().ref(`users/${uid}`).set({
+                    challengeData: guestChallenge,
+                    anipaceData: guestAnipace
+                }).catch(err => console.error(err));
+
+                // Reset inputs
+                document.getElementById('firebase-email').value = '';
+                document.getElementById('firebase-password').value = '';
+            })
+            .catch(err => {
+                showNotification(err.message, 'error');
+            });
+    };
+
+    // Logout Event Handler
+    document.getElementById('firebase-logout-btn').onclick = () => {
+        firebase.auth().signOut()
+            .then(() => {
+                showNotification('Logged out from cloud account.');
+                // Clear local caches and reset to empty guest space
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(ANIPACE_STORAGE_KEY);
+                location.reload();
+            })
+            .catch(err => {
+                showNotification(err.message, 'error');
+            });
+    };
 }
 
 initializeApp();
 initializeFirebase();
+
+/*
+========================================================================
+FIREBASE REALTIME DATABASE SECURITY RULES
+========================================================================
+To prevent "Sync Access Denied" or permission errors, copy and paste the
+following JSON structure into your Firebase Console under:
+Realtime Database -> Rules -> Edit rules -> Publish.
+
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    }
+  }
+}
+========================================================================
+*/
