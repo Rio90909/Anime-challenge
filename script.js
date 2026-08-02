@@ -371,7 +371,16 @@ function showNotification(message, type = 'success') {
     const messageElement = document.getElementById('achievement-message');
     
     messageElement.textContent = message;
-    banner.style.backgroundColor = type === 'error' ? 'var(--error-color)' : 'var(--primary-color)';
+    if (type === 'error') {
+        banner.style.background = 'linear-gradient(135deg, var(--error-color), #DC2626)';
+        banner.style.color = '#FFF';
+    } else if (type === 'achievement') {
+        banner.style.background = 'linear-gradient(135deg, var(--primary-color), #FFA000)';
+        banner.style.color = '#000';
+    } else {
+        banner.style.background = 'linear-gradient(135deg, var(--success-color), #059669)';
+        banner.style.color = '#FFF';
+    }
     banner.classList.add('show');
     if (type === 'achievement') { 
         document.getElementById('milestoneSound').play(); 
@@ -1463,7 +1472,7 @@ function initializeFirebase() {
             firebaseUser = user;
             if (statusEl) {
                 statusEl.textContent = user.isAnonymous ? 'Guest Mode (Cloud Synced)' : 'Account Synced ☁️';
-                statusEl.style.color = '#2ecc71';
+                statusEl.style.color = 'var(--success-color)';
             }
             if (infoEl) {
                 infoEl.textContent = `UID: ${user.uid}`;
@@ -1510,7 +1519,7 @@ function initializeFirebase() {
                 console.error("Firebase read error:", err);
                 if (statusEl) {
                     statusEl.textContent = 'Sync Access Denied';
-                    statusEl.style.color = '#e74c3c';
+                    statusEl.style.color = 'var(--error-color)';
                 }
             });
         } else {
@@ -1524,11 +1533,12 @@ function initializeFirebase() {
 
             // Auto-sign-in anonymously to create credentials and resolve security rules cleanly
             firebase.auth().signInAnonymously().catch(err => {
-                console.error("Anonymous authentication failed:", err);
+                console.warn("Anonymous authentication failed. Operating in Local-Only Mode:", err);
                 if (statusEl) {
-                    statusEl.textContent = 'Offline (Auth Blocked)';
-                    statusEl.style.color = '#e74c3c';
+                    statusEl.textContent = 'Local Mode (Cloud Offline)';
+                    statusEl.style.color = 'var(--text-secondary)';
                 }
+                showNotification('Running in local-only mode. (Enable Anonymous Auth in Firebase Console to unlock Cloud Sync)', 'error');
             });
         }
     });
@@ -1649,21 +1659,30 @@ initializeFirebase();
 
 /*
 ========================================================================
-FIREBASE REALTIME DATABASE SECURITY RULES
+FIREBASE SETUP INSTRUCTIONS
 ========================================================================
-To prevent "Sync Access Denied" or permission errors, copy and paste the
-following JSON structure into your Firebase Console under:
-Realtime Database -> Rules -> Edit rules -> Publish.
+1. ENABLE ANONYMOUS AUTH:
+   In your Firebase Console, navigate to:
+   Authentication -> Sign-in method -> Add new provider -> select "Anonymous" and click "Enable".
 
-{
-  "rules": {
-    "users": {
-      "$uid": {
-        ".read": "auth != null && auth.uid == $uid",
-        ".write": "auth != null && auth.uid == $uid"
-      }
-    }
-  }
-}
+2. ENABLE GOOGLE SIGN-IN:
+   In your Firebase Console, navigate to:
+   Authentication -> Sign-in method -> Add new provider -> select "Google", click "Enable", select your support email and Save.
+
+3. FIREBASE REALTIME DATABASE SECURITY RULES:
+   To prevent "Sync Access Denied" or permission errors, copy and paste the
+   following JSON structure into your Firebase Console under:
+   Realtime Database -> Rules -> Edit rules -> Publish.
+
+   {
+     "rules": {
+       "users": {
+         "$uid": {
+           ".read": "auth != null && auth.uid == $uid",
+           ".write": "auth != null && auth.write == $uid"
+         }
+       }
+     }
+   }
 ========================================================================
 */

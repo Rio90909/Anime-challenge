@@ -187,6 +187,55 @@ body.backlog-active .backlog-text-meta p {
 body.backlog-active .backlog-text-meta strong {
     color: #111827;
 }
+
+/* Safeguard all modals to remain strictly dark-themed with high contrast, regardless of backlog light mode */
+body.backlog-active .modal-content,
+.modal-content {
+    background-color: #151C2C !important;
+    color: #F3F4F6 !important;
+}
+body.backlog-active .modal-content h2,
+.modal-content h2 {
+    color: #FFC107 !important; /* Premium Gold Header */
+    text-shadow: 0 2px 8px rgba(255, 193, 7, 0.15) !important;
+}
+body.backlog-active .modal-content h3,
+.modal-content h3 {
+    color: #FFFFFF !important;
+}
+body.backlog-active .modal-content h4,
+.modal-content h4 {
+    color: var(--primary-color) !important;
+}
+body.backlog-active .modal-content p,
+.modal-content p {
+    color: #9CA3AF !important;
+}
+body.backlog-active .modal-content label,
+.modal-content label {
+    color: #F3F4F6 !important;
+}
+body.backlog-active .modal-content input,
+.modal-content input,
+body.backlog-active .modal-content select,
+.modal-content select,
+body.backlog-active .modal-content textarea,
+.modal-content textarea {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    color: #F3F4F6 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+body.backlog-active .modal-content input[type="date"],
+.modal-content input[type="date"] {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    color: #F3F4F6 !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+body.backlog-active .modal-content select option,
+.modal-content select option {
+    background-color: #151C2C !important;
+    color: #F3F4F6 !important;
+}
 /* End STYLES for Black & White Backlog Screen */
 
 .hidden { display: none !important; }
@@ -1074,14 +1123,70 @@ input[type="date"]::-webkit-outer-spin-button {
 }
 
 /* Beautiful Google Login Button Styles */
+.google-signin-btn {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
 .google-signin-btn:hover {
-    background-color: #f7f9fa !important;
-    border-color: #c4c7c5 !important;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    transform: translateY(-1px);
+    background-color: #ffffff !important;
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 15px var(--primary-glow) !important;
+    transform: translateY(-2px) scale(1.02);
 }
 .google-signin-btn:active {
     background-color: #e8eaed !important;
+    transform: translateY(0) scale(1);
+}
+
+/* Luxurious Hover Scale-ups & Glowing micro-interactions */
+.stat-card {
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.stat-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--primary-color);
+    box-shadow: 0 12px 24px rgba(255, 193, 7, 0.12), var(--card-shadow);
+}
+
+.add-btn {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.add-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #FFE082, var(--primary-color)) !important;
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 20px rgba(255, 193, 7, 0.4);
+}
+.add-btn:active:not(:disabled) {
+    transform: translateY(0) scale(1);
+}
+
+.manual-add-btn {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.manual-add-btn:hover:not(:disabled) {
+    background-color: var(--primary-glow) !important;
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 20px rgba(255, 193, 7, 0.15);
+}
+
+.top-bar button {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.top-bar button:hover {
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(255, 193, 7, 0.15);
+}
+
+.anime-info-item, .backlog-anime-list-item {
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.anime-info-item:hover, .backlog-anime-list-item:hover {
+    transform: translateY(-3px) scale(1.01);
+    border-color: rgba(255, 193, 7, 0.25) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 
 /* Scrollbar styling for a high-end look */
