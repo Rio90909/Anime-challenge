@@ -30,6 +30,14 @@
     padding: 0;
 }
 
+html {
+    max-width: 100%;
+    overflow-x: hidden;
+    position: relative;
+    height: 100%;
+    -webkit-text-size-adjust: 100%;
+}
+
 body { 
     font-family: 'Poppins', 'Roboto', sans-serif;
     background-color: var(--bg-color); 
@@ -41,6 +49,12 @@ body {
     line-height: 1.6;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    max-width: 100%;
+    overflow-x: hidden;
+    position: relative;
+    overscroll-behavior-y: contain; /* Prevents scroll-chaining bounce, making modal & popups feel premium */
+    touch-action: manipulation; /* Removes double-tap zoom delay */
+    -webkit-overflow-scrolling: touch; /* Native momentum scrolling for iOS */
 }
 
 /* PREMIUM BACKLOG SCREEN (Light Mode Adapter with Premium Contrast) */
@@ -802,10 +816,10 @@ header h1 {
 
 /* AniPace Specific Styles */
 #anipace-log-screen {
-    padding: 20px;
+    padding: 20px 10px;
     max-width: 440px;
-    margin-top: 20px;
-    margin-bottom: 20px;
+    width: 100%;
+    margin: 20px auto;
 }
 .anipace-card {
     background: var(--anipace-surface-color);
@@ -1067,12 +1081,19 @@ header h1 {
     }
     
     .top-bar {
-        flex-direction: column;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
         gap: 8px;
+        padding: 15px 10px;
     }
     
     .top-bar button {
-        width: 100%;
+        flex: 1 1 calc(50% - 8px);
+        min-width: 120px;
+        font-size: 13px;
+        padding: 10px 12px;
         margin: 0;
     }
     
