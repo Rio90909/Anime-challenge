@@ -862,3 +862,13 @@ input[type="date"]::-webkit-outer-spin-button {
     background-color: var(--primary-color);
     transition: width 0.5s ease;
 }
+
+/* Beautiful Google Login Button Styles */
+.google-signin-btn:hover {
+    background-color: #f7f9fa !important;
+    border-color: #c4c7c5 !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+.google-signin-btn:active {
+    background-color: #e8eaed !important;
+}

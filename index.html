@@ -1,9 +1,4 @@
-<!doctype html>
-<html>
-    <head> 
-        <meta charset="UTF-8"> 
-        <meta name="viewport" id="viewport" content="width=device-width, initial-scale=1"> 
-        <link rel="<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -26,86 +21,85 @@
     
     <div id="achievements-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" aria-label="Close modal">&times;</span><h2>Achievements</h2><div id="achievements-grid"></div></div></div>
     
-    <div id="settings-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" aria-label="Close modal">&times;</span><h2>Settings</h2>
-        
-        <!-- START: Challenge Date Settings (NEW/MODIFIED) -->
-        <div class="settings-section">
-            <h4>Challenge Dates (YYYY-MM-DD)</h4>
-            <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444; margin-bottom: 10px;">
-                <label style="color: var(--text-color); font-weight: bold;">Start Date:</label>
-                <input type="date" id="challenge-start-date">
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444;">
-                <label style="color: var(--text-color); font-weight: bold;">End Date:</label>
-                <input type="date" id="challenge-end-date">
-            </div>
-            <button id="save-date-settings-btn" class="add-btn" style="width: 100%; margin-top: 15px;">Save Dates & Reload</button>
-        </div>
-        <!-- END: Challenge Date Settings -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-btn" aria-label="Close modal">&times;</span>
+            <h2>Settings</h2>
 
-        <div class="settings-section">
-            <h4>AniPace Settings</h4>
-            <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444;">
-                <label style="color: var(--text-color); font-weight: bold;">Playback Speed:</label><input type="number" id="speed-input" step="0.25" style="width: 80px; text-align: center; background-color: #333; border-color: #444; color: var(--text-color);">
-            </div>
-        </div>
-        <div class="settings-section">
-            <h4>Data Management (Local Storage)</h4>
-            <p style="color: var(--text-secondary); font-size: 12px;">All your progress is saved on this browser/device only. Use Export/Import for backups.</p>
-        </div>
-        <div class="settings-section">
-            <h4>Challenge Backup & Restore</h4>
-            <button id="export-btn">📁 Export as File</button>
-            <button id="copy-backup-btn">📋 Copy to Clipboard (Recommended)</button>
-            <label for="import-file" class="btn-like-label">📂 Import from File</label>
-            <button id="import-text-btn" class="btn-like-label">📝 Import from Text</button>
-            <input type="file" id="import-file" class="hidden" accept=".json">
-        </div>
-        
-        <!-- NEW: AniPace Backup Section -->
-        <div class="settings-section anipace-backup-section">
-            <h4>AniPace Backup & Restore</h4>
-            <button id="export-anipace-btn">📁 Export AniPace as File</button>
-            <button id="copy-anipace-btn">📋 Copy AniPace to Clipboard</button>
-            <label for="import-anipace-file" class="btn-like-label">📂 Import AniPace from File</label>
-            <button id="import-anipace-text-btn" class="btn-like-label">📝 Import AniPace from Text</button>
-            <input type="file" id="import-anipace-file" class="hidden" accept=".json">
-        </div>
-        
-        <!-- Firebase Cloud Sync & Account Authentication Section -->
-        <div class="settings-section">
-            <h4>☁️ Firebase Account Cloud Sync</h4>
-            <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444; margin-bottom: 12px;">
-                <span style="color: var(--text-color); font-weight: bold;">Sync Status:</span>
-                <span id="firebase-sync-status" style="color: var(--text-secondary); font-weight: bold;">Loading...</span>
+            <!-- Challenge Date Settings -->
+            <div class="settings-section">
+                <h4>Challenge Dates</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444; margin-bottom: 10px;">
+                    <label style="color: var(--text-color); font-weight: bold; font-size: 13px;">Start Date:</label>
+                    <input type="date" id="challenge-start-date">
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444;">
+                    <label style="color: var(--text-color); font-weight: bold; font-size: 13px;">End Date:</label>
+                    <input type="date" id="challenge-end-date">
+                </div>
+                <button id="save-date-settings-btn" class="add-btn" style="width: 100%; margin-top: 12px; height: 38px; font-size: 13px;">Save Dates & Reload</button>
             </div>
 
-            <!-- Account Form (Visible when Logged Out/Guest) -->
-            <div id="firebase-auth-form" class="hidden" style="background-color: rgba(0,0,0,0.1); padding: 12px; border-radius: 10px; border: 1px solid #333; margin-bottom: 10px;">
-                <p style="color: var(--text-secondary); font-size: 11.5px; margin: 0 0 10px 0; line-height: 1.4;">Sign in or register an account to sync your anime list across devices. Existing guest lists will automatically upload to your account!</p>
-                <input type="email" id="firebase-email" placeholder="Email Address" style="width: 100%; padding: 8px; margin-bottom: 8px; background-color: #222; border: 1px solid #444; border-radius: 6px; color: var(--text-color);">
-                <input type="password" id="firebase-password" placeholder="Password" style="width: 100%; padding: 8px; margin-bottom: 10px; background-color: #222; border: 1px solid #444; border-radius: 6px; color: var(--text-color);">
-                <div style="display: flex; gap: 8px;">
-                    <button id="firebase-login-btn" class="add-btn" style="flex: 1; padding: 8px; font-size: 13px;">Sign In</button>
-                    <button id="firebase-register-btn" class="manual-add-btn" style="flex: 1; padding: 8px; font-size: 13px;">Register</button>
+            <!-- Playback speed settings -->
+            <div class="settings-section">
+                <h4>AniPace Settings</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444;">
+                    <label style="color: var(--text-color); font-weight: bold; font-size: 13px;">Playback Speed:</label>
+                    <input type="number" id="speed-input" step="0.25" style="width: 80px; text-align: center; background-color: #333; border-color: #444; color: var(--text-color);">
                 </div>
             </div>
 
-            <!-- Logged In Details (Visible when Signed In) -->
-            <div id="firebase-account-details" class="hidden" style="background-color: rgba(46, 204, 113, 0.1); padding: 12px; border-radius: 10px; border: 1px solid rgba(46, 204, 113, 0.3); margin-bottom: 10px; text-align: center;">
-                <p style="color: var(--text-color); font-size: 12.5px; font-weight: bold; margin: 0 0 4px 0;">Signed In Successfully</p>
-                <p id="firebase-user-email" style="color: var(--text-secondary); font-size: 12px; margin: 0 0 10px 0; word-break: break-all;"></p>
-                <button id="firebase-logout-btn" class="manual-add-btn" style="width: 100%; padding: 8px; font-size: 13px; border-color: var(--error-color); color: var(--error-color);">Log Out of Account</button>
+            <!-- Firebase Cloud Sync & Account Authentication Section -->
+            <div class="settings-section">
+                <h4>☁️ Cloud Account Sync</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444; margin-bottom: 12px;">
+                    <span style="color: var(--text-color); font-weight: bold; font-size: 13px;">Sync Status:</span>
+                    <span id="firebase-sync-status" style="color: var(--text-secondary); font-weight: bold; font-size: 13px;">Loading...</span>
+                </div>
+
+                <!-- Account Form (Visible when Logged Out/Guest) -->
+                <div id="firebase-auth-form" class="hidden" style="background-color: rgba(0,0,0,0.15); padding: 15px; border-radius: 10px; border: 1px solid #333; margin-bottom: 10px;">
+                    <!-- Google Sign-In Button -->
+                    <button id="firebase-google-btn" class="google-signin-btn" style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 40px; background-color: #ffffff; color: #1f1f1f; border: 1px solid #dadce0; border-radius: 6px; font-family: 'Roboto', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; margin-bottom: 12px; transition: background-color 0.2s;">
+                        <svg width="18" height="18" viewBox="0 0 18 18">
+                            <path fill="#4285F4" d="M17.64 9.2c0-.63-.06-1.25-.16-1.84H9v3.47h4.84c-.21 1.12-.84 2.07-1.8 2.7l2.8 2.17c1.64-1.51 2.58-3.74 2.58-6.5z"/>
+                            <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.2l-2.8-2.17c-.78.52-1.78.83-2.96.83-2.28 0-4.21-1.54-4.9-3.61L1.4 13.02C2.88 15.96 5.93 18 9 18z"/>
+                            <path fill="#FBBC05" d="M4.1 10.85c-.17-.52-.27-1.07-.27-1.65s.1-1.13.27-1.65L1.4 5.38C.8 6.58.5 7.93.5 9.3s.3 2.72.9 3.92l2.7-2.37z"/>
+                            <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35L15 2.4C13.46.99 11.42 0 9 0 5.93 0 2.88 2.04 1.4 4.98l2.7 2.37C4.79 5.12 6.72 3.58 9 3.58z"/>
+                        </svg>
+                        Sign in with Google
+                    </button>
+
+                    <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                        <span style="height: 1px; width: 100%; background-color: #333;"></span>
+                        <span style="padding: 0 10px; color: var(--text-secondary); font-size: 11px; text-transform: uppercase;">or</span>
+                        <span style="height: 1px; width: 100%; background-color: #333;"></span>
+                    </div>
+
+                    <input type="email" id="firebase-email" placeholder="Email Address" style="width: 100%; padding: 8px; margin-bottom: 8px; background-color: #222; border: 1px solid #444; border-radius: 6px; color: var(--text-color); box-sizing: border-box; font-size: 13px;">
+                    <input type="password" id="firebase-password" placeholder="Password" style="width: 100%; padding: 8px; margin-bottom: 12px; background-color: #222; border: 1px solid #444; border-radius: 6px; color: var(--text-color); box-sizing: border-box; font-size: 13px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button id="firebase-login-btn" class="add-btn" style="flex: 1; padding: 8px; font-size: 13px; height: 36px;">Sign In</button>
+                        <button id="firebase-register-btn" class="manual-add-btn" style="flex: 1; padding: 8px; font-size: 13px; height: 36px;">Register</button>
+                    </div>
+                </div>
+
+                <!-- Logged In Details (Visible when Signed In) -->
+                <div id="firebase-account-details" class="hidden" style="background-color: rgba(46, 204, 113, 0.1); padding: 12px; border-radius: 10px; border: 1px solid rgba(46, 204, 113, 0.3); margin-bottom: 10px; text-align: center;">
+                    <p style="color: var(--text-color); font-size: 13px; font-weight: bold; margin: 0 0 4px 0;">Signed In Successfully</p>
+                    <p id="firebase-user-email" style="color: var(--text-secondary); font-size: 12px; margin: 0 0 10px 0; word-break: break-all;"></p>
+                    <button id="firebase-logout-btn" class="manual-add-btn" style="width: 100%; padding: 8px; font-size: 13px; border-color: var(--error-color); color: var(--error-color); height: 36px;">Log Out of Account</button>
+                </div>
+
+                <p id="firebase-user-info" style="color: var(--text-secondary); font-size: 10px; margin: 5px 0 0 0; text-align: center; word-break: break-all;"></p>
             </div>
 
-            <p id="firebase-user-info" style="color: var(--text-secondary); font-size: 10px; margin: 5px 0 0 0; text-align: center; word-break: break-all;"></p>
+            <div class="settings-section">
+                <h4>Danger Zone</h4>
+                <button id="reset-btn" style="height: 38px; font-size: 13px; background-color: var(--error-color); color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%;">Reset ALL Data</button>
+            </div>
         </div>
-
-        <div class="settings-section">
-            <h4>Danger Zone</h4>
-            <button id="reset-btn">Reset ALL Data</button>
-        </div>
-    </div></div>
+    </div>
     
     <div id="search-results-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" aria-label="Close modal">&times;</span><h2>Search Results</h2><div id="search-results-grid"></div></div></div>
     
@@ -136,34 +130,6 @@
                 <p style="margin: 5px 0;">Total Watch Time: <span id="result-time"></span></p>
                 <p style="margin: 5px 0;">You can watch approx:</p>
                 <p class="planner-result-episodes"><span id="result-episodes">0</span> episodes</p>
-            </div>
-        </div>
-    </div>
-    
-    <!-- NEW: Import Text Modal -->
-    <div id="import-text-modal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close-btn" aria-label="Close modal">&times;</span>
-            <h2>Import Backup from Text</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 15px;">Paste your backup text in the textarea below. This can handle large amounts of text that won't fit in a regular prompt.</p>
-            <textarea id="import-text-area" placeholder="Paste your backup text here..."></textarea>
-            <div class="import-buttons">
-                <button id="clear-text-btn" class="manual-add-btn">Clear</button>
-                <button id="import-text-confirm-btn" class="add-btn">Import Backup</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- NEW: Import AniPace Text Modal -->
-    <div id="import-anipace-text-modal" class="modal hidden">
-        <div class="modal-content">
-            <span class="close-btn" aria-label="Close modal">&times;</span>
-            <h2>Import AniPace Backup from Text</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 15px;">Paste your AniPace backup text in the textarea below.</p>
-            <textarea id="import-anipace-text-area" placeholder="Paste your AniPace backup text here..."></textarea>
-            <div class="import-buttons">
-                <button id="clear-anipace-text-btn" class="manual-add-btn">Clear</button>
-                <button id="import-anipace-text-confirm-btn" class="add-btn">Import AniPace</button>
             </div>
         </div>
     </div>

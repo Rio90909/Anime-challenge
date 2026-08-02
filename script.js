@@ -896,12 +896,11 @@ function showSearchResults(results, onSelect) {
     modal.classList.remove('hidden');
 }
 
-// --- FIXED: Day Entry Creation with proper date handling ---
+// --- Day Entry Creation ---
 function createDayEntry(date) {
     const div = document.createElement('div');
     div.className = 'day-entry';
     
-    // FIX: Use local date string for proper comparison
     const dateKey = getLocalDateString(date);
     const todayKey = getLocalDateString(new Date());
     
@@ -1141,15 +1140,12 @@ function switchToScreen(screenId) {
     }
 }
 
-// --- FIXED: Challenge Layout with proper date handling ---
+// --- Challenge Layout ---
 function initializeChallengeLayout() {
     const app = document.getElementById('app');
     app.innerHTML = '';
     
-    // FIX: Use local date string to avoid timezone issues
     const todayKey = getLocalDateString(new Date());
-    
-    // Create a proper local date from the start date string
     let currentDate = parseLocalDate(challengeData.challengeStart);
     
     const stopDate = parseLocalDate(challengeData.challengeEnd);
@@ -1159,7 +1155,6 @@ function initializeChallengeLayout() {
         const dateKey = getLocalDateString(currentDate);
         const hasData = (challengeData.days[dateKey]?.watched || []).length > 0;
         
-        // FIX: Compare date strings instead of timestamps
         if (dateKey >= todayKey || hasData) {
             app.appendChild(createDayEntry(new Date(currentDate)));
         }
@@ -1424,207 +1419,6 @@ function initializeApp() {
         setTimeout(() => location.reload(), 1000);
     };
 
-    document.getElementById('export-btn').onclick = () => {
-        const dataStr = JSON.stringify(challengeData, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `anime-challenge-backup-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showNotification('Progress exported to Downloads folder!');
-    };
-
-    document.getElementById('copy-backup-btn').onclick = () => {
-        const dataStr = JSON.stringify(challengeData, null, 2);
-        
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(dataStr).then(() => {
-                showNotification('Backup copied to clipboard!');
-            }).catch(err => {
-                console.error('Failed to copy text: ', err);
-                showNotification('Failed to copy. Please try Export as File.', 'error');
-            });
-        } else {
-            const textArea = document.createElement('textarea');
-            textArea.value = dataStr;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                showNotification('Backup copied to clipboard!');
-            } catch (err) {
-                showNotification('Failed to copy. Please try Export as File.', 'error');
-            }
-            document.body.removeChild(textArea);
-        }
-    };
-
-    document.getElementById('import-file').onchange = (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const importedData = JSON.parse(e.target.result);
-                if (importedData && importedData.days) {
-                    if (confirm('Are you sure you want to overwrite your current progress?')) {
-                        importedData.backlog = importedData.backlog || [];
-                        importedData.challengeStart = importedData.challengeStart || challengeData.challengeStart;
-                        importedData.challengeEnd = importedData.challengeEnd || challengeData.challengeEnd;
-
-                        challengeData = importedData;
-                        saveData(); 
-                        location.reload();
-                    }
-                } else {
-                    showNotification('Invalid backup file.', 'error');
-                }
-            } catch (err) {
-                showNotification('Could not read the file.', 'error');
-            }
-        };
-        reader.readAsText(file);
-        event.target.value = null; 
-    };
-
-    document.getElementById('import-text-btn').onclick = () => {
-        document.getElementById('import-text-modal').classList.remove('hidden');
-        document.getElementById('import-text-area').value = '';
-    };
-
-    document.getElementById('clear-text-btn').onclick = () => {
-        document.getElementById('import-text-area').value = '';
-    };
-
-    document.getElementById('import-text-confirm-btn').onclick = () => {
-        const text = document.getElementById('import-text-area').value;
-        if (!text.trim()) {
-            showNotification('Please paste your backup text.', 'error');
-            return;
-        }
-        
-        try {
-            const importedData = JSON.parse(text);
-            if (importedData && importedData.days) {
-                if (confirm('Are you sure you want to overwrite your current progress?')) {
-                    importedData.backlog = importedData.backlog || [];
-                    importedData.challengeStart = importedData.challengeStart || challengeData.challengeStart;
-                    importedData.challengeEnd = importedData.challengeEnd || challengeData.challengeEnd;
-                    challengeData = importedData;
-                    saveData(); 
-                    document.getElementById('import-text-modal').classList.add('hidden');
-                    showNotification('Backup imported! Reloading...');
-                    setTimeout(() => location.reload(), 1500);
-                }
-            } else {
-                showNotification('Invalid backup text.', 'error');
-            }
-        } catch (err) {
-            showNotification('Could not read the text.', 'error');
-        }
-    };
-    
-    document.getElementById('export-anipace-btn').onclick = () => {
-        const dataStr = JSON.stringify(anipaceData, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `anipace-backup-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showNotification('AniPace data exported!');
-    };
-    
-    document.getElementById('copy-anipace-btn').onclick = () => {
-        const dataStr = JSON.stringify(anipaceData, null, 2);
-        
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(dataStr).then(() => {
-                showNotification('AniPace data copied to clipboard!');
-            }).catch(err => {
-                showNotification('Failed to copy.', 'error');
-            });
-        } else {
-            const textArea = document.createElement('textarea');
-            textArea.value = dataStr;
-            document.body.appendChild(textArea);
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                showNotification('AniPace data copied to clipboard!');
-            } catch (err) {
-                showNotification('Failed to copy.', 'error');
-            }
-            document.body.removeChild(textArea);
-        }
-    };
-    
-    document.getElementById('import-anipace-file').onchange = (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const importedData = JSON.parse(e.target.result);
-                if (importedData) {
-                    if (confirm('Overwrite current AniPace data?')) {
-                        anipaceData = { ...anipaceData, ...importedData };
-                        saveAniPaceData();
-                        updateAllDisplays();
-                        showNotification('AniPace data imported!');
-                    }
-                } else {
-                    showNotification('Invalid AniPace backup.', 'error');
-                }
-            } catch (err) {
-                showNotification('Could not read the file.', 'error');
-            }
-        };
-        reader.readAsText(file);
-        event.target.value = null; 
-    };
-    
-    document.getElementById('import-anipace-text-btn').onclick = () => {
-        document.getElementById('import-anipace-text-modal').classList.remove('hidden');
-        document.getElementById('import-anipace-text-area').value = '';
-    };
-    
-    document.getElementById('clear-anipace-text-btn').onclick = () => {
-        document.getElementById('import-anipace-text-area').value = '';
-    };
-    
-    document.getElementById('import-anipace-text-confirm-btn').onclick = () => {
-        const text = document.getElementById('import-anipace-text-area').value;
-        if (!text.trim()) {
-            showNotification('Please paste your AniPace backup.', 'error');
-            return;
-        }
-        
-        try {
-            const importedData = JSON.parse(text);
-            if (importedData) {
-                if (confirm('Overwrite current AniPace data?')) {
-                    anipaceData = { ...anipaceData, ...importedData };
-                    saveAniPaceData();
-                    updateAllDisplays();
-                    document.getElementById('import-anipace-text-modal').classList.add('hidden');
-                    showNotification('AniPace data imported!');
-                }
-            } else {
-                showNotification('Invalid AniPace backup.', 'error');
-            }
-        } catch (err) {
-            showNotification('Could not read the text.', 'error');
-        }
-    };
-
     document.getElementById('reset-btn').onclick = () => {
         if (confirm('Are you sure you want to reset ALL data? This cannot be undone.')) {
             localStorage.removeItem(STORAGE_KEY);
@@ -1681,7 +1475,7 @@ function initializeFirebase() {
             } else {
                 if (authForm) authForm.classList.add('hidden');
                 if (accDetails) accDetails.classList.remove('hidden');
-                if (userEmailEl) userEmailEl.textContent = user.email;
+                if (userEmailEl) userEmailEl.textContent = user.email || user.displayName || 'Google Account';
             }
 
             // One-time pull and merge of data from Firebase upon connection
@@ -1739,6 +1533,45 @@ function initializeFirebase() {
         }
     });
 
+    // Google Sign-In Event Handler (NEW)
+    document.getElementById('firebase-google-btn').onclick = () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        // If logged in as guest (anonymous), we should link the credentials to retain their progress!
+        const currentUser = firebase.auth().currentUser;
+        if (currentUser && currentUser.isAnonymous) {
+            currentUser.linkWithPopup(provider)
+                .then((result) => {
+                    showNotification('Google account linked successfully!');
+                })
+                .catch((err) => {
+                    if (err.code === 'auth/credential-already-in-use') {
+                        // If Google is already registered as an account, sign in directly with it.
+                        firebase.auth().signInWithCredential(err.credential)
+                            .then(() => {
+                                showNotification('Signed in with Google!');
+                            })
+                            .catch(err2 => showNotification(err2.message, 'error'));
+                    } else {
+                        // Popup block or other auth issues -> fallback to popup signIn directly
+                        firebase.auth().signInWithPopup(provider)
+                            .then(() => {
+                                showNotification('Signed in with Google!');
+                            })
+                            .catch(pErr => showNotification(pErr.message, 'error'));
+                    }
+                });
+        } else {
+            firebase.auth().signInWithPopup(provider)
+                .then((result) => {
+                    showNotification('Signed in with Google successfully!');
+                })
+                .catch(err => {
+                    showNotification(err.message, 'error');
+                });
+        }
+    };
+
     // Login Event Handler
     document.getElementById('firebase-login-btn').onclick = () => {
         const email = document.getElementById('firebase-email').value.trim();
@@ -1751,7 +1584,6 @@ function initializeFirebase() {
         firebase.auth().signInWithEmailAndPassword(email, password)
             .then((result) => {
                 showNotification('Signed in successfully!');
-                // Reset form inputs
                 document.getElementById('firebase-email').value = '';
                 document.getElementById('firebase-password').value = '';
             })
@@ -1788,7 +1620,6 @@ function initializeFirebase() {
                     anipaceData: guestAnipace
                 }).catch(err => console.error(err));
 
-                // Reset inputs
                 document.getElementById('firebase-email').value = '';
                 document.getElementById('firebase-password').value = '';
             })
