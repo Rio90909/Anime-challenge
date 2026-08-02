@@ -72,6 +72,16 @@
             <input type="file" id="import-anipace-file" class="hidden" accept=".json">
         </div>
         
+        <!-- NEW: Firebase Cloud Sync Section -->
+        <div class="settings-section">
+            <h4>☁️ Firebase Cloud Sync</h4>
+            <div style="display:flex; justify-content:space-between; align-items:center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 10px; border: 1px solid #444; margin-bottom: 10px;">
+                <span style="color: var(--text-color); font-weight: bold;">Sync Status:</span>
+                <span id="firebase-sync-status" style="color: var(--text-secondary); font-weight: bold;">Loading...</span>
+            </div>
+            <p id="firebase-user-info" style="color: var(--text-secondary); font-size: 11px; margin: 5px 0 0 0; text-align: center; word-break: break-all;"></p>
+        </div>
+
         <div class="settings-section">
             <h4>Danger Zone</h4>
             <button id="reset-btn">Reset ALL Data</button>
@@ -262,6 +272,11 @@
     </main>
 
     <audio id="milestoneSound" src="https://www.soundjay.com/misc/sounds/magic-chime-01.mp3" preload="auto"></audio>
+
+    <!-- Firebase SDK Compat Core and Products -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <script src="script.js"></script>
 </body>

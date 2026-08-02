@@ -1,7 +1,8 @@
 // ===============================================
-// APP CONFIGURATION (LOCAL STORAGE ONLY)
+// APP CONFIGURATION (LOCAL STORAGE & FIREBASE DB)
 // ===============================================
 
+let firebaseUser = null;
 const STORAGE_KEY = 'animeDashboard_v6_combined';
 const ANIPACE_STORAGE_KEY = 'anipace_separate_data';
 const API_URL = 'https://kitsu.io/api/edge/anime';
@@ -299,10 +300,18 @@ const ranks = [
 
 function saveData() { 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(challengeData));
+    if (firebaseUser) {
+        firebase.database().ref(`users/${firebaseUser.uid}/challengeData`).set(challengeData)
+            .catch(err => console.error("Firebase save error:", err));
+    }
 }
 
 function saveAniPaceData() {
     localStorage.setItem(ANIPACE_STORAGE_KEY, JSON.stringify(anipaceData));
+    if (firebaseUser) {
+        firebase.database().ref(`users/${firebaseUser.uid}/anipaceData`).set(anipaceData)
+            .catch(err => console.error("Firebase save error:", err));
+    }
 }
 
 function loadChallengeData() {
@@ -1620,9 +1629,98 @@ function initializeApp() {
         if (confirm('Are you sure you want to reset ALL data? This cannot be undone.')) {
             localStorage.removeItem(STORAGE_KEY);
             localStorage.removeItem(ANIPACE_STORAGE_KEY);
-            location.reload();
+            if (firebaseUser) {
+                firebase.database().ref(`users/${firebaseUser.uid}`).remove().then(() => {
+                    location.reload();
+                }).catch(() => {
+                    location.reload();
+                });
+            } else {
+                location.reload();
+            }
         }
     };
 }
 
+function initializeFirebase() {
+    const firebaseConfig = {
+      apiKey: "AIzaSyDNOVz7Q0jL0FYs_LIb8gyil_7widhEwPE",
+      authDomain: "anime-challenge-2ed29.firebaseapp.com",
+      projectId: "anime-challenge-2ed29",
+      storageBucket: "anime-challenge-2ed29.firebasestorage.app",
+      messagingSenderId: "278845737524",
+      appId: "1:278845737524:web:91a3bc97aca5ae3fc31861",
+      measurementId: "G-P3WVXCZTLL"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Observe Auth state and load/sync user database entries
+    firebase.auth().onAuthStateChanged(user => {
+        const statusEl = document.getElementById('firebase-sync-status');
+        const infoEl = document.getElementById('firebase-user-info');
+
+        if (user) {
+            firebaseUser = user;
+            if (statusEl) {
+                statusEl.textContent = 'Connected (Cloud Synced)';
+                statusEl.style.color = '#2ecc71'; // var(--success-color)
+            }
+            if (infoEl) {
+                infoEl.textContent = `UID: ${user.uid} (${user.isAnonymous ? 'Anonymous Auth' : 'Authenticated'})`;
+            }
+
+            // One-time pull and merge of data from Firebase upon connection
+            firebase.database().ref(`users/${user.uid}`).once('value').then(snapshot => {
+                const cloud = snapshot.val();
+                if (cloud) {
+                    let updated = false;
+                    if (cloud.challengeData) {
+                        challengeData = cloud.challengeData;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(challengeData));
+                        updated = true;
+                    }
+                    if (cloud.anipaceData) {
+                        anipaceData = cloud.anipaceData;
+                        localStorage.setItem(ANIPACE_STORAGE_KEY, JSON.stringify(anipaceData));
+                        updated = true;
+                    }
+                    if (updated) {
+                        initializeChallengeLayout();
+                        updateAllDisplays();
+                    }
+                } else {
+                    // First-time sync: Upload existing local progress to the cloud database
+                    firebase.database().ref(`users/${user.uid}`).set({
+                        challengeData: challengeData,
+                        anipaceData: anipaceData
+                    }).catch(err => console.error("Firebase init set error:", err));
+                }
+            }).catch(err => {
+                console.error("Firebase read error:", err);
+                if (statusEl) {
+                    statusEl.textContent = 'Sync Error';
+                    statusEl.style.color = '#e74c3c'; // var(--error-color)
+                }
+            });
+        } else {
+            firebaseUser = null;
+            if (statusEl) {
+                statusEl.textContent = 'Connecting...';
+                statusEl.style.color = 'var(--text-secondary)';
+            }
+            // Auto-sign-in anonymously to create credentials and resolve security rules cleanly
+            firebase.auth().signInAnonymously().catch(err => {
+                console.error("Anonymous authentication failed:", err);
+                if (statusEl) {
+                    statusEl.textContent = 'Offline (Auth Blocked)';
+                    statusEl.style.color = '#e74c3c';
+                }
+            });
+        }
+    });
+}
+
 initializeApp();
+initializeFirebase();
