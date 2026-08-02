@@ -34,7 +34,6 @@ html {
     max-width: 100%;
     overflow-x: hidden;
     position: relative;
-    height: 100%;
     -webkit-text-size-adjust: 100%;
 }
 
@@ -51,10 +50,10 @@ body {
     -webkit-font-smoothing: antialiased;
     max-width: 100%;
     overflow-x: hidden;
+    overflow-y: auto; /* Explicitly guarantees natural vertical scrolling on all mobile viewports */
     position: relative;
-    overscroll-behavior-y: contain; /* Prevents scroll-chaining bounce, making modal & popups feel premium */
-    touch-action: manipulation; /* Removes double-tap zoom delay */
-    -webkit-overflow-scrolling: touch; /* Native momentum scrolling for iOS */
+    touch-action: manipulation; /* Removes double-tap zoom delay while keeping standard scrolling */
+    -webkit-overflow-scrolling: touch; /* High-performance momentum scrolling for iOS webviews */
 }
 
 /* PREMIUM BACKLOG SCREEN (Light Mode Adapter with Premium Contrast) */
