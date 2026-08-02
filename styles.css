@@ -472,20 +472,20 @@ header h1 {
 .add-controls { display: flex; gap: 12px; }
 .add-btn {
     flex-grow: 1;
-    background-color: var(--primary-color);
-    color: #000;
+    background: linear-gradient(135deg, #FFC107, #FFA000);
+    color: #0A0E17;
     font-weight: 700;
     border: none;
     padding: 13px;
     border-radius: 10px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
 }
 .add-btn:hover:not(:disabled) {
-    background-color: #FFE082;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 15px rgba(255, 193, 7, 0.3);
+    background: linear-gradient(135deg, #FFE082, #FFC107);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 20px rgba(255, 193, 7, 0.35);
 }
 .add-btn:disabled { background-color: #374151; color: #9CA3AF; cursor: not-allowed; box-shadow: none; }
 .manual-add-btn {
@@ -770,23 +770,25 @@ header h1 {
 
 #achievement-banner { 
     position: fixed; 
-    top: -100px; 
+    top: -150px;
     left: 50%; 
     transform: translateX(-50%); 
     background: linear-gradient(135deg, var(--primary-color), #FFA000);
     color: #000;
     padding: 14px 28px;
-    border-radius: 0 0 16px 16px;
-    box-shadow: 0 10px 25px rgba(255, 193, 7, 0.3);
-    font-size: 16px;
+    border-radius: 12px;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.45);
+    font-size: 15px;
     font-weight: 700;
     z-index: 10000; 
-    transition: top 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), background-color 0.3s;
+    transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    width: 90%;
+    max-width: 500px;
 }
-#achievement-banner.show { top: 0; }
+#achievement-banner.show { top: 20px; }
 
 #achievement-banner .close-btn {
     color: #000;
@@ -1207,7 +1209,7 @@ input[type="date"]::-webkit-outer-spin-button {
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .add-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #FFE082, var(--primary-color)) !important;
+    background: linear-gradient(135deg, #FFE082, #FFC107) !important;
     transform: translateY(-2px) scale(1.03);
     box-shadow: 0 8px 20px rgba(255, 193, 7, 0.4);
 }

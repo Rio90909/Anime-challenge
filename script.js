@@ -922,11 +922,10 @@ function createDayEntry(date) {
 
     const dateDisplay = date.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     
-    div.innerHTML = `<h3>${dateDisplay}<span class="daily-total"></span></h3><div class="anime-list-container"></div><textarea placeholder="Type an anime name..."></textarea><div class="add-controls"><button class="add-btn">Add from Online</button><button class="add-btn manual-add-btn">Add Manually</button></div>`;
+    div.innerHTML = `<h3>${dateDisplay}<span class="daily-total"></span></h3><div class="anime-list-container"></div><div class="add-controls" style="display: flex; gap: 10px; margin-top: 15px;"><input type="text" placeholder="Type anime name to search and add..." style="flex-grow: 1; padding: 12px; border-radius: 10px; background-color: rgba(0,0,0,0.2); border: 1px solid var(--border-light); color: var(--text-color); font-size: 15px;"><button class="add-btn" style="flex-shrink: 0; padding: 12px 24px; font-weight: 700; width: auto; margin: 0;">Add Anime</button></div>`;
     const animeListContainer = div.querySelector('.anime-list-container');
-    const animeInput = div.querySelector('textarea');
+    const animeInput = div.querySelector('input');
     const addOnlineBtn = div.querySelector('.add-btn');
-    const addManualBtn = div.querySelector('.manual-add-btn');
     const dailyTotalEl = div.querySelector('.daily-total');
 
     function renderWatchedList() {
@@ -1015,57 +1014,9 @@ function createDayEntry(date) {
             console.error("API Error:", error); 
             showNotification('Failed to fetch anime data. Check internet or API rate limits.', 'error'); 
         } finally { 
-            addOnlineBtn.textContent = 'Add from Online'; 
+            addOnlineBtn.textContent = 'Add Anime';
             addOnlineBtn.disabled = false; 
         } 
-    };
-    
-    addManualBtn.onclick = () => { 
-        const rawInput = animeInput.value.trim();
-        if (!rawInput) return;
-
-        const lines = rawInput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        
-        if (lines.length > 1) {
-            let addedCount = 0;
-            lines.forEach(line => {
-                const parsed = parseBulkLine(line);
-                savedDayData.watched.push({
-                    title: parsed.title,
-                    isManual: true,
-                    user_score: parsed.rating,
-                    date_added: new Date().toISOString()
-                });
-                addedCount++;
-            });
-            animeInput.value = '';
-            saveData();
-            renderWatchedList();
-            updateAllDisplays();
-            processAchievements();
-            showNotification(`Successfully bulk-logged ${addedCount} anime!`);
-        } else {
-            const title = lines[0];
-            const parsed = parseBulkLine(title);
-
-            let rating = parsed.rating;
-            if (rating === null) {
-                rating = promptForRating(parsed.title);
-            }
-
-            savedDayData.watched.push({
-                title: parsed.title,
-                isManual: true,
-                user_score: rating,
-                date_added: new Date().toISOString()
-            });
-            animeInput.value = '';
-            saveData();
-            renderWatchedList();
-            updateAllDisplays();
-            processAchievements();
-            showNotification(`Logged ${parsed.title}!`);
-        }
     };
     
     renderWatchedList();
@@ -1276,7 +1227,6 @@ function initializeApp() {
 
     const backlogInput = document.getElementById('backlog-anime-input');
     const addBacklogOnlineBtn = document.getElementById('add-backlog-online-btn');
-    const addBacklogManualBtn = document.getElementById('add-backlog-manual-btn');
 
     addBacklogOnlineBtn.onclick = async () => {
         const title = backlogInput.value.trim(); 
@@ -1305,58 +1255,8 @@ function initializeApp() {
             console.error("API Error:", error); 
             showNotification('Failed to fetch anime data. Check internet or API rate limits.', 'error'); 
         } finally { 
-            addBacklogOnlineBtn.textContent = 'Add Online'; 
+            addBacklogOnlineBtn.textContent = 'Add Anime';
             addBacklogOnlineBtn.disabled = false; 
-        }
-    };
-
-    addBacklogManualBtn.onclick = () => { 
-        const rawInput = backlogInput.value.trim();
-        if (!rawInput) return;
-        
-        const lines = rawInput.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-        if (lines.length > 1) {
-            // Bulk add mode
-            let addedCount = 0;
-            lines.forEach(line => {
-                const parsed = parseBulkLine(line);
-                challengeData.backlog.push({
-                    title: parsed.title,
-                    isManual: true,
-                    user_score: parsed.rating,
-                    date_added: new Date().toISOString()
-                });
-                addedCount++;
-            });
-            backlogInput.value = '';
-            saveData();
-            renderAllAnimeList();
-            updateAllDisplays();
-            processAchievements();
-            showNotification(`Successfully bulk-imported ${addedCount} anime into your backlog!`);
-        } else {
-            // Single add mode with prompt
-            const title = lines[0];
-            const parsed = parseBulkLine(title);
-
-            let rating = parsed.rating;
-            if (rating === null) {
-                rating = promptForRating(parsed.title);
-            }
-
-            challengeData.backlog.push({
-                title: parsed.title,
-                isManual: true,
-                user_score: rating,
-                date_added: new Date().toISOString()
-            });
-            backlogInput.value = '';
-            saveData();
-            renderAllAnimeList();
-            updateAllDisplays();
-            processAchievements();
-            showNotification(`Added ${parsed.title} to your backlog!`);
         }
     };
     
@@ -1679,7 +1579,7 @@ FIREBASE SETUP INSTRUCTIONS
        "users": {
          "$uid": {
            ".read": "auth != null && auth.uid == $uid",
-           ".write": "auth != null && auth.write == $uid"
+           ".write": "auth != null && auth.uid == $uid"
          }
        }
      }

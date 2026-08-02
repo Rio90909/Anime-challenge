@@ -177,10 +177,9 @@
             </div>
 
             <h2 style="margin-top: 30px;">Add to Backlog</h2>
-            <div id="backlog-entry-controls">
-                <textarea id="backlog-anime-input" placeholder="Anime title to add to backlog..."></textarea>
-                <button id="add-backlog-online-btn" class="add-btn">Add Online</button>
-                <button id="add-backlog-manual-btn" class="add-btn manual-add-btn">Add Manual</button>
+            <div id="backlog-entry-controls" style="display: flex; gap: 12px; margin-top: 15px;">
+                <input type="text" id="backlog-anime-input" placeholder="Type anime title to search and add..." style="flex-grow: 1; padding: 12px; border-radius: 10px; background-color: rgba(0,0,0,0.2); border: 1px solid var(--border-light); color: var(--text-color); font-size: 15px;">
+                <button id="add-backlog-online-btn" class="add-btn" style="flex-shrink: 0; padding: 0 25px; height: 46px; font-weight: 700; width: auto; margin: 0;">Add Anime</button>
             </div>
 
             <h2 style="margin-top: 30px;">Complete Watched List</h2>
