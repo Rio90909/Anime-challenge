@@ -45,14 +45,14 @@ body {
 
 /* PREMIUM BACKLOG SCREEN (Light Mode Adapter with Premium Contrast) */
 body.backlog-active {
-    background: #F4F6F9;
-    background-image: none;
-    color: #111827;
+    background-color: #F4F6F9 !important;
+    background-image: none !important;
+    color: #111827 !important;
 }
 body.backlog-active header h1,
 body.backlog-active .stat-card h3,
 body.backlog-active h2 {
-    color: #111827;
+    color: #111827 !important;
 }
 body.backlog-active .top-bar button {
     background-color: #1F2937;
@@ -74,7 +74,10 @@ body.backlog-active .stat-card {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
 }
 body.backlog-active .stat-card .stat-value {
-     color: #111827;
+    background: none !important;
+    -webkit-background-clip: initial !important;
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
 }
 body.backlog-active .backlog-anime-list-item {
      background-color: #FFFFFF;
@@ -186,6 +189,59 @@ body.backlog-active .backlog-text-meta p {
 
 body.backlog-active .backlog-text-meta strong {
     color: #111827;
+}
+
+/* High contrast inputs, placeholders, and hover fixes for backlog screen light mode */
+body.backlog-active #backlog-filter-controls input::placeholder {
+    color: #6B7280 !important;
+    opacity: 1;
+}
+
+body.backlog-active #backlog-entry-controls textarea::placeholder {
+    color: #6B7280 !important;
+    opacity: 1;
+}
+
+body.backlog-active .add-btn:hover:not(:disabled) {
+    background-color: #111827 !important;
+    color: #FFFFFF !important;
+}
+
+body.backlog-active .manual-add-btn:hover:not(:disabled) {
+    background-color: #7B828F !important;
+    color: #FFFFFF !important;
+}
+
+body.backlog-active .backlog-synopsis-text {
+    color: #374151 !important; /* Highly readable dark charcoal text */
+    background-color: #F3F4F6 !important; /* Soft distinct container background */
+    border-left: 3px solid #111827 !important;
+}
+
+body.backlog-active .backlog-synopsis-toggle-btn {
+    color: #111827 !important; /* Highly readable dark button label */
+}
+
+body.backlog-active .backlog-synopsis-toggle-btn:hover {
+    color: #4B5563 !important;
+}
+
+body.backlog-active #total-watched-value {
+    background: none !important;
+    -webkit-background-clip: initial !important;
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
+}
+
+/* High contrast auth input placeholders */
+#firebase-auth-form input::placeholder {
+    color: #9CA3AF !important;
+    opacity: 0.8;
+}
+
+.day-entry textarea::placeholder {
+    color: #9CA3AF !important;
+    opacity: 0.8;
 }
 
 /* Safeguard all modals to remain strictly dark-themed with high contrast, regardless of backlog light mode */
