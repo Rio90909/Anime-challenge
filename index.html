@@ -145,6 +145,7 @@
         <button id="jump-to-today-btn">Jump to Today</button>
         <button id="switch-to-backlog-btn">📚 My Anime Backlog</button> 
         <button id="switch-to-anipace-btn">⚡ Quick Episode Log (AniPace)</button> 
+        <button id="switch-to-schedule-btn">📅 Releases & Schedule</button>
         <button id="settings-btn">⚙️ Settings</button>
     </nav>
     
@@ -252,6 +253,32 @@
                     <div id="anipace-history-empty" class="empty-state-message">No episodes logged yet. Start tracking your anime watching!</div>
                 </div>
             </div>
+        </div>
+
+        <div id="schedule-screen" class="hidden container">
+            <h2>Weekly Airing Calendar</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">See currently airing anime sorted by their release days. Quick add any show directly to your active lists!</p>
+
+            <!-- Day Selection Tabs for mobile or desktop grid view -->
+            <div id="schedule-day-tabs" class="schedule-day-tabs">
+                <button class="day-tab-btn active" data-day="monday">Mon</button>
+                <button class="day-tab-btn" data-day="tuesday">Tue</button>
+                <button class="day-tab-btn" data-day="wednesday">Wed</button>
+                <button class="day-tab-btn" data-day="thursday">Thu</button>
+                <button class="day-tab-btn" data-day="friday">Fri</button>
+                <button class="day-tab-btn" data-day="saturday">Sat</button>
+                <button class="day-tab-btn" data-day="sunday">Sun</button>
+            </div>
+
+            <div id="schedule-day-content" class="schedule-day-content">
+                <div id="schedule-loading" class="empty-state-message">Loading airing calendar...</div>
+                <div id="schedule-grid" class="schedule-grid hidden"></div>
+            </div>
+
+            <h2 style="margin-top: 40px;">Upcoming Seasonal Showcases</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Exciting upcoming anime series and movies scheduled to release soon.</p>
+            <div id="upcoming-loading" class="empty-state-message">Loading upcoming releases...</div>
+            <div id="upcoming-grid" class="schedule-grid hidden"></div>
         </div>
     </main>
 

@@ -1062,10 +1062,12 @@ function switchToScreen(screenId) {
     const challengeScreen = document.getElementById('challenge-screen');
     const backlogScreen = document.getElementById('backlog-manager-screen');
     const anipaceScreen = document.getElementById('anipace-log-screen');
+    const scheduleScreen = document.getElementById('schedule-screen');
     
     const switchToChallengeBtn = document.getElementById('switch-to-challenge-btn');
     const switchToBacklogBtn = document.getElementById('switch-to-backlog-btn');
     const switchToAniPaceBtn = document.getElementById('switch-to-anipace-btn');
+    const switchToScheduleBtn = document.getElementById('switch-to-schedule-btn');
     const jumpToTodayBtn = document.getElementById('jump-to-today-btn');
     const headerTitle = document.getElementById('header-title');
     const body = document.body;
@@ -1074,9 +1076,12 @@ function switchToScreen(screenId) {
     challengeScreen.classList.add('hidden');
     backlogScreen.classList.add('hidden');
     anipaceScreen.classList.add('hidden');
+    scheduleScreen.classList.add('hidden');
+
     switchToChallengeBtn.classList.remove('hidden');
     switchToBacklogBtn.classList.remove('hidden');
     switchToAniPaceBtn.classList.remove('hidden');
+    switchToScheduleBtn.classList.remove('hidden');
     jumpToTodayBtn.classList.remove('hidden');
     body.classList.remove('backlog-active');
     
@@ -1093,6 +1098,12 @@ function switchToScreen(screenId) {
         jumpToTodayBtn.classList.add('hidden');
         headerTitle.textContent = 'AniPace Quick Log';
         updateAllDisplays();
+    } else if (screenId === 'schedule') {
+        scheduleScreen.classList.remove('hidden');
+        switchToScheduleBtn.classList.add('hidden');
+        jumpToTodayBtn.classList.add('hidden');
+        headerTitle.textContent = 'Releases & Schedule';
+        initScheduleScreen();
     } else {
         challengeScreen.classList.remove('hidden');
         switchToChallengeBtn.classList.add('hidden');
@@ -1123,6 +1134,162 @@ function initializeChallengeLayout() {
     }
 }
 
+// --- RELEASES & SCHEDULE LOGIC ---
+let scheduleDataCache = null;
+let upcomingDataCache = null;
+
+function initScheduleScreen() {
+    const loadingEl = document.getElementById('schedule-loading');
+    const upcomingLoadingEl = document.getElementById('upcoming-loading');
+    const grid = document.getElementById('schedule-grid');
+    const upcomingGrid = document.getElementById('upcoming-grid');
+
+    const dayButtons = document.querySelectorAll('.day-tab-btn');
+    dayButtons.forEach(btn => {
+        btn.onclick = () => {
+            dayButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderSelectedDay();
+        };
+    });
+
+    function renderSelectedDay() {
+        if (!scheduleDataCache) return;
+        const activeBtn = document.querySelector('.day-tab-btn.active');
+        const day = activeBtn ? activeBtn.dataset.day : 'monday';
+        const filtered = scheduleDataCache[day] || [];
+        renderScheduleGrid('schedule-grid', filtered);
+    }
+
+    if (scheduleDataCache && upcomingDataCache) {
+        renderSelectedDay();
+        renderScheduleGrid('upcoming-grid', upcomingDataCache);
+        return;
+    }
+
+    loadingEl.classList.remove('hidden');
+    upcomingLoadingEl.classList.remove('hidden');
+    grid.classList.add('hidden');
+    upcomingGrid.classList.add('hidden');
+
+    fetch(`${API_URL}?filter[status]=current&page[limit]=20&sort=-userCount&include=genres,categories,animeProductions.producer`, {
+        headers: {
+            'Accept': 'application/vnd.api+json',
+            'Content-Type': 'application/vnd.api+json'
+        }
+    })
+        .then(res => res.json())
+        .then(resData => {
+            const normalized = normalizeKitsuResponse(resData);
+            const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const grouped = {
+                monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []
+            };
+
+            normalized.forEach(anime => {
+                const rawAnime = resData.data.find(item => parseInt(item.id) === anime.mal_id);
+                const startDateStr = rawAnime?.attributes?.startDate;
+                if (startDateStr) {
+                    const dateObj = new Date(startDateStr);
+                    const dayName = daysOfWeek[dateObj.getDay()];
+                    grouped[dayName].push(anime);
+                } else {
+                    grouped.monday.push(anime);
+                }
+            });
+
+            scheduleDataCache = grouped;
+            loadingEl.classList.add('hidden');
+            renderSelectedDay();
+        })
+        .catch(err => {
+            console.error(err);
+            loadingEl.textContent = 'Failed to load weekly airing calendar.';
+        });
+
+    fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&sort=-userCount&include=genres,categories,animeProductions.producer`, {
+        headers: {
+            'Accept': 'application/vnd.api+json',
+            'Content-Type': 'application/vnd.api+json'
+        }
+    })
+        .then(res => res.json())
+        .then(resData => {
+            const normalized = normalizeKitsuResponse(resData);
+            upcomingDataCache = normalized;
+            upcomingLoadingEl.classList.add('hidden');
+            renderScheduleGrid('upcoming-grid', normalized);
+        })
+        .catch(err => {
+            console.error(err);
+            upcomingLoadingEl.textContent = 'Failed to load upcoming seasonal releases.';
+        });
+}
+
+function renderScheduleGrid(gridId, animeList) {
+    const grid = document.getElementById(gridId);
+    grid.innerHTML = '';
+
+    if (animeList.length === 0) {
+        grid.innerHTML = '<div class="empty-state-message" style="grid-column: 1/-1;">No anime scheduled for this day. Check other days!</div>';
+        grid.classList.remove('hidden');
+        return;
+    }
+
+    animeList.forEach(anime => {
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+        const title = getEnglishTitle(anime);
+        const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/105x145?text=No+Image';
+        const genresStr = (anime.genres || []).slice(0, 2).map(g => g.name).join(', ') || 'N/A';
+
+        item.innerHTML = `
+            <img src="${imageUrl}" alt="Poster">
+            <h4 style="color: var(--text-color);">${title}</h4>
+            <div class="search-result-meta" style="font-size: 11.5px; font-weight: bold; color: var(--primary-color); margin-bottom: 2px;">
+                ${anime.type || 'N/A'} • ${anime.year || 'N/A'}
+            </div>
+            <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">
+                ${genresStr}
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
+                <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
+                <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
+            </div>
+        `;
+
+        item.querySelector('.add-to-challenge-quick-btn').onclick = () => {
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
+
+            const todayKey = getLocalDateString(new Date());
+            challengeData.days[todayKey] = challengeData.days[todayKey] || { watched: [] };
+            challengeData.days[todayKey].watched.push(newAnime);
+
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Logged ${title} to today's watch list!`);
+        };
+
+        item.querySelector('.add-to-backlog-quick-btn').onclick = () => {
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
+
+            challengeData.backlog.push(newAnime);
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Added ${title} to your backlog watch list!`);
+        };
+
+        grid.appendChild(item);
+    });
+    grid.classList.remove('hidden');
+}
+
 // --- INITIALIZATION & EVENT LISTENERS ---
 function initializeApp() {
     challengeData = loadChallengeData();
@@ -1138,6 +1305,7 @@ function initializeApp() {
     document.getElementById('switch-to-backlog-btn').onclick = () => switchToScreen('backlog');
     document.getElementById('switch-to-challenge-btn').onclick = () => switchToScreen('challenge');
     document.getElementById('switch-to-anipace-btn').onclick = () => switchToScreen('anipace');
+    document.getElementById('switch-to-schedule-btn').onclick = () => switchToScreen('schedule');
     
     document.getElementById('backlog-search-input').oninput = debounce(renderAllAnimeList, 300);
     document.getElementById('backlog-sort-select').onchange = renderAllAnimeList;
