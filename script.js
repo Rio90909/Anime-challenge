@@ -1250,11 +1250,47 @@ function initScheduleScreen() {
         }
     }
 
-    // Wire up Search Input
+    // Wire up Search Input to do a live global search engine (just like adding anime!)
     const scheduleSearchInput = document.getElementById('schedule-search-input');
     scheduleSearchInput.oninput = debounce(() => {
-        renderFilteredLists();
-    }, 250);
+        const query = scheduleSearchInput.value.trim();
+        const resultsSection = document.getElementById('schedule-search-results-section');
+        const resultsLoading = document.getElementById('schedule-search-results-loading');
+        const resultsGrid = document.getElementById('schedule-search-results-grid');
+        const defaultViews = document.getElementById('schedule-default-views');
+
+        if (!query) {
+            resultsSection.classList.add('hidden');
+            resultsGrid.classList.add('hidden');
+            defaultViews.classList.remove('hidden');
+            renderFilteredLists();
+            return;
+        }
+
+        // Switch views
+        defaultViews.classList.add('hidden');
+        resultsSection.classList.remove('hidden');
+        resultsLoading.classList.remove('hidden');
+        resultsGrid.classList.add('hidden');
+
+        // Fetch Live Global Kitsu Search results
+        fetch(`${API_URL}?filter[text]=${encodeURIComponent(query)}&page[limit]=12&include=genres,categories,animeProductions.producer`, {
+            headers: {
+                'Accept': 'application/vnd.api+json',
+                'Content-Type': 'application/vnd.api+json'
+            }
+        })
+            .then(res => res.json())
+            .then(resData => {
+                const normalized = normalizeKitsuResponse(resData);
+                resultsLoading.classList.add('hidden');
+                renderTrendGrid('schedule-search-results-grid', normalized);
+            })
+            .catch(err => {
+                console.error("Global schedule search error:", err);
+                resultsLoading.textContent = 'Search failed. Check your internet connection.';
+            });
+    }, 300);
 
     // Initial triggers or cache usage
     if (scheduleDataCache && upcomingDataCache) {

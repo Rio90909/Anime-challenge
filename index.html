@@ -264,41 +264,50 @@
                 <input type="text" id="schedule-search-input" placeholder="Search airing, trending, or upcoming anime by title..." title="Search releases by title">
             </div>
 
-            <!-- Day Selection Tabs for mobile or desktop grid view -->
-            <div id="schedule-day-tabs" class="schedule-day-tabs">
-                <button class="day-tab-btn active" data-day="monday">Mon</button>
-                <button class="day-tab-btn" data-day="tuesday">Tue</button>
-                <button class="day-tab-btn" data-day="wednesday">Wed</button>
-                <button class="day-tab-btn" data-day="thursday">Thu</button>
-                <button class="day-tab-btn" data-day="friday">Fri</button>
-                <button class="day-tab-btn" data-day="saturday">Sat</button>
-                <button class="day-tab-btn" data-day="sunday">Sun</button>
+            <!-- Global Search Results Container -->
+            <div id="schedule-search-results-section" class="hidden" style="margin-bottom: 30px;">
+                <h2 style="color: var(--primary-color); margin-bottom: 10px;">Global Search Results</h2>
+                <div id="schedule-search-results-loading" class="empty-state-message hidden">Searching Kitsu API...</div>
+                <div id="schedule-search-results-grid" class="schedule-grid hidden"></div>
             </div>
 
-            <div id="schedule-day-content" class="schedule-day-content">
-                <div id="schedule-loading" class="empty-state-message">Loading airing calendar...</div>
-                <div id="schedule-grid" class="schedule-grid hidden"></div>
+            <div id="schedule-default-views">
+                <!-- Day Selection Tabs for mobile or desktop grid view -->
+                <div id="schedule-day-tabs" class="schedule-day-tabs">
+                    <button class="day-tab-btn active" data-day="monday">Mon</button>
+                    <button class="day-tab-btn" data-day="tuesday">Tue</button>
+                    <button class="day-tab-btn" data-day="wednesday">Wed</button>
+                    <button class="day-tab-btn" data-day="thursday">Thu</button>
+                    <button class="day-tab-btn" data-day="friday">Fri</button>
+                    <button class="day-tab-btn" data-day="saturday">Sat</button>
+                    <button class="day-tab-btn" data-day="sunday">Sun</button>
+                </div>
+
+                <div id="schedule-day-content" class="schedule-day-content">
+                    <div id="schedule-loading" class="empty-state-message">Loading airing calendar...</div>
+                    <div id="schedule-grid" class="schedule-grid hidden"></div>
+                </div>
+
+                <h2 style="margin-top: 40px; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Browse the absolute best anime globally on Kitsu right now. See what is trending, highest rated, or most anticipated!</p>
+
+                <!-- Trend Selection Tabs -->
+                <div id="trend-tabs" class="schedule-day-tabs">
+                    <button class="trend-tab-btn active" data-trend="trending">Trending Now</button>
+                    <button class="trend-tab-btn" data-trend="highest-rated">Highest Rated</button>
+                    <button class="trend-tab-btn" data-trend="anticipated">Most Anticipated</button>
+                </div>
+
+                <div id="trend-content">
+                    <div id="trend-loading" class="empty-state-message">Loading live trends...</div>
+                    <div id="trend-grid" class="schedule-grid hidden"></div>
+                </div>
+
+                <h2 style="margin-top: 40px;">Upcoming Seasonal Showcases</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Exciting upcoming anime series and movies scheduled to release soon.</p>
+                <div id="upcoming-loading" class="empty-state-message">Loading upcoming releases...</div>
+                <div id="upcoming-grid" class="schedule-grid hidden"></div>
             </div>
-
-            <h2 style="margin-top: 40px; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Browse the absolute best anime globally on Kitsu right now. See what is trending, highest rated, or most anticipated!</p>
-
-            <!-- Trend Selection Tabs -->
-            <div id="trend-tabs" class="schedule-day-tabs">
-                <button class="trend-tab-btn active" data-trend="trending">Trending Now</button>
-                <button class="trend-tab-btn" data-trend="highest-rated">Highest Rated</button>
-                <button class="trend-tab-btn" data-trend="anticipated">Most Anticipated</button>
-            </div>
-
-            <div id="trend-content">
-                <div id="trend-loading" class="empty-state-message">Loading live trends...</div>
-                <div id="trend-grid" class="schedule-grid hidden"></div>
-            </div>
-
-            <h2 style="margin-top: 40px;">Upcoming Seasonal Showcases</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Exciting upcoming anime series and movies scheduled to release soon.</p>
-            <div id="upcoming-loading" class="empty-state-message">Loading upcoming releases...</div>
-            <div id="upcoming-grid" class="schedule-grid hidden"></div>
         </div>
     </main>
 
