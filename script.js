@@ -922,7 +922,7 @@ function createDayEntry(date) {
 
     const dateDisplay = date.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     
-    div.innerHTML = `<h3>${dateDisplay}<span class="daily-total"></span></h3><div class="anime-list-container"></div><div class="add-controls" style="display: flex; gap: 10px; margin-top: 15px;"><input type="text" placeholder="Type anime name to search and add..." style="flex-grow: 1; padding: 12px; border-radius: 10px; background-color: rgba(0,0,0,0.2); border: 1px solid var(--border-light); color: var(--text-color); font-size: 15px;"><button class="add-btn" style="flex-shrink: 0; padding: 12px 24px; font-weight: 700; width: auto; margin: 0;">Add Anime</button></div>`;
+    div.innerHTML = `<h3>${dateDisplay}<span class="daily-total"></span></h3><div class="anime-list-container"></div><div class="add-controls entry-controls-group"><input type="text" placeholder="Type anime name to search and add..."><button class="add-btn">Add Anime</button></div>`;
     const animeListContainer = div.querySelector('.anime-list-container');
     const animeInput = div.querySelector('input');
     const addOnlineBtn = div.querySelector('.add-btn');

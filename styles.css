@@ -482,7 +482,55 @@ header h1 {
     box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
-.add-controls { display: flex; gap: 12px; }
+.entry-controls-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 15px;
+    align-items: center;
+    width: 100%;
+}
+
+.entry-controls-group input {
+    flex-grow: 1;
+    padding: 12px;
+    border-radius: 10px;
+    background-color: rgba(0,0,0,0.2);
+    border: 1px solid var(--border-light);
+    color: var(--text-color);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+    min-width: 0;
+}
+
+.entry-controls-group input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.entry-controls-group button.add-btn {
+    flex-shrink: 0;
+    padding: 12px 24px;
+    height: 46px;
+    font-weight: 700;
+    width: auto;
+    margin: 0;
+}
+
+/* For mobile devices under 480px, stack input and button vertically to prevent any overflow */
+@media (max-width: 480px) {
+    .entry-controls-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    .entry-controls-group button.add-btn {
+        width: 100%;
+        height: 46px;
+        padding: 12px;
+    }
+}
 .add-btn {
     flex-grow: 1;
     background: linear-gradient(135deg, #FFC107, #FFA000);
