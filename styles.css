@@ -1330,3 +1330,105 @@ input[type="date"]::-webkit-outer-spin-button {
 ::-webkit-scrollbar-thumb:hover {
     background: #374151;
 }
+
+/* Releases & Schedule Section Styling */
+.schedule-day-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+}
+.day-tab-btn, .trend-tab-btn {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-light);
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.day-tab-btn:hover, .trend-tab-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+.day-tab-btn.active, .trend-tab-btn.active {
+    background: linear-gradient(135deg, var(--primary-color), #FFA000);
+    color: #000;
+    border-color: var(--primary-color);
+}
+.schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+@media (max-width: 480px) {
+    .schedule-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 10px;
+    }
+}
+
+/* Live Global Rankings Badge CSS */
+.trend-rank-badge {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    z-index: 2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.trend-rank-badge.rank-1 {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    color: #000;
+    border: 1px solid #FFE4B5;
+}
+.trend-rank-badge.rank-2 {
+    background: linear-gradient(135deg, #C0C0C0, #808080);
+    color: #000;
+    border: 1px solid #FFF;
+}
+.trend-rank-badge.rank-3 {
+    background: linear-gradient(135deg, #CD7F32, #8B4513);
+    color: #FFF;
+    border: 1px solid #D2691E;
+}
+.trend-rank-badge.rank-other {
+    background-color: #1F2937;
+    color: var(--text-color);
+    border: 1px solid var(--border-light);
+}
+
+.status-pill {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.status-pill.status-airing {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #34D399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.status-pill.status-upcoming {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #60A5FA;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.status-pill.status-finished {
+    background-color: rgba(156, 163, 175, 0.15);
+    color: #D1D5DB;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+}
