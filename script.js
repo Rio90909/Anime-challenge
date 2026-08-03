@@ -1165,11 +1165,7 @@ function initScheduleScreen() {
     });
 
     function renderSelectedDay() {
-        if (!scheduleDataCache) return;
-        const activeBtn = document.querySelector('.day-tab-btn.active');
-        const day = activeBtn ? activeBtn.dataset.day : 'monday';
-        const filtered = scheduleDataCache[day] || [];
-        renderScheduleGrid('schedule-grid', filtered);
+        renderFilteredLists();
     }
 
     // Trend Tabs Wiring
@@ -1188,7 +1184,7 @@ function initScheduleScreen() {
 
         if (trendDataCache[trendType]) {
             trendLoadingEl.classList.add('hidden');
-            renderTrendGrid('trend-grid', trendDataCache[trendType]);
+            renderFilteredLists();
             return;
         }
 
@@ -1216,13 +1212,49 @@ function initScheduleScreen() {
                 const normalized = normalizeKitsuResponse(resData);
                 trendDataCache[trendType] = normalized;
                 trendLoadingEl.classList.add('hidden');
-                renderTrendGrid('trend-grid', normalized);
+                renderFilteredLists();
             })
             .catch(err => {
                 console.error(err);
                 trendLoadingEl.textContent = 'Failed to load live trends. Check internet connection.';
             });
     }
+
+    function renderFilteredLists() {
+        const filterText = document.getElementById('schedule-search-input').value.toLowerCase().trim();
+
+        // 1. Filter and render selected day calendar
+        if (scheduleDataCache) {
+            const activeBtn = document.querySelector('.day-tab-btn.active');
+            const day = activeBtn ? activeBtn.dataset.day : 'monday';
+            const rawList = scheduleDataCache[day] || [];
+            const filteredList = rawList.filter(anime => getEnglishTitle(anime).toLowerCase().includes(filterText));
+            renderScheduleGrid('schedule-grid', filteredList);
+        }
+
+        // 2. Filter and render active trend
+        const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
+        if (activeTrendBtn) {
+            const trendType = activeTrendBtn.dataset.trend;
+            if (trendDataCache[trendType]) {
+                const rawList = trendDataCache[trendType] || [];
+                const filteredList = rawList.filter(anime => getEnglishTitle(anime).toLowerCase().includes(filterText));
+                renderTrendGrid('trend-grid', filteredList);
+            }
+        }
+
+        // 3. Filter and render upcoming seasonal showcases
+        if (upcomingDataCache) {
+            const filteredList = upcomingDataCache.filter(anime => getEnglishTitle(anime).toLowerCase().includes(filterText));
+            renderScheduleGrid('upcoming-grid', filteredList);
+        }
+    }
+
+    // Wire up Search Input
+    const scheduleSearchInput = document.getElementById('schedule-search-input');
+    scheduleSearchInput.oninput = debounce(() => {
+        renderFilteredLists();
+    }, 250);
 
     // Initial triggers or cache usage
     if (scheduleDataCache && upcomingDataCache) {
@@ -1311,7 +1343,7 @@ function renderScheduleGrid(gridId, animeList) {
         item.className = 'search-result-item';
         const title = getEnglishTitle(anime);
         const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/105x145?text=No+Image';
-        const genresStr = (anime.genres || []).slice(0, 2).map(g => g.name).join(', ') || 'N/A';
+        const genresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
 
         item.innerHTML = `
             <img src="${imageUrl}" alt="Poster">
@@ -1319,9 +1351,15 @@ function renderScheduleGrid(gridId, animeList) {
             <div class="search-result-meta" style="font-size: 11.5px; font-weight: bold; color: var(--primary-color); margin-bottom: 2px;">
                 ${anime.type || 'N/A'} • ${anime.year || 'N/A'}
             </div>
-            <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">
-                ${genresStr}
+            <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+                <strong>Genres:</strong> ${genresStr}
             </div>
+            ${anime.synopsis ? `
+            <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
+                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <p class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">${anime.synopsis}</p>
+            </div>
+            ` : ''}
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
                 <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
                 <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
@@ -1391,6 +1429,8 @@ function renderTrendGrid(gridId, animeList) {
         const formattedMembers = anime.userCount ? (anime.userCount >= 1000000 ? `${(anime.userCount / 1000000).toFixed(1)}M` : (anime.userCount >= 1000 ? `${(anime.userCount / 1000).toFixed(0)}K` : anime.userCount)) : 'N/A';
         const formattedRating = anime.averageRating ? `⭐ ${parseFloat(anime.averageRating).toFixed(0)}%` : '⭐ N/A';
 
+        const allGenresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
+
         item.innerHTML = `
             <div class="trend-image-container" style="position: relative; width: 105px; height: 145px; margin-bottom: 12px; margin-left: auto; margin-right: auto;">
                 <img src="${imageUrl}" alt="Poster" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
@@ -1407,9 +1447,15 @@ function renderTrendGrid(gridId, animeList) {
                 <span style="color: var(--text-secondary);">•</span>
                 <span style="color: var(--text-secondary);">${anime.type || 'N/A'}</span>
             </div>
-            <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">
-                ${genresStr}
+            <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+                <strong>Genres:</strong> ${allGenresStr}
             </div>
+            ${anime.synopsis ? `
+            <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
+                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <p class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">${anime.synopsis}</p>
+            </div>
+            ` : ''}
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
                 <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
                 <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
