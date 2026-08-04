@@ -1082,6 +1082,57 @@ header h1 {
     border: 1px solid rgba(156, 163, 175, 0.3);
 }
 
+/* Gamified Rarity Achievement Badges styling */
+.rarity-badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    display: inline-block;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+.rarity-badge.common {
+    background-color: rgba(156, 163, 175, 0.15);
+    color: #9CA3AF;
+    border: 1px solid rgba(156, 163, 175, 0.3);
+}
+.rarity-badge.rare {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #60A5FA;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.rarity-badge.epic {
+    background-color: rgba(167, 139, 250, 0.15);
+    color: #C4B5FD;
+    border: 1px solid rgba(167, 139, 250, 0.3);
+}
+.rarity-badge.legendary {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+    color: #FBBF24;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.15);
+    animation: pulseGlow 2s infinite alternate;
+}
+
+.achievement-xp-reward {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-top: 6px;
+    display: block;
+}
+
+@keyframes pulseGlow {
+    from {
+        box-shadow: 0 0 10px rgba(251, 191, 36, 0.15);
+    }
+    to {
+        box-shadow: 0 0 20px rgba(251, 191, 36, 0.4);
+    }
+}
+
 .backlog-text-meta {
     margin-top: 10px;
     padding-top: 10px;

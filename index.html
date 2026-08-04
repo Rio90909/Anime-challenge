@@ -146,6 +146,7 @@
         <button id="switch-to-backlog-btn">📚 My Anime Backlog</button> 
         <button id="switch-to-anipace-btn">⚡ Quick Episode Log (AniPace)</button> 
         <button id="switch-to-schedule-btn">📅 Releases & Schedule</button>
+        <button id="switch-to-friends-btn">👥 Friends & Sharing</button>
         <button id="settings-btn">⚙️ Settings</button>
     </nav>
     
@@ -162,6 +163,14 @@
                 </div>
                 
                 <div id="challenge-progress-container">
+                    <div class="stat-card" id="user-level-card" style="margin-bottom: 25px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; background: linear-gradient(135deg, rgba(255, 193, 7, 0.05), rgba(59, 130, 246, 0.05)); border: 1px solid rgba(255, 193, 7, 0.15); width: 100%;">
+                        <h3 style="color: var(--primary-color); letter-spacing: 2px;">⚡ Watcher Progression Level</h3>
+                        <div id="user-level-badge" style="font-size: 32px; font-weight: 800; color: #FFF; text-shadow: 0 0 15px rgba(255,193,7,0.4); margin: 5px 0;">Level 1</div>
+                        <div style="width: 100%; max-width: 500px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; height: 18px; margin-top: 10px; position: relative;">
+                            <div id="user-xp-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #FFC107, #FFA000); transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);"></div>
+                            <div id="user-xp-text" style="position: absolute; width: 100%; text-align: center; top: 0; left: 0; font-size: 11px; font-weight: bold; color: #FFF; line-height: 18px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">0 / 100 XP</div>
+                        </div>
+                    </div>
                     <div id="progress-bar">
                         <div id="progress-fill">0%</div>
                     </div>
@@ -307,6 +316,66 @@
                 <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Exciting upcoming anime series and movies scheduled to release soon.</p>
                 <div id="upcoming-loading" class="empty-state-message">Loading upcoming releases...</div>
                 <div id="upcoming-grid" class="schedule-grid hidden"></div>
+            </div>
+        </div>
+
+        <div id="friends-screen" class="hidden container">
+            <h2>👥 Friends & Sharing</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Connect with friends! Share your unique code, add your friends' codes, and compare your challenge progress and watch lists side-by-side!</p>
+
+            <div class="stats-bar" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); padding: 0; margin-bottom: 25px;">
+                <!-- Your Share Code Card -->
+                <div class="stat-card">
+                    <h3>Your Unique Share Code</h3>
+                    <div id="your-share-code" class="stat-value" style="font-size: 14px; word-break: break-all; margin: 15px 0; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border: 1px solid var(--border-light); font-family: monospace; -webkit-text-fill-color: var(--text-color) !important;">Loading...</div>
+                    <button id="copy-share-code-btn" class="add-btn" style="width: 100%; height: 38px; font-size: 13px; margin: 0;">📋 Copy Code</button>
+                </div>
+
+                <!-- Add Friend Card -->
+                <div class="stat-card">
+                    <h3>Add Friend by Share Code</h3>
+                    <div class="entry-controls-group" style="margin-top: 15px;">
+                        <input type="text" id="friend-code-input" placeholder="Paste friend's share code..." style="padding: 10px; font-size: 13px;">
+                        <button id="add-friend-btn" class="add-btn" style="height: 38px; padding: 0 15px; font-size: 13px; margin: 0; flex-shrink: 0; width: auto;">Add Friend</button>
+                    </div>
+                </div>
+            </div>
+
+            <h2>My Friends</h2>
+            <div id="friends-loading" class="empty-state-message hidden">Syncing friends' data...</div>
+            <div id="friends-list-container" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;">
+                <div id="friends-empty-state" class="empty-state-message">No friends added yet. Ask your friends for their share codes!</div>
+            </div>
+
+            <h2 style="margin-top: 40px; display: flex; align-items: center; gap: 10px;">🏆 Global Top 10 Leaderboard</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Compete with anime watchers worldwide! See who has logged the most anime in their challenge.</p>
+            <div id="leaderboard-loading" class="empty-state-message">Syncing live rankings...</div>
+            <div id="leaderboard-container" style="background: rgba(0,0,0,0.15); border: 1px solid var(--border-light); border-radius: 12px; overflow: hidden; margin-top: 15px;">
+                <!-- Top 10 Rows will load here dynamically -->
+            </div>
+
+            <!-- Friend Comparison View Modal -->
+            <div id="comparison-modal" class="modal hidden">
+                <div class="modal-content" style="max-width: 850px;">
+                    <span class="close-btn" aria-label="Close modal">&times;</span>
+                    <h2 id="comparison-title">Comparison Dashboard</h2>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                        <div class="stat-card" style="padding: 15px;">
+                            <h3 id="comp-user-name">You</h3>
+                            <div id="comp-user-stats" style="font-size: 14px; margin-top: 10px; text-align: left; line-height: 1.8;"></div>
+                        </div>
+                        <div class="stat-card" style="padding: 15px;">
+                            <h3 id="comp-friend-name">Friend</h3>
+                            <div id="comp-friend-stats" style="font-size: 14px; margin-top: 10px; text-align: left; line-height: 1.8;"></div>
+                        </div>
+                    </div>
+
+                    <h3>Side-by-Side Watches</h3>
+                    <div id="comparison-watches-container" style="max-height: 350px; overflow-y: auto; margin-top: 15px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--border-light);">
+                        <!-- Side-by-side lists will load here -->
+                    </div>
+                </div>
             </div>
         </div>
     </main>

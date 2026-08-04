@@ -101,6 +101,7 @@ function normalizeKitsuResponse(searchData) {
         // Map year
         const startDateStr = attrs.startDate;
         const year = startDateStr ? new Date(startDateStr).getFullYear() : null;
+        const startDate = attrs.startDate || null;
 
         // Map poster images
         const posterUrl = attrs.posterImage?.medium || attrs.posterImage?.small || attrs.posterImage?.original || '';
@@ -124,6 +125,7 @@ function normalizeKitsuResponse(searchData) {
             type: animeType,
             score,
             year,
+            startDate: startDate,
             images,
             episodes,
             synopsis,
@@ -286,6 +288,23 @@ const achievements = [
     }},
     { id: 'completionist', title: 'Completionist', description: 'Complete 5 anime series (watch all episodes).', check: (data) => data.allAnime.filter(a => !a.isManual && a.watched_episodes === a.episodes).length >= 5 }
 ];
+
+// Assign rarity tiers and XP dynamically to achievements
+achievements.forEach(ach => {
+    if (ach.id.endsWith('_3') || ['consistent_rater', 'high_scorer', 'diverse_tastes', 'completionist', 'marathon_runner'].includes(ach.id)) {
+        ach.rarity = 'epic';
+        ach.xp = 300;
+    } else if (ach.id.endsWith('_2') || ach.id.startsWith('studio_') || ['binge_watcher', 'critics_choice', 'hidden_gems', 'long_runner', 'movie_buff', 'ova_collector', 'seasonal_watcher', 'speed_demon', 'weekend_warrior'].includes(ach.id)) {
+        ach.rarity = 'rare';
+        ach.xp = 150;
+    } else if (['total_100', 'total_200', 'total_300', 'total_400', 'total_500', 'total_1000', 'streak_master'].includes(ach.id)) {
+        ach.rarity = 'legendary';
+        ach.xp = 500;
+    } else {
+        ach.rarity = 'common';
+        ach.xp = 50;
+    }
+});
 
 const ranks = [ 
     { min: 0, title: 'Newbie' }, 
@@ -596,9 +615,44 @@ function updateAllDisplays() {
     document.getElementById('speed-input').value = playbackSpeed;
     
     updateAniPaceHistory();
+    updateUserLevelDisplay();
     
     saveData();
     saveAniPaceData();
+}
+
+function updateUserLevelDisplay() {
+    const uniqueWatchedCount = getUniqueAnime().length;
+    let totalXP = uniqueWatchedCount * 100;
+
+    challengeData.unlockedAchievements.forEach(achId => {
+        const ach = achievements.find(a => a.id === achId);
+        if (ach) {
+            totalXP += ach.xp || 50;
+        }
+    });
+
+    const level = Math.floor(totalXP / 1000) + 1;
+    const remainingXP = totalXP % 1000;
+
+    const badgeEl = document.getElementById('user-level-badge');
+    const fillEl = document.getElementById('user-xp-fill');
+    const textEl = document.getElementById('user-xp-text');
+
+    if (badgeEl) badgeEl.textContent = `Level ${level}`;
+    if (fillEl) fillEl.style.width = `${(remainingXP / 1000) * 100}%`;
+    if (textEl) textEl.textContent = `${remainingXP} / 1000 XP (Total: ${totalXP} XP)`;
+
+    if (firebaseUser) {
+        // Upload user level and watched counts for the Global Leaderboard
+        firebase.database().ref(`leaderboard/${firebaseUser.uid}`).set({
+            username: firebaseUser.email || firebaseUser.displayName || 'Guest User',
+            level: level,
+            totalXP: totalXP,
+            watchedCount: uniqueWatchedCount,
+            updatedAt: Date.now()
+        }).catch(err => console.error("Leaderboard upload error:", err));
+    }
 }
 
 function updateAniPaceHistory() {
@@ -1068,11 +1122,13 @@ function switchToScreen(screenId) {
     const backlogScreen = document.getElementById('backlog-manager-screen');
     const anipaceScreen = document.getElementById('anipace-log-screen');
     const scheduleScreen = document.getElementById('schedule-screen');
+    const friendsScreen = document.getElementById('friends-screen');
     
     const switchToChallengeBtn = document.getElementById('switch-to-challenge-btn');
     const switchToBacklogBtn = document.getElementById('switch-to-backlog-btn');
     const switchToAniPaceBtn = document.getElementById('switch-to-anipace-btn');
     const switchToScheduleBtn = document.getElementById('switch-to-schedule-btn');
+    const switchToFriendsBtn = document.getElementById('switch-to-friends-btn');
     const jumpToTodayBtn = document.getElementById('jump-to-today-btn');
     const headerTitle = document.getElementById('header-title');
     const body = document.body;
@@ -1082,11 +1138,13 @@ function switchToScreen(screenId) {
     backlogScreen.classList.add('hidden');
     anipaceScreen.classList.add('hidden');
     scheduleScreen.classList.add('hidden');
+    friendsScreen.classList.add('hidden');
 
     switchToChallengeBtn.classList.remove('hidden');
     switchToBacklogBtn.classList.remove('hidden');
     switchToAniPaceBtn.classList.remove('hidden');
     switchToScheduleBtn.classList.remove('hidden');
+    switchToFriendsBtn.classList.remove('hidden');
     jumpToTodayBtn.classList.remove('hidden');
     body.classList.remove('backlog-active');
     
@@ -1109,6 +1167,12 @@ function switchToScreen(screenId) {
         jumpToTodayBtn.classList.add('hidden');
         headerTitle.textContent = 'Releases & Schedule';
         initScheduleScreen();
+    } else if (screenId === 'friends') {
+        friendsScreen.classList.remove('hidden');
+        switchToFriendsBtn.classList.add('hidden');
+        jumpToTodayBtn.classList.add('hidden');
+        headerTitle.textContent = 'Friends & Leaderboard';
+        initFriendsScreen();
     } else {
         challengeScreen.classList.remove('hidden');
         switchToChallengeBtn.classList.add('hidden');
@@ -1136,6 +1200,42 @@ function initializeChallengeLayout() {
         }
         
         currentDate.setDate(currentDate.getDate() + 1);
+    }
+}
+
+function getAiringCountdown(startDateStr) {
+    if (!startDateStr) return null;
+    const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const startObj = new Date(startDateStr);
+    const targetDay = startObj.getDay(); // 0-6 (Friday = 5)
+
+    const now = new Date();
+    const currentDay = now.getDay();
+
+    const targetRelease = new Date(now);
+    targetRelease.setHours(18, 0, 0, 0);
+
+    let daysDiff = targetDay - currentDay;
+    if (daysDiff < 0 || (daysDiff === 0 && now.getTime() > targetRelease.getTime())) {
+        daysDiff += 7;
+    }
+
+    targetRelease.setDate(now.getDate() + daysDiff);
+
+    const diffMs = targetRelease.getTime() - now.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffHours === 0 && diffMins === 0) {
+        return "📺 Episode Airing Now!";
+    }
+
+    if (diffHours < 24) {
+        return `🕒 Next Ep: ${diffHours}h ${diffMins}m`;
+    } else {
+        const days = Math.floor(diffHours / 24);
+        const hours = diffHours % 24;
+        return `🕒 Next Ep: ${days}d ${hours}h`;
     }
 }
 
@@ -1381,6 +1481,9 @@ function renderScheduleGrid(gridId, animeList) {
         const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/105x145?text=No+Image';
         const genresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
 
+        const countdownStr = anime.startDate ? getAiringCountdown(anime.startDate) : null;
+        const countdownBadge = countdownStr ? `<div style="font-size: 11px; font-weight: bold; color: #34D399; margin-bottom: 8px; background: rgba(16, 185, 129, 0.15); padding: 4px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.3); width: 100%; text-align: center;">${countdownStr}</div>` : '';
+
         item.innerHTML = `
             <img src="${imageUrl}" alt="Poster">
             <h4 style="color: var(--text-color);">${title}</h4>
@@ -1390,6 +1493,7 @@ function renderScheduleGrid(gridId, animeList) {
             <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
                 <strong>Genres:</strong> ${genresStr}
             </div>
+            ${countdownBadge}
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
                 <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
@@ -1467,6 +1571,9 @@ function renderTrendGrid(gridId, animeList) {
 
         const allGenresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
 
+        const countdownStr = (anime.airingStatus === 'current' && anime.startDate) ? getAiringCountdown(anime.startDate) : null;
+        const countdownBadge = countdownStr ? `<div style="font-size: 10px; font-weight: bold; color: #34D399; margin-bottom: 8px; background: rgba(16, 185, 129, 0.15); padding: 3px; border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.3); width: 100%; text-align: center;">${countdownStr}</div>` : '';
+
         item.innerHTML = `
             <div class="trend-image-container" style="position: relative; width: 105px; height: 145px; margin-bottom: 12px; margin-left: auto; margin-right: auto;">
                 <img src="${imageUrl}" alt="Poster" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
@@ -1486,6 +1593,7 @@ function renderTrendGrid(gridId, animeList) {
             <div class="search-result-genres" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
                 <strong>Genres:</strong> ${allGenresStr}
             </div>
+            ${countdownBadge}
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
                 <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
@@ -1530,6 +1638,311 @@ function renderTrendGrid(gridId, animeList) {
     grid.classList.remove('hidden');
 }
 
+// --- FRIENDS, SHARING, & LEADERBOARD LOGIC ---
+function initFriendsScreen() {
+    const yourCodeEl = document.getElementById('your-share-code');
+    const copyBtn = document.getElementById('copy-share-code-btn');
+    const friendInput = document.getElementById('friend-code-input');
+    const addFriendBtn = document.getElementById('add-friend-btn');
+    const friendsLoading = document.getElementById('friends-loading');
+    const friendsListContainer = document.getElementById('friends-list-container');
+    const leaderboardLoading = document.getElementById('leaderboard-loading');
+    const leaderboardContainer = document.getElementById('leaderboard-container');
+
+    if (!firebaseUser) {
+        yourCodeEl.textContent = 'Sign in to unlock Friends & Leaderboard!';
+        copyBtn.disabled = true;
+        addFriendBtn.disabled = true;
+        return;
+    }
+
+    yourCodeEl.textContent = firebaseUser.uid;
+    copyBtn.disabled = false;
+    addFriendBtn.disabled = false;
+
+    copyBtn.onclick = () => {
+        navigator.clipboard.writeText(firebaseUser.uid)
+            .then(() => showNotification('Share code copied to clipboard!'))
+            .catch(() => showNotification('Failed to copy code.', 'error'));
+    };
+
+    // Add Friend Handler
+    addFriendBtn.onclick = () => {
+        const code = friendInput.value.trim();
+        if (!code) {
+            showNotification('Please enter a friend code.', 'error');
+            return;
+        }
+        if (code === firebaseUser.uid) {
+            showNotification('You cannot add yourself as a friend!', 'error');
+            return;
+        }
+
+        addFriendBtn.textContent = 'Adding...';
+        addFriendBtn.disabled = true;
+
+        // Verify that the user exists in Firebase first!
+        firebase.database().ref(`leaderboard/${code}`).once('value')
+            .then(snapshot => {
+                if (snapshot.exists()) {
+                    firebase.database().ref(`users/${firebaseUser.uid}/friends/${code}`).set(true)
+                        .then(() => {
+                            showNotification('Friend added successfully!');
+                            friendInput.value = '';
+                            loadFriendsList();
+                        })
+                        .catch(err => showNotification(err.message, 'error'));
+                } else {
+                    showNotification('User not found. Check the share code and try again.', 'error');
+                }
+            })
+            .catch(err => showNotification(err.message, 'error'))
+            .finally(() => {
+                addFriendBtn.textContent = 'Add Friend';
+                addFriendBtn.disabled = false;
+            });
+    };
+
+    // Load and render Friends List
+    function loadFriendsList() {
+        friendsLoading.classList.remove('hidden');
+        friendsListContainer.innerHTML = '';
+
+        firebase.database().ref(`users/${firebaseUser.uid}/friends`).once('value')
+            .then(snapshot => {
+                const friends = snapshot.val();
+                if (!friends) {
+                    friendsLoading.classList.add('hidden');
+                    friendsListContainer.innerHTML = `<div id="friends-empty-state" class="empty-state-message">No friends added yet. Ask your friends for their share codes!</div>`;
+                    return;
+                }
+
+                const friendUIDs = Object.keys(friends);
+                const promises = friendUIDs.map(uid => firebase.database().ref(`leaderboard/${uid}`).once('value'));
+
+                Promise.all(promises).then(results => {
+                    friendsLoading.classList.add('hidden');
+                    let friendCount = 0;
+
+                    results.forEach((res, index) => {
+                        const friendData = res.val();
+                        const friendUID = friendUIDs[index];
+                        if (friendData) {
+                            friendCount++;
+                            const friendCard = document.createElement('div');
+                            friendCard.className = 'stat-card';
+                            friendCard.style.padding = '15px';
+                            friendCard.style.display = 'flex';
+                            friendCard.style.justifyContent = 'space-between';
+                            friendCard.style.alignItems = 'center';
+                            friendCard.style.flexWrap = 'wrap';
+                            friendCard.style.gap = '15px';
+
+                            friendCard.innerHTML = `
+                                <div style="text-align: left;">
+                                    <h4 style="color: var(--primary-color); font-size: 16px; margin-bottom: 4px;">${friendData.username}</h4>
+                                    <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0;">Level ${friendData.level} • ${friendData.watchedCount} Series Watched • ${friendData.totalXP} Total XP</p>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="add-btn compare-friend-btn" data-uid="${friendUID}" style="height: 34px; padding: 0 15px; font-size: 12px; margin: 0;">👥 Compare</button>
+                                    <button class="manual-add-btn remove-friend-btn" data-uid="${friendUID}" style="height: 34px; padding: 0 15px; font-size: 12px; border-color: var(--error-color); color: var(--error-color); margin: 0;">Remove</button>
+                                </div>
+                            `;
+
+                            friendCard.querySelector('.compare-friend-btn').onclick = () => openComparison(friendUID, friendData.username);
+                            friendCard.querySelector('.remove-friend-btn').onclick = () => removeFriend(friendUID);
+
+                            friendsListContainer.appendChild(friendCard);
+                        }
+                    });
+
+                    if (friendCount === 0) {
+                        friendsListContainer.innerHTML = `<div id="friends-empty-state" class="empty-state-message">No friends added yet. Ask your friends for their share codes!</div>`;
+                    }
+                }).catch(err => console.error(err));
+            })
+            .catch(err => {
+                console.error(err);
+                friendsLoading.classList.add('hidden');
+            });
+    }
+
+    function removeFriend(friendUID) {
+        if (confirm('Are you sure you want to remove this friend?')) {
+            firebase.database().ref(`users/${firebaseUser.uid}/friends/${friendUID}`).remove()
+                .then(() => {
+                    showNotification('Friend removed.');
+                    loadFriendsList();
+                })
+                .catch(err => showNotification(err.message, 'error'));
+        }
+    }
+
+    // Load and render Global Top 10 Leaderboard
+    function loadLeaderboard() {
+        leaderboardLoading.classList.remove('hidden');
+        leaderboardContainer.innerHTML = '';
+
+        firebase.database().ref('leaderboard').orderByChild('totalXP').limitToLast(10).once('value')
+            .then(snapshot => {
+                leaderboardLoading.classList.add('hidden');
+                const users = [];
+                snapshot.forEach(child => {
+                    users.push({ uid: child.key, ...child.val() });
+                });
+
+                // Firebase query fetches ascending order, let's reverse to descending
+                users.reverse();
+
+                if (users.length === 0) {
+                    leaderboardContainer.innerHTML = '<div class="empty-state-message" style="padding: 20px;">No global records registered yet. Log some anime to join!</div>';
+                    return;
+                }
+
+                users.forEach((usr, index) => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.justifyContent = 'space-between';
+                    row.style.alignItems = 'center';
+                    row.style.padding = '12px 20px';
+                    row.style.borderBottom = index === users.length - 1 ? 'none' : '1px solid var(--border-light)';
+                    row.style.background = usr.uid === firebaseUser.uid ? 'rgba(255, 193, 7, 0.05)' : 'transparent';
+
+                    let medalBadge = `<span style="font-weight: bold; width: 30px; display: inline-block;">#${index + 1}</span>`;
+                    if (index === 0) medalBadge = `<span style="width: 30px; display: inline-block; font-size: 18px;">🥇</span>`;
+                    else if (index === 1) medalBadge = `<span style="width: 30px; display: inline-block; font-size: 18px;">🥈</span>`;
+                    else if (index === 2) medalBadge = `<span style="width: 30px; display: inline-block; font-size: 18px;">🥉</span>`;
+
+                    row.innerHTML = `
+                        <div style="display: flex; align-items: center; text-align: left;">
+                            ${medalBadge}
+                            <div>
+                                <span style="font-weight: 700; color: ${usr.uid === firebaseUser.uid ? 'var(--primary-color)' : 'var(--text-color)'};">${usr.username}</span>
+                                <span class="rarity-badge ${index < 3 ? 'legendary' : 'common'}" style="margin-left: 10px; font-size: 9px; padding: 2px 6px;">Lvl ${usr.level}</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right; font-weight: bold; color: var(--primary-color);">
+                            ${usr.watchedCount} Series • ${usr.totalXP} XP
+                        </div>
+                    `;
+                    leaderboardContainer.appendChild(row);
+                });
+            })
+            .catch(err => {
+                console.error(err);
+                leaderboardLoading.classList.add('hidden');
+            });
+    }
+
+    // Open Side-by-Side Comparison modal
+    function openComparison(friendUID, friendName) {
+        const modal = document.getElementById('comparison-modal');
+        const userStatsEl = document.getElementById('comp-user-stats');
+        const friendStatsEl = document.getElementById('comp-friend-stats');
+        const friendTitleEl = document.getElementById('comp-friend-name');
+        const watchesContainer = document.getElementById('comparison-watches-container');
+
+        friendTitleEl.textContent = friendName;
+        userStatsEl.textContent = 'Syncing user stats...';
+        friendStatsEl.textContent = 'Syncing friend stats...';
+        watchesContainer.innerHTML = '<div class="empty-state-message">Syncing watched lists...</div>';
+
+        modal.classList.remove('hidden');
+
+        // Fetch Friend's full watched list
+        firebase.database().ref(`users/${friendUID}/challengeData`).once('value')
+            .then(snapshot => {
+                const friendChallenge = snapshot.val() || { days: {}, backlog: [] };
+
+                // Construct lists
+                const userUnique = getUniqueAnime();
+                const friendUnique = [];
+
+                // Parse friend unique list
+                const friendDays = friendChallenge.days || {};
+                const friendBacklog = friendChallenge.backlog || [];
+
+                const friendAll = [...Object.values(friendDays).flatMap(d => d.watched || []), ...friendBacklog];
+                const friendMap = new Map();
+                friendAll.forEach(item => {
+                    const key = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
+                    if (!friendMap.has(key)) {
+                        friendMap.set(key, item);
+                        friendUnique.push(item);
+                    }
+                });
+
+                // Display comparison stats
+                const userLvl = Math.floor((userUnique.length * 100) / 1000) + 1;
+                const friendLvl = Math.floor((friendUnique.length * 100) / 1000) + 1;
+
+                userStatsEl.innerHTML = `
+                    <strong>Level:</strong> ${userLvl}<br>
+                    <strong>Unique Watches:</strong> ${userUnique.length} Series<br>
+                    <strong>Achievements:</strong> ${challengeData.unlockedAchievements.length} Unlocked
+                `;
+
+                friendStatsEl.innerHTML = `
+                    <strong>Level:</strong> ${friendLvl}<br>
+                    <strong>Unique Watches:</strong> ${friendUnique.length} Series<br>
+                    <strong>Achievements:</strong> ${(friendChallenge.unlockedAchievements || []).length} Unlocked
+                `;
+
+                // Render side-by-side watches and highlight common favorites!
+                watchesContainer.innerHTML = '';
+
+                // Combine and find duplicates/uniques
+                const allKeys = new Set([
+                    ...userUnique.map(a => a.isManual ? a.title.toLowerCase().trim() : a.mal_id),
+                    ...friendUnique.map(a => a.isManual ? a.title.toLowerCase().trim() : a.mal_id)
+                ]);
+
+                if (allKeys.size === 0) {
+                    watchesContainer.innerHTML = '<div class="empty-state-message">No watches logged yet by either watcher.</div>';
+                    return;
+                }
+
+                allKeys.forEach(key => {
+                    const userAnime = userUnique.find(a => (a.isManual ? a.title.toLowerCase().trim() : a.mal_id) === key);
+                    const friendAnime = friendUnique.find(a => (a.isManual ? a.title.toLowerCase().trim() : a.mal_id) === key);
+
+                    const title = userAnime ? getEnglishTitle(userAnime) : (friendAnime ? getEnglishTitle(friendAnime) : 'Unknown');
+                    const isMutual = userAnime && friendAnime;
+
+                    const watchRow = document.createElement('div');
+                    watchRow.style.display = 'flex';
+                    watchRow.style.justifyContent = 'space-between';
+                    watchRow.style.alignItems = 'center';
+                    watchRow.style.padding = '8px 12px';
+                    watchRow.style.borderRadius = '8px';
+                    watchRow.style.marginBottom = '6px';
+                    watchRow.style.border = isMutual ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255,255,255,0.03)';
+                    watchRow.style.background = isMutual ? 'rgba(16, 185, 129, 0.04)' : 'rgba(0,0,0,0.1)';
+
+                    watchRow.innerHTML = `
+                        <div style="text-align: left; flex-grow: 1; padding-right: 15px;">
+                            <span style="font-weight: 600; font-size: 13px; color: ${isMutual ? '#34D399' : '#FFF'};">${title}</span>
+                            ${isMutual ? '<span class="rarity-badge epic" style="font-size: 8px; padding: 1px 4px; margin-left: 8px; margin-bottom: 0;">Mutual Favorite</span>' : ''}
+                        </div>
+                        <div style="display: flex; gap: 20px; font-size: 12px; flex-shrink: 0; min-width: 140px; justify-content: flex-end;">
+                            <span style="color: var(--text-secondary);">You: <strong style="color:#FFF;">${userAnime?.user_score ? `${userAnime.user_score}/10` : 'N/A'}</strong></span>
+                            <span style="color: var(--text-secondary);">Them: <strong style="color:#FFF;">${friendAnime?.user_score ? `${friendAnime.user_score}/10` : 'N/A'}</strong></span>
+                        </div>
+                    `;
+                    watchesContainer.appendChild(watchRow);
+                });
+
+            })
+            .catch(err => {
+                console.error(err);
+                watchesContainer.innerHTML = '<div class="empty-state-message" style="color:var(--error-color);">Failed to retrieve friend comparison dashboard data. Check network permissions.</div>';
+            });
+    }
+
+    loadFriendsList();
+    loadLeaderboard();
+}
+
 // --- INITIALIZATION & EVENT LISTENERS ---
 function initializeApp() {
     challengeData = loadChallengeData();
@@ -1546,6 +1959,7 @@ function initializeApp() {
     document.getElementById('switch-to-challenge-btn').onclick = () => switchToScreen('challenge');
     document.getElementById('switch-to-anipace-btn').onclick = () => switchToScreen('anipace');
     document.getElementById('switch-to-schedule-btn').onclick = () => switchToScreen('schedule');
+    document.getElementById('switch-to-friends-btn').onclick = () => switchToScreen('friends');
     
     document.getElementById('backlog-search-input').oninput = debounce(renderAllAnimeList, 300);
     document.getElementById('backlog-sort-select').onchange = renderAllAnimeList;
@@ -1613,7 +2027,18 @@ function initializeApp() {
                         const isUnlocked = challengeData.unlockedAchievements.includes(ach.id); 
                         const item = document.createElement('div'); 
                         item.className = `achievement-item ${isUnlocked ? 'unlocked' : ''}`; 
-                        item.innerHTML = `<h4>${ach.title}</h4><p>${ach.description}</p>`; 
+
+                        const rarityClass = ach.rarity || 'common';
+                        const xpValue = ach.xp || 50;
+                        const rarityBadgeHtml = `<span class="rarity-badge ${rarityClass}">${rarityClass}</span>`;
+                        const xpRewardHtml = `<span class="achievement-xp-reward">+${xpValue} XP Reward</span>`;
+
+                        item.innerHTML = `
+                            ${rarityBadgeHtml}
+                            <h4>${ach.title}</h4>
+                            <p>${ach.description}</p>
+                            ${xpRewardHtml}
+                        `;
                         categoryDiv.appendChild(item); 
                     });
                     
@@ -1992,6 +2417,12 @@ FIREBASE SETUP INSTRUCTIONS
        "users": {
          "$uid": {
            ".read": "auth != null && auth.uid == $uid",
+           ".write": "auth != null && auth.uid == $uid"
+         }
+       },
+       "leaderboard": {
+         ".read": "true",
+         "$uid": {
            ".write": "auth != null && auth.uid == $uid"
          }
        }
