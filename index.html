@@ -373,9 +373,9 @@
                     <div class="lounge-panel" style="display: flex; flex-direction: column; gap: 15px;">
                         <div class="stat-card" style="text-align: left; padding: 15px;">
                             <h3>Your Share Code</h3>
-                            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                            <div class="lounge-mobile-stack" style="margin-top: 10px;">
                                 <div id="your-share-code-v2" style="flex: 1; font-size: 13px; word-break: break-all; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; border: 1px solid var(--border-light); font-family: monospace; line-height: 20px; min-height: 20px; -webkit-text-fill-color: var(--text-color) !important;">Generating...</div>
-                                <button id="copy-share-code-v2" class="add-btn" style="width: auto; height: 40px; margin: 0; padding: 0 15px;">📋 Copy</button>
+                                <button id="copy-share-code-v2" class="add-btn" style="width: auto; height: 40px; margin: 0; padding: 0 15px; flex-shrink: 0;">📋 Copy</button>
                             </div>
                         </div>
 
@@ -388,8 +388,8 @@
                         <!-- Search/Add Friend Input -->
                         <div class="stat-card" style="padding: 15px; text-align: left;">
                             <h3>Send Friend Request</h3>
-                            <div class="entry-controls-group" style="margin-top: 10px; display: flex; gap: 8px;">
-                                <input type="text" id="friend-request-input-v2" placeholder="Enter recipient share code..." style="padding: 10px; font-size: 13px; flex: 1;">
+                            <div class="lounge-mobile-stack" style="margin-top: 10px;">
+                                <input type="text" id="friend-request-input-v2" placeholder="Enter recipient share code..." style="padding: 10px; font-size: 13px; flex: 1; box-sizing: border-box;">
                                 <button id="send-request-btn-v2" class="add-btn" style="height: 40px; padding: 0 15px; font-size: 13px; margin: 0; width: auto; flex-shrink: 0;">Send Request</button>
                             </div>
                         </div>
@@ -422,8 +422,8 @@
                                 <span style="font-size: 11px; font-weight: normal; text-transform: uppercase; color: var(--primary-color);">Fits My Backlog</span>
                             </h3>
                             <p style="color: var(--text-secondary); font-size: 12px; margin: 5px 0 12px 0;">Input your available minutes, and let the planner automatically figure out how many episodes from your backlog you can finish!</p>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="number" id="smart-planner-mins" placeholder="Available minutes (e.g. 120)" min="1" style="flex: 1; padding: 10px; font-size: 13px; background-color: rgba(0,0,0,0.3); border: 1px solid var(--border-light); border-radius: 8px; color: var(--text-color);">
+                            <div class="lounge-mobile-stack">
+                                <input type="number" id="smart-planner-mins" placeholder="Available minutes (e.g. 120)" min="1" style="flex: 1; padding: 10px; font-size: 13px; background-color: rgba(0,0,0,0.3); border: 1px solid var(--border-light); border-radius: 8px; color: var(--text-color); box-sizing: border-box;">
                                 <button id="smart-planner-calc-btn" class="add-btn" style="width: auto; height: 40px; padding: 0 15px; margin: 0; font-size: 13px; flex-shrink: 0;">Calculate Plan</button>
                             </div>
                             <div id="smart-planner-result" class="hidden" style="margin-top: 15px; background: rgba(218, 165, 32, 0.1); border: 1px solid rgba(218, 165, 32, 0.3); padding: 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px;">
