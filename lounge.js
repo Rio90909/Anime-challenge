@@ -12,6 +12,21 @@ let globalRequestsListener = null;
 let globalLeaderboardListener = null;
 let presenceIntervalId = null;
 
+// Helper to sanitize and prevent HTML/XSS injection
+function escapeHTML(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function(m) {
+        switch (m) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case "'": return '&#039;';
+            default: return m;
+        }
+    });
+}
+
 // Preset SVG Avatars mapping
 const AVATAR_PRESETS = {
     red: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%23FF5733'/><text x='50' y='65' font-size='40' font-family='Arial' font-weight='bold' text-anchor='middle' fill='white'>A</text></svg>",
@@ -341,12 +356,12 @@ function syncGlobalLeaderboard() {
                     <img src="${avatarUrl}" class="leaderboard-avatar" alt="User avatar">
                     <div>
                         <div style="display:flex; align-items:center;">
-                            <span class="leaderboard-username">${row.displayName || 'Unknown'}</span>
+                            <span class="leaderboard-username">${escapeHTML(row.displayName || 'Unknown')}</span>
                             ${presenceDot}
-                            <span class="leaderboard-title-badge">${row.selectedTitle || 'Newbie'}</span>
+                            <span class="leaderboard-title-badge">${escapeHTML(row.selectedTitle || 'Newbie')}</span>
                         </div>
                         <div style="font-size:10px; color:var(--text-secondary); margin-top:2px;">
-                            Watching: ${row.currentlyWatching || 'None'}
+                            Watching: ${escapeHTML(row.currentlyWatching || 'None')}
                         </div>
                     </div>
                 </div>
@@ -468,8 +483,8 @@ function syncFriendRequests(uid) {
                 <div class="friend-item-left">
                     <img src="${avatarUrl}" class="friend-item-avatar" alt="Sender avatar">
                     <div class="friend-info-block">
-                        <div class="friend-name-text">${req.senderName}</div>
-                        <div class="friend-title-text">${req.selectedTitle || 'Newbie'}</div>
+                        <div class="friend-name-text">${escapeHTML(req.senderName)}</div>
+                        <div class="friend-title-text">${escapeHTML(req.selectedTitle || 'Newbie')}</div>
                     </div>
                 </div>
                 <div style="display:flex; gap:8px;">
@@ -559,8 +574,14 @@ function syncFriendsList(uid) {
         // Retrieve each friend profile
         friendsKeys.forEach(fUid => {
             firebase.database().ref(`users/${fUid}/profile`).once('value').then(profileSnap => {
-                const profile = profileSnap.val();
-                if (!profile) return;
+                const profile = profileSnap.val() || {
+                    displayName: generateDefaultDisplayName(fUid),
+                    avatarId: 'red',
+                    customAvatarUrl: '',
+                    selectedTitle: 'Newbie',
+                    currentlyWatching: 'None',
+                    lastActive: 0
+                };
 
                 const friendRow = document.createElement('div');
                 friendRow.className = 'friend-item-row';
@@ -571,20 +592,21 @@ function syncFriendsList(uid) {
                 const statusDot = `<div class="friend-presence-dot ${presenceClass}"></div>`;
 
                 friendRow.innerHTML = `
-                    <div class="friend-item-left">
+                    <div class="friend-item-left" style="flex-wrap: wrap; gap: 10px;">
                         <div style="position:relative;">
                             <img src="${avatarUrl}" class="friend-item-avatar" alt="Friend avatar">
                             ${statusDot}
                         </div>
                         <div class="friend-info-block">
-                            <div class="friend-name-text">${profile.displayName || 'Friend'}</div>
-                            <div class="friend-title-text">${profile.selectedTitle || 'Newbie'}</div>
-                            <div class="friend-watching-text">Watching: <span style="color:var(--text-color); font-weight:500;">${profile.currentlyWatching || 'None'}</span></div>
+                            <div class="friend-name-text">${escapeHTML(profile.displayName)}</div>
+                            <div class="friend-title-text">${escapeHTML(profile.selectedTitle)}</div>
+                            <div class="friend-watching-text">Watching: <span style="color:var(--text-color); font-weight:500;">${escapeHTML(profile.currentlyWatching)}</span></div>
                         </div>
                     </div>
-                    <div style="display:flex; gap:8px;">
-                        <button class="add-btn chat-friend-btn" style="height:32px; padding:0 12px; margin:0; font-size:12px; width:auto;">Chat</button>
-                        <button class="manual-add-btn compare-friend-btn" style="height:32px; padding:0 12px; margin:0; font-size:12px; width:auto; border-color:var(--primary-color); color:var(--primary-color);">Compare</button>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-left:auto;">
+                        <button class="add-btn chat-friend-btn" style="height:32px; padding:0 10px; margin:0; font-size:12px; width:auto;">💬 Chat</button>
+                        <button class="manual-add-btn compare-friend-btn" style="height:32px; padding:0 10px; margin:0; font-size:12px; width:auto; border-color:var(--primary-color); color:var(--primary-color);">📊 Compare</button>
+                        <button class="manual-add-btn remove-friend-btn" style="height:32px; padding:0 10px; margin:0; font-size:12px; width:auto; border-color:var(--error-color); color:var(--error-color);">❌ Remove</button>
                     </div>
                 `;
 
@@ -593,6 +615,22 @@ function syncFriendsList(uid) {
 
                 // Compare click action (reusing standard layout / side-by-side watches)
                 friendRow.querySelector('.compare-friend-btn').onclick = () => openFriendComparison(fUid, profile);
+
+                // Remove friend action (mutual deletion)
+                friendRow.querySelector('.remove-friend-btn').onclick = () => {
+                    const friendName = profile.displayName;
+                    if (confirm(`Are you sure you want to remove ${friendName} from your friends list?`)) {
+                        Promise.all([
+                            firebase.database().ref(`users/${uid}/friends/${fUid}`).remove(),
+                            firebase.database().ref(`users/${fUid}/friends/${uid}`).remove()
+                        ]).then(() => {
+                            showToast(`Removed ${friendName} from friends list.`, 'info');
+                        }).catch(err => {
+                            console.error(err);
+                            showToast('Failed to remove friend.', 'error');
+                        });
+                    }
+                };
 
                 listEl.appendChild(friendRow);
             });
@@ -674,8 +712,8 @@ function openChatWindow(friendUid, profile) {
             bubble.innerHTML = `
                 <img src="${msg.senderAvatar}" class="chat-bubble-avatar" alt="Sender avatar">
                 <div class="chat-bubble-content">
-                    <div style="font-size:10px; opacity:0.6; margin-bottom:2px; font-weight:bold;">${msg.senderName}</div>
-                    <div>${msg.text}</div>
+                    <div style="font-size:10px; opacity:0.6; margin-bottom:2px; font-weight:bold;">${escapeHTML(msg.senderName)}</div>
+                    <div>${escapeHTML(msg.text)}</div>
                     ${embedHtml}
                     <div class="chat-bubble-time">${dateStr}</div>
                 </div>

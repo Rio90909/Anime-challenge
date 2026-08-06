@@ -998,7 +998,12 @@ function createDayEntry(date) {
         addOnlineBtn.textContent = 'Searching...'; 
         addOnlineBtn.disabled = true; 
         try { 
-            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,categories,animeProductions.producer`);
+            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,categories,animeProductions.producer`, {
+                headers: {
+                    'Accept': 'application/vnd.api+json',
+                    'Content-Type': 'application/vnd.api+json'
+                }
+            });
             const searchData = await response.json(); 
             const normalizedData = normalizeKitsuResponse(searchData);
             showSearchResults(normalizedData, (selectedAnime) => {

@@ -1099,6 +1099,25 @@ header h1 {
     }
 }
 
+/* Lounge Mobile Stacking Helper */
+.lounge-mobile-stack {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+@media (max-width: 500px) {
+    .lounge-mobile-stack {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .lounge-mobile-stack button,
+    .lounge-mobile-stack input,
+    .lounge-mobile-stack div {
+        width: 100% !important;
+    }
+}
+
 /* Avatar Selection & Preset Items */
 .avatar-preset {
     box-sizing: border-box;
@@ -1299,6 +1318,33 @@ header h1 {
 }
 .friend-item-row:hover {
     background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 550px) {
+    .friend-item-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .friend-item-row .friend-item-left {
+        justify-content: center;
+        text-align: center;
+        flex-direction: column;
+    }
+    .friend-item-row .friend-info-block {
+        text-align: center;
+    }
+    .friend-item-row .friend-watching-text {
+        text-align: center;
+    }
+    .friend-item-row div[style*="display:flex"] {
+        justify-content: center;
+        width: 100% !important;
+    }
+    .friend-item-row button {
+        flex: 1;
+        text-align: center;
+    }
 }
 .friend-item-left {
     display: flex;
