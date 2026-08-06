@@ -1123,7 +1123,7 @@ function switchToScreen(screenId) {
         friendsScreen.classList.remove('hidden');
         switchToFriendsBtn.classList.add('hidden');
         jumpToTodayBtn.classList.add('hidden');
-        headerTitle.textContent = 'Anime Social Lounge';
+        headerTitle.textContent = 'Smart Binge Planner';
         if (typeof onSocialLoungeOpened === 'function') {
             onSocialLoungeOpened();
         }
