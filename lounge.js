@@ -124,6 +124,40 @@ function getUserCounts(callback) {
     callback({ completedCount, totalCount: completedCount + backlogCount });
 }
 
+// Self-healing two-way friendship sync
+function syncMutualFriendships(myUid) {
+    firebase.database().ref(`friends`).once('value', snapshot => {
+        const allFriends = snapshot.val() || {};
+        const updates = {};
+        let hasUpdates = false;
+
+        // Iterate over all users to see if anyone has added us as a friend
+        Object.keys(allFriends).forEach(otherUid => {
+            if (otherUid !== myUid) {
+                // If other user has added us as a friend
+                if (allFriends[otherUid] && allFriends[otherUid][myUid] === true) {
+                    // Check if we have added them. If not, auto-add them!
+                    if (!allFriends[myUid] || allFriends[myUid][otherUid] !== true) {
+                        updates[`friends/${myUid}/${otherUid}`] = true;
+                        hasUpdates = true;
+                    }
+                } else {
+                    // If other user has NOT added us, but we currently have them as a friend
+                    if (allFriends[myUid] && allFriends[myUid][otherUid] === true) {
+                        updates[`friends/${myUid}/${otherUid}`] = null;
+                        hasUpdates = true;
+                    }
+                }
+            }
+        });
+
+        if (hasUpdates) {
+            firebase.database().ref().update(updates)
+                .catch(err => console.error("Mutual sync error:", err));
+        }
+    });
+}
+
 // --- LAZY-LOAD LOUNGE CONTROLLER ---
 function initLoungeListeners() {
     const currentUser = firebase.auth().currentUser;
@@ -134,6 +168,9 @@ function initLoungeListeners() {
     // Load/Display User Share Code
     const shareCodeInput = document.getElementById('user-share-code');
     if (shareCodeInput) shareCodeInput.value = uid;
+
+    // Trigger self-healing background friendship sync
+    syncMutualFriendships(uid);
 
     // 1. Friends list Listener
     if (friendsListenerRef) friendsListenerRef.off();
@@ -955,13 +992,17 @@ window.acceptLoungeRequest = function(senderUid) {
     const user = firebase.auth().currentUser;
     if (!user) return;
 
+    // Only write to nodes we have write permissions for (our own friends list and our incoming requests)
     const updates = {};
     updates[`friends/${user.uid}/${senderUid}`] = true;
-    updates[`friends/${senderUid}/${user.uid}`] = true;
     updates[`friendRequests/${user.uid}/${senderUid}`] = null;
 
     firebase.database().ref().update(updates)
-        .then(() => showToast("Friend request accepted!"))
+        .then(() => {
+            showToast("Friend request accepted!");
+            // Run reciprocal background sync immediately to auto-complete the connection on both sides
+            syncMutualFriendships(user.uid);
+        })
         .catch(err => showToast(err.message, "error"));
 };
 
@@ -979,13 +1020,15 @@ window.removeLoungeFriend = function(friendUid) {
     if (!user) return;
 
     if (confirm("Are you sure you want to remove this friend?")) {
+        // Only write to friends node we have permission for (our own friends list)
         const updates = {};
         updates[`friends/${user.uid}/${friendUid}`] = null;
-        updates[`friends/${friendUid}/${user.uid}`] = null;
 
         firebase.database().ref().update(updates)
             .then(() => {
                 showToast("Friend removed.");
+                // Run reciprocal background sync to auto-remove on their side too
+                syncMutualFriendships(user.uid);
                 if (activeChatId && activeChatId.includes(friendUid)) {
                     document.getElementById('dm-input-area')?.classList.add('hidden');
                     document.getElementById('dm-friend-name').textContent = 'No Active Chat';
