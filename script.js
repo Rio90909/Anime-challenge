@@ -1068,11 +1068,13 @@ function switchToScreen(screenId) {
     const backlogScreen = document.getElementById('backlog-manager-screen');
     const anipaceScreen = document.getElementById('anipace-log-screen');
     const scheduleScreen = document.getElementById('schedule-screen');
+    const loungeScreen = document.getElementById('anime-social-lounge');
     
     const switchToChallengeBtn = document.getElementById('switch-to-challenge-btn');
     const switchToBacklogBtn = document.getElementById('switch-to-backlog-btn');
     const switchToAniPaceBtn = document.getElementById('switch-to-anipace-btn');
     const switchToScheduleBtn = document.getElementById('switch-to-schedule-btn');
+    const switchToLoungeBtn = document.getElementById('switch-to-lounge-btn');
     const jumpToTodayBtn = document.getElementById('jump-to-today-btn');
     const headerTitle = document.getElementById('header-title');
     const body = document.body;
@@ -1082,11 +1084,13 @@ function switchToScreen(screenId) {
     backlogScreen.classList.add('hidden');
     anipaceScreen.classList.add('hidden');
     scheduleScreen.classList.add('hidden');
+    if (loungeScreen) loungeScreen.classList.add('hidden');
 
     switchToChallengeBtn.classList.remove('hidden');
     switchToBacklogBtn.classList.remove('hidden');
     switchToAniPaceBtn.classList.remove('hidden');
     switchToScheduleBtn.classList.remove('hidden');
+    if (switchToLoungeBtn) switchToLoungeBtn.classList.remove('hidden');
     jumpToTodayBtn.classList.remove('hidden');
     body.classList.remove('backlog-active');
     
@@ -1109,6 +1113,15 @@ function switchToScreen(screenId) {
         jumpToTodayBtn.classList.add('hidden');
         headerTitle.textContent = 'Releases & Schedule';
         initScheduleScreen();
+    } else if (screenId === 'lounge') {
+        if (loungeScreen) loungeScreen.classList.remove('hidden');
+        if (switchToLoungeBtn) switchToLoungeBtn.classList.add('hidden');
+        jumpToTodayBtn.classList.add('hidden');
+        headerTitle.textContent = 'Anime Social Lounge';
+
+        // Dispatch custom event to notify lounge.js of activation
+        const event = new CustomEvent('lounge-screen-active');
+        document.dispatchEvent(event);
     } else {
         challengeScreen.classList.remove('hidden');
         switchToChallengeBtn.classList.add('hidden');
@@ -1546,6 +1559,10 @@ function initializeApp() {
     document.getElementById('switch-to-challenge-btn').onclick = () => switchToScreen('challenge');
     document.getElementById('switch-to-anipace-btn').onclick = () => switchToScreen('anipace');
     document.getElementById('switch-to-schedule-btn').onclick = () => switchToScreen('schedule');
+    const loungeBtn = document.getElementById('switch-to-lounge-btn');
+    if (loungeBtn) {
+        loungeBtn.onclick = () => switchToScreen('lounge');
+    }
     
     document.getElementById('backlog-search-input').oninput = debounce(renderAllAnimeList, 300);
     document.getElementById('backlog-sort-select').onchange = renderAllAnimeList;
@@ -1783,6 +1800,9 @@ function initializeFirebase() {
     firebase.auth().onAuthStateChanged(user => {
         if (user) {
             firebaseUser = user;
+            window.firebaseUser = user;
+            const authEvent = new CustomEvent('auth-changed', { detail: { user: user } });
+            document.dispatchEvent(authEvent);
             if (statusEl) {
                 statusEl.textContent = user.isAnonymous ? 'Guest Mode (Cloud Synced)' : 'Account Synced ☁️';
                 statusEl.style.color = 'var(--success-color)';
@@ -1837,6 +1857,9 @@ function initializeFirebase() {
             });
         } else {
             firebaseUser = null;
+            window.firebaseUser = null;
+            const authEvent = new CustomEvent('auth-changed', { detail: { user: null } });
+            document.dispatchEvent(authEvent);
             if (statusEl) {
                 statusEl.textContent = 'Connecting...';
                 statusEl.style.color = 'var(--text-secondary)';

@@ -1082,6 +1082,78 @@ header h1 {
     border: 1px solid rgba(156, 163, 175, 0.3);
 }
 
+/* ========================================================================
+   ANIME SOCIAL LOUNGE STYLES
+   ======================================================================== */
+.lounge-desktop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 20px;
+}
+
+@media (max-width: 768px) {
+    .lounge-desktop-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lounge-tab-btn {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-light);
+    padding: 10px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.lounge-tab-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.lounge-tab-btn.active {
+    background: linear-gradient(135deg, var(--primary-color), #FFA000);
+    color: #000;
+    border-color: var(--primary-color);
+}
+
+/* Scrollbar customization inside chat log */
+#dm-messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+#dm-messages-container::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.1);
+}
+#dm-messages-container::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+}
+#dm-messages-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,193,7,0.3);
+}
+
+/* Leaderboard records row style */
+#leaderboard-table-body tr {
+    transition: background-color 0.2s;
+}
+#leaderboard-table-body tr:hover {
+    background-color: rgba(255,255,255,0.02);
+}
+
+/* Modal styling fallback */
+#share-anime-list-container::-webkit-scrollbar {
+    width: 5px;
+}
+#share-anime-list-container::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15);
+    border-radius: 3px;
+}
+
 .backlog-text-meta {
     margin-top: 10px;
     padding-top: 10px;
