@@ -20,6 +20,35 @@ const AVATAR_PRESETS = [
 
 const EMOJIS = ["😊", "😂", "🔥", "✨", "🍿", "🎉", "💖", "🤩", "🤔", "😭", "😤", "🌸", "🍥", "⚔️", "🦊", "👒", "⚡", "🎒", "👽", "🤖"];
 
+// --- MOBILE VIEW CONTROLLER ---
+function updateMobileLoungeView() {
+    const leftPane = document.getElementById('lounge-left-pane');
+    const rightPane = document.getElementById('lounge-right-pane');
+    const backBtn = document.getElementById('lounge-chat-back-btn');
+
+    if (!leftPane || !rightPane) return;
+
+    const isMobile = window.innerWidth < 768;
+
+    if (isMobile) {
+        if (activeChatId) {
+            leftPane.style.display = 'none';
+            rightPane.style.display = 'flex';
+            if (backBtn) backBtn.style.display = 'block';
+        } else {
+            leftPane.style.display = 'flex';
+            rightPane.style.display = 'none';
+            if (backBtn) backBtn.style.display = 'none';
+        }
+    } else {
+        leftPane.style.display = 'flex';
+        rightPane.style.display = 'flex';
+        if (backBtn) backBtn.style.display = 'none';
+    }
+}
+window.updateMobileLoungeView = updateMobileLoungeView;
+window.addEventListener('resize', updateMobileLoungeView);
+
 // --- TOAST UTILITY ---
 function showToast(message, type = "success") {
     const containerId = "toast-container";
@@ -78,23 +107,31 @@ function showToast(message, type = "success") {
 }
 
 // --- UTILS: GET ALL PROFILE FIELDS ---
+const profilePromises = {};
 function getProfileData(uid, callback) {
     if (otherUsersProfiles[uid]) {
         callback(otherUsersProfiles[uid]);
         return;
     }
-    firebase.database().ref(`users/${uid}/profile`).once('value', snapshot => {
-        const data = snapshot.val() || {};
-        const profile = {
-            displayName: data.displayName || `User#${uid.substring(0, 4)}`,
-            avatarUrl: data.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`,
-            title: data.title || "Newbie Tracker",
-            completedCount: data.completedCount || 0,
-            xp: data.xp || 0
-        };
-        otherUsersProfiles[uid] = profile;
-        callback(profile);
+    if (profilePromises[uid]) {
+        profilePromises[uid].then(profile => callback(profile));
+        return;
+    }
+    profilePromises[uid] = new Promise((resolve) => {
+        firebase.database().ref(`users/${uid}/profile`).once('value', snapshot => {
+            const data = snapshot.val() || {};
+            const profile = {
+                displayName: data.displayName || `User#${uid.substring(0, 4)}`,
+                avatarUrl: data.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`,
+                title: data.title || "Newbie Tracker",
+                completedCount: data.completedCount || 0,
+                xp: data.xp || 0
+            };
+            otherUsersProfiles[uid] = profile;
+            resolve(profile);
+        });
     });
+    profilePromises[uid].then(profile => callback(profile));
 }
 
 // Get raw challenge and backlog counts for a user
@@ -124,38 +161,60 @@ function getUserCounts(callback) {
     callback({ completedCount, totalCount: completedCount + backlogCount });
 }
 
-// Self-healing two-way friendship sync
-function syncMutualFriendships(myUid) {
-    firebase.database().ref(`friends`).once('value', snapshot => {
-        const allFriends = snapshot.val() || {};
-        const updates = {};
-        let hasUpdates = false;
+let mutualFriends = new Set();
+let mutualListeners = {}; // friendUid -> DB reference
 
-        // Iterate over all users to see if anyone has added us as a friend
-        Object.keys(allFriends).forEach(otherUid => {
-            if (otherUid !== myUid) {
-                // If other user has added us as a friend
-                if (allFriends[otherUid] && allFriends[otherUid][myUid] === true) {
-                    // Check if we have added them. If not, auto-add them!
-                    if (!allFriends[myUid] || allFriends[myUid][otherUid] !== true) {
-                        updates[`friends/${myUid}/${otherUid}`] = true;
-                        hasUpdates = true;
-                    }
-                } else {
-                    // If other user has NOT added us, but we currently have them as a friend
-                    if (allFriends[myUid] && allFriends[myUid][otherUid] === true) {
-                        updates[`friends/${myUid}/${otherUid}`] = null;
-                        hasUpdates = true;
-                    }
-                }
+// Real-time mutual friendship sync (No Full-Table Reads, No Loops)
+function syncMutualFriends(candidateFriendsObj) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const myUid = user.uid;
+
+    const candidateUids = Object.keys(candidateFriendsObj).filter(key => candidateFriendsObj[key] === true);
+
+    // 1. Clean up old listeners for UIDs that are no longer candidates
+    Object.keys(mutualListeners).forEach(friendUid => {
+        if (!candidateUids.includes(friendUid)) {
+            if (mutualListeners[friendUid]) {
+                mutualListeners[friendUid].off();
             }
-        });
-
-        if (hasUpdates) {
-            firebase.database().ref().update(updates)
-                .catch(err => console.error("Mutual sync error:", err));
+            delete mutualListeners[friendUid];
+            mutualFriends.delete(friendUid);
         }
     });
+
+    // 2. Set up new listeners for new candidates
+    candidateUids.forEach(friendUid => {
+        if (!mutualListeners[friendUid]) {
+            const ref = firebase.database().ref(`friends/${friendUid}/${myUid}`);
+            mutualListeners[friendUid] = ref;
+            ref.on('value', snapshot => {
+                const isMutual = snapshot.val() === true;
+                if (isMutual) {
+                    if (!mutualFriends.has(friendUid)) {
+                        mutualFriends.add(friendUid);
+                        renderFriendsList();
+                    }
+                } else {
+                    if (mutualFriends.has(friendUid)) {
+                        // They unfriended us! Clean up our side
+                        mutualFriends.delete(friendUid);
+                        firebase.database().ref(`friends/${myUid}/${friendUid}`).set(null)
+                            .then(() => {
+                                renderFriendsList();
+                            })
+                            .catch(err => console.error("Unfriend sync error:", err));
+                    } else {
+                        // Not mutual yet (pending request)
+                        renderFriendsList();
+                    }
+                }
+            });
+        }
+    });
+
+    // Initial or fallback render
+    renderFriendsList();
 }
 
 // --- LAZY-LOAD LOUNGE CONTROLLER ---
@@ -169,14 +228,14 @@ function initLoungeListeners() {
     const shareCodeInput = document.getElementById('user-share-code');
     if (shareCodeInput) shareCodeInput.value = uid;
 
-    // Trigger self-healing background friendship sync
-    syncMutualFriendships(uid);
+    // Update mobile sub-views
+    updateMobileLoungeView();
 
     // 1. Friends list Listener
     if (friendsListenerRef) friendsListenerRef.off();
     friendsListenerRef = firebase.database().ref(`friends/${uid}`);
     friendsListenerRef.on('value', snapshot => {
-        renderFriendsList(snapshot.val() || {});
+        syncMutualFriends(snapshot.val() || {});
     });
 
     // 2. Incoming Requests Listener
@@ -386,11 +445,11 @@ function initPresenceSystem() {
 }
 
 // --- FRIEND SYSTEM ---
-function renderFriendsList(friendsObj) {
+function renderFriendsList() {
     const listContainer = document.getElementById('my-friends-list');
     if (!listContainer) return;
 
-    const uids = Object.keys(friendsObj).filter(key => friendsObj[key] === true);
+    const uids = Array.from(mutualFriends);
 
     if (uids.length === 0) {
         listContainer.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">No friends added yet.</p>`;
@@ -563,6 +622,11 @@ function startChat(friendUid) {
     chatListenerRef.on('value', snapshot => {
         renderChatMessages(snapshot.val() || {});
     });
+
+    // Handle mobile sub-view switching
+    if (typeof updateMobileLoungeView === "function") {
+        updateMobileLoungeView();
+    }
 }
 
 function renderChatMessages(messagesObj) {
@@ -1000,8 +1064,6 @@ window.acceptLoungeRequest = function(senderUid) {
     firebase.database().ref().update(updates)
         .then(() => {
             showToast("Friend request accepted!");
-            // Run reciprocal background sync immediately to auto-complete the connection on both sides
-            syncMutualFriendships(user.uid);
         })
         .catch(err => showToast(err.message, "error"));
 };
@@ -1027,8 +1089,6 @@ window.removeLoungeFriend = function(friendUid) {
         firebase.database().ref().update(updates)
             .then(() => {
                 showToast("Friend removed.");
-                // Run reciprocal background sync to auto-remove on their side too
-                syncMutualFriendships(user.uid);
                 if (activeChatId && activeChatId.includes(friendUid)) {
                     document.getElementById('dm-input-area')?.classList.add('hidden');
                     document.getElementById('dm-friend-name').textContent = 'No Active Chat';
@@ -1058,6 +1118,7 @@ function initLoungeTabSwitching() {
 
             if (target === 'friends') {
                 document.getElementById('lounge-friends-tab').classList.remove('hidden');
+                updateMobileLoungeView();
             } else if (target === 'leaderboard') {
                 document.getElementById('lounge-leaderboard-tab').classList.remove('hidden');
                 loadLeaderboard();
@@ -1084,6 +1145,25 @@ window.switchToScreen = function(screenId) {
 
 // Initialize everything on module load
 document.addEventListener('DOMContentLoaded', () => {
+    // Wire up "← Back" button for mobile view switching
+    const backBtn = document.getElementById('lounge-chat-back-btn');
+    if (backBtn) {
+        backBtn.onclick = () => {
+            activeChatId = null;
+            if (chatListenerRef) chatListenerRef.off();
+            chatListenerRef = null;
+            const messagesContainer = document.getElementById('dm-messages-container');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = `<p class="empty-state-message" style="margin: auto; font-size: 12px;">No active chat session selected.</p>`;
+            }
+            const inputArea = document.getElementById('dm-input-area');
+            if (inputArea) inputArea.classList.add('hidden');
+            const hName = document.getElementById('dm-friend-name');
+            if (hName) hName.textContent = 'No Active Chat';
+            updateMobileLoungeView();
+        };
+    }
+
     initLoungeTabSwitching();
     initProfileSettings();
     initPresenceSystem();

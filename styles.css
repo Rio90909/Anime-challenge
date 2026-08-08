@@ -1083,6 +1083,69 @@ header h1 {
 }
 
 /* ========================================================================
+   RESPONSIVE LOUNGE & MOBILE BOUNDARY OVERRIDES
+   ======================================================================== */
+html, body {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+    width: 100% !important;
+}
+
+@media (max-width: 768px) {
+    .lounge-desktop-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        grid-template-columns: none !important;
+        gap: 15px !important;
+        width: 100% !important;
+    }
+
+    #lounge-left-pane,
+    #lounge-right-pane {
+        width: 100% !important;
+        max-width: 100% !important;
+        flex-grow: 1 !important;
+    }
+
+    #anime-social-lounge, .container {
+        width: 100% !important;
+        max-width: 100vw !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Modal padding fixes for mobile */
+    .modal-content {
+        width: 95% !important;
+        padding: 15px !important;
+        margin: 5% auto !important;
+    }
+}
+
+/* Emoji Picker styling enhancement */
+#emoji-picker-popup {
+    background-color: #1a2333 !important;
+    border: 1px solid rgba(255,193,7,0.3) !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6) !important;
+}
+
+.emoji-btn {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.emoji-btn:hover {
+    transform: scale(1.25);
+    background-color: rgba(255, 193, 7, 0.15);
+}
+
+/* ========================================================================
    ANIME SOCIAL LOUNGE STYLES
    ======================================================================== */
 .lounge-desktop-grid {
