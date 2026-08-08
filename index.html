@@ -94,6 +94,25 @@
                 <p id="firebase-user-info" style="color: var(--text-secondary); font-size: 10px; margin: 5px 0 0 0; text-align: center; word-break: break-all;"></p>
             </div>
 
+            <!-- Profile Settings Block -->
+            <div class="settings-section" id="profile-settings-section">
+                <h4>👤 Profile Settings</h4>
+                <div style="background-color: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; border: 1px solid #444;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="color: var(--text-color); font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Display Name:</label>
+                        <input type="text" id="profile-display-name" placeholder="Enter custom display name" style="width: 100%; padding: 8px; background-color: #222; border: 1px solid #444; border-radius: 6px; color: var(--text-color); box-sizing: border-box; font-size: 13px;">
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="color: var(--text-color); font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">Avatar Selector:</label>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; justify-content: center; align-items: center;" id="profile-avatar-presets">
+                            <!-- Preset options filled dynamically -->
+                        </div>
+                        <input type="text" id="profile-custom-avatar-url" placeholder="Or custom Image URL" style="width: 100%; padding: 8px; background-color: #222; border: 1px solid #444; border-radius: 6px; color: var(--text-color); box-sizing: border-box; font-size: 13px;">
+                    </div>
+                    <button id="save-profile-settings-btn" class="add-btn" style="width: 100%; height: 38px; font-size: 13px; margin: 0;">Save Profile</button>
+                </div>
+            </div>
+
             <div class="settings-section">
                 <h4>Danger Zone</h4>
                 <button id="reset-btn" style="height: 38px; font-size: 13px; background-color: var(--error-color); color: #fff; border: none; border-radius: 6px; cursor: pointer; width: 100%;">Reset ALL Data</button>
@@ -146,6 +165,7 @@
         <button id="switch-to-backlog-btn">📚 My Anime Backlog</button> 
         <button id="switch-to-anipace-btn">⚡ Quick Episode Log (AniPace)</button> 
         <button id="switch-to-schedule-btn">📅 Releases & Schedule</button>
+        <button id="switch-to-lounge-btn">💬 Social Lounge</button>
         <button id="settings-btn">⚙️ Settings</button>
     </nav>
     
@@ -309,7 +329,171 @@
                 <div id="upcoming-grid" class="schedule-grid hidden"></div>
             </div>
         </div>
+
+        <div id="anime-social-lounge" class="hidden container">
+            <div class="lounge-header">
+                <h2>💬 Anime Social Lounge & Hub</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Connect with fellow anime fans, compare backlogs, check online status 🟢, and chat in real-time!</p>
+            </div>
+
+            <!-- Lounge sub-tabs -->
+            <div class="schedule-day-tabs" style="margin-bottom: 25px;">
+                <button class="lounge-tab-btn active" data-tab="friends">👥 Friends & Chat</button>
+                <button class="lounge-tab-btn" data-tab="leaderboard">🏆 Global Leaderboard</button>
+                <button class="lounge-tab-btn" data-tab="lounge-tools">⚡ Lounge Tools</button>
+            </div>
+
+            <!-- Friends Tab Content -->
+            <div id="lounge-friends-tab" class="lounge-tab-content">
+                <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px;" class="lounge-desktop-grid">
+
+                    <!-- Left Pane: Share Code, Incoming Invites, & Friends list -->
+                    <div id="lounge-left-pane" style="display: flex; flex-direction: column; gap: 20px;">
+                        <!-- User Share Code -->
+                        <div class="anipace-card" style="margin-bottom: 0; padding: 18px;">
+                            <h3 style="margin-top: 0; font-size: 14px; color: var(--primary-color);">My Share Code</h3>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 10px;">Share this code with friends so they can add you!</p>
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="user-share-code" readonly style="font-size: 12px; padding: 8px; background-color: rgba(0,0,0,0.3); border: 1px solid var(--border-light); border-radius: 6px; color: var(--text-color); flex-grow: 1; text-align: center;">
+                                <button id="copy-share-code-btn" class="add-btn manual-add-btn" style="padding: 0 15px; font-size: 12px; height: auto; margin: 0;">Copy</button>
+                            </div>
+                        </div>
+
+                        <!-- Add Friend -->
+                        <div class="anipace-card" style="margin-bottom: 0; padding: 18px;">
+                            <h3 style="margin-top: 0; font-size: 14px; color: var(--primary-color);">Add Friend</h3>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <input type="text" id="friend-search-input" placeholder="Paste Friend's Share Code" style="font-size: 12px; padding: 10px; background-color: rgba(0,0,0,0.3); border: 1px solid var(--border-light); border-radius: 6px; color: var(--text-color); text-align: center;">
+                                <button id="send-friend-request-btn" class="add-btn" style="padding: 8px; font-size: 12px; height: auto; margin: 0; width: 100%;">Send Request</button>
+                            </div>
+                        </div>
+
+                        <!-- Incoming Friend Requests -->
+                        <div class="anipace-card" style="margin-bottom: 0; padding: 18px;">
+                            <h3 style="margin-top: 0; font-size: 14px; color: var(--primary-color);">Incoming Requests</h3>
+                            <div id="incoming-requests-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                                <p class="empty-state-message" style="padding: 10px; font-size: 12px;">No incoming requests.</p>
+                            </div>
+                        </div>
+
+                        <!-- Friends list -->
+                        <div class="anipace-card" style="margin-bottom: 0; padding: 18px; flex-grow: 1;">
+                            <h3 style="margin-top: 0; font-size: 14px; color: var(--primary-color);">My Friends</h3>
+                            <div id="my-friends-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                                <p class="empty-state-message" style="padding: 10px; font-size: 12px;">No friends added yet.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Pane: Direct Message (DM) Window -->
+                    <div id="lounge-right-pane" style="display: flex; flex-direction: column; height: 100%; min-height: 450px;">
+                        <div class="anipace-card" style="display: flex; flex-direction: column; flex-grow: 1; height: 100%; padding: 20px; margin-bottom: 0; min-height: 450px; position: relative;">
+
+                            <!-- DM Header -->
+                            <div id="dm-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <button id="lounge-chat-back-btn" class="add-btn manual-add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0; display: none;">← Back</button>
+                                    <div style="position: relative;">
+                                        <img id="dm-friend-avatar" src="https://via.placeholder.com/35" style="width: 35px; height: 35px; border-radius: 50%; object-fit: cover;">
+                                        <span id="dm-friend-status-dot" style="position: absolute; bottom: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-secondary); border: 1.5px solid var(--surface-color);"></span>
+                                    </div>
+                                    <div>
+                                        <h4 id="dm-friend-name" style="margin: 0; font-size: 14px; color: var(--text-color);">No Active Chat</h4>
+                                        <span id="dm-friend-status-text" style="font-size: 11px; color: var(--text-secondary);">Select a friend to message</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- DM Messages Container -->
+                            <div id="dm-messages-container" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px; max-height: 350px; min-height: 250px; background: rgba(0,0,0,0.15); border-radius: 10px; border: 1px solid rgba(255,255,255,0.02); margin-bottom: 12px;">
+                                <p class="empty-state-message" style="margin: auto; font-size: 12px;">No active chat session selected.</p>
+                            </div>
+
+                            <!-- DM Input & Actions -->
+                            <div id="dm-input-area" class="hidden" style="display: flex; flex-direction: column; gap: 8px;">
+                                <div style="display: flex; gap: 8px; position: relative;">
+                                    <input type="text" id="dm-message-input" placeholder="Type a message..." style="flex-grow: 1; padding: 10px; background-color: rgba(0,0,0,0.3); border: 1px solid var(--border-light); border-radius: 8px; color: var(--text-color); font-size: 13px; outline: none;">
+
+                                    <!-- Emoji Picker Trigger -->
+                                    <button id="emoji-picker-btn" class="add-btn manual-add-btn" style="padding: 0 10px; margin: 0; height: auto; font-size: 16px;">😊</button>
+
+                                    <!-- Send Button -->
+                                    <button id="send-dm-btn" class="add-btn" style="padding: 0 15px; font-size: 13px; height: auto; margin: 0;">Send</button>
+
+                                    <!-- Native Floating Emoji Picker Popup -->
+                                    <div id="emoji-picker-popup" class="hidden" style="position: absolute; bottom: 45px; right: 60px; background-color: var(--surface-color); border: 1px solid var(--border-light); border-radius: 8px; padding: 10px; width: 200px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 100; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; justify-items: center; align-items: center;">
+                                        <!-- Emojis dynamically loaded -->
+                                    </div>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <button id="share-anime-embed-btn" class="add-btn manual-add-btn" style="padding: 4px 8px; font-size: 11px; height: auto; margin: 0;">🎬 Share Anime Card</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leaderboard Tab Content -->
+            <div id="lounge-leaderboard-tab" class="lounge-tab-content hidden">
+                <div class="anipace-card" style="padding: 20px;">
+                    <h3 style="margin-top:0; margin-bottom: 15px; color: var(--primary-color);">🏆 Global Otaku Leaderboard</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 13px;">Compete with challenge participants worldwide. Ranks are based on total challenge anime logged + backlog tracking!</p>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border-light); color: var(--text-secondary); font-weight: bold;">
+                                    <th style="padding: 10px 8px;">Rank</th>
+                                    <th style="padding: 10px 8px;">User</th>
+                                    <th style="padding: 10px 8px;">Dynamic Title</th>
+                                    <th style="padding: 10px 8px; text-align: center;">Logged Items</th>
+                                    <th style="padding: 10px 8px; text-align: center;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-table-body">
+                                <!-- Leaderboard records will be added dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lounge Tools Tab Content -->
+            <div id="lounge-tools-tab" class="lounge-tab-content hidden">
+                <div class="anipace-card" style="padding: 20px;">
+                    <h3 style="margin-top:0; margin-bottom: 10px; color: var(--primary-color);">⚡ Lounge Smart Binge Planner</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 13px;">Have a precise amount of free time? Input your available minutes, and the planner will calculate exactly how many series or films fit from your saved **backlog** list!</p>
+
+                    <div style="background-color: rgba(0,0,0,0.15); padding: 20px; border-radius: 12px; border: 1px solid var(--border-light); max-width: 500px; margin: 0 auto;">
+                        <div style="margin-bottom: 15px;">
+                            <label style="color: var(--text-color); font-weight: bold; font-size: 13px; display: block; margin-bottom: 8px;">Available Watching Time (minutes):</label>
+                            <input type="number" id="lounge-planner-minutes" placeholder="e.g. 120" min="1" style="width: 100%; padding: 10px; background-color: #222; border: 1px solid #444; border-radius: 8px; color: var(--text-color); box-sizing: border-box; font-size: 14px; text-align: center;">
+                        </div>
+                        <button id="lounge-calculate-planner-btn" class="add-btn" style="width: 100%; height: 42px; font-size: 14px; margin: 0;">Plan Backlog Binge</button>
+                    </div>
+
+                    <!-- Binge Planner Output Results -->
+                    <div id="lounge-planner-output" class="hidden" style="margin-top: 25px; background-color: rgba(46, 204, 113, 0.05); border: 1px solid rgba(46, 204, 113, 0.15); border-radius: 12px; padding: 20px;">
+                        <h4 style="margin-top:0; color: var(--success-color); font-size: 15px; margin-bottom: 10px;">📋 Your Optimized Backlog Binge Plan:</h4>
+                        <div id="lounge-planner-summary" style="font-size: 13px; color: var(--text-color); margin-bottom: 15px;"></div>
+                        <div id="lounge-planner-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
+
+    <!-- Modal Dialog: Share Anime Selection List -->
+    <div id="share-anime-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close-btn" aria-label="Close modal" id="close-share-anime-modal">&times;</span>
+            <h2>Select Anime to Share</h2>
+            <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 15px;">Select any anime from your logged list or backlog to share directly into your active chat.</p>
+            <div id="share-anime-list-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; background-color: rgba(0,0,0,0.15); padding: 10px; border-radius: 10px; border: 1px solid var(--border-light);">
+                <!-- Anime options mapped dynamically -->
+            </div>
+        </div>
+    </div>
 
     <audio id="milestoneSound" src="https://www.soundjay.com/misc/sounds/magic-chime-01.mp3" preload="auto"></audio>
 
@@ -319,5 +503,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
     <script src="script.js"></script>
+    <script type="module" src="lounge.js"></script>
 </body>
 </html>
