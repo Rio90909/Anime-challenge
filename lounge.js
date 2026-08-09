@@ -378,12 +378,55 @@ function initProfileSettings() {
 
         // Save to profile and leaderboard
         getUserCounts(counts => {
+            // Read watchlist and backlog lists to serialize and sync comparison data
+            let watchedListSync = [];
+            let backlogListSync = [];
+            const storageKey = 'animeDashboard_v6_combined';
+            const rawLocal = localStorage.getItem(storageKey);
+            if (rawLocal) {
+                try {
+                    const parsed = JSON.parse(rawLocal);
+                    const dailyWatchedAnime = Object.values(parsed.days || {}).flatMap(day => day.watched || []);
+                    const uniqueMap = new Map();
+                    dailyWatchedAnime.forEach(item => {
+                        const key = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
+                        if (!uniqueMap.has(key)) {
+                            uniqueMap.set(key, {
+                                mal_id: item.mal_id || null,
+                                title: item.title,
+                                user_score: item.user_score || null,
+                                type: item.type || 'TV',
+                                isManual: !!item.isManual
+                            });
+                        }
+                    });
+                    watchedListSync = Array.from(uniqueMap.values());
+                    backlogListSync = (parsed.backlog || []).map(item => ({
+                        mal_id: item.mal_id || null,
+                        title: item.title,
+                        user_score: item.user_score || null,
+                        type: item.type || 'TV',
+                        isManual: !!item.isManual
+                    }));
+                } catch(e) {}
+            }
+
+            // XP Progression Formula
+            const episodesCount = anipaceData && anipaceData.history ? anipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
+            const achievementsCount = unlockedAchievements ? unlockedAchievements.length : 0;
+            const computedXP = (counts.completedCount * 100) + (backlogListSync.length * 20) + (achievementsCount * 500) + (episodesCount * 10);
+            const computedLevel = Math.floor(computedXP / 1000) + 1;
+
             const profileUpdate = {
                 displayName: finalName,
                 avatarUrl: finalAvatar,
                 title: bestTitle,
                 completedCount: counts.completedCount,
-                totalCount: counts.totalCount
+                totalCount: counts.totalCount,
+                xp: computedXP,
+                level: computedLevel,
+                watchedList: watchedListSync,
+                backlogList: backlogListSync
             };
 
             const updates = {};
@@ -479,13 +522,14 @@ function renderFriendsList() {
                         <span class="presence-dot-${friendUid}" style="position: absolute; bottom: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-secondary); border: 1.5px solid var(--surface-color);"></span>
                     </div>
                     <div>
-                        <h4 style="margin: 0; font-size: 13px; color: var(--text-color);">${profile.displayName}</h4>
+                        <h4 style="margin: 0; font-size: 13px; color: var(--text-color);">${profile.displayName} <span style="font-size: 10px; font-weight:800; color:var(--success-color); margin-left:4px;">Lv.${profile.level || 1}</span></h4>
                         <p style="margin: 0; font-size: 10px; color: var(--text-secondary);">${profile.title}</p>
                         <span class="presence-watching-${friendUid}" style="font-size: 9px; color: var(--success-color); display: block; margin-top: 1px;"></span>
                     </div>
                 </div>
-                <div style="display: flex; gap: 6px;">
+                <div style="display: flex; gap: 4px; align-items:center;">
                     <button class="add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0; background: var(--primary-color); color: #000;" onclick="window.startLoungeChat('${friendUid}')">Chat</button>
+                    <button class="add-btn manual-add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0;" onclick="window.openLoungeComparison('${friendUid}')">Compare</button>
                     <button class="remove-btn" style="padding: 0 5px; font-size: 16px;" onclick="window.removeLoungeFriend('${friendUid}')">&times;</button>
                 </div>
             `;
@@ -889,7 +933,7 @@ function loadLeaderboard() {
     const tbody = document.getElementById('leaderboard-table-body');
     if (!tbody) return;
 
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading rankings...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading rankings...</td></tr>`;
 
     firebase.database().ref('leaderboard').once('value', snapshot => {
         const records = snapshot.val() || {};
@@ -899,12 +943,12 @@ function loadLeaderboard() {
             uid,
             ...records[uid]
         })).sort((a, b) => {
-            // Sort by completed count descending, then by XP/total
-            return (b.completedCount || 0) - (a.completedCount || 0);
+            // Sort by XP/Level descending
+            return (b.xp || 0) - (a.xp || 0);
         });
 
         if (sortedUsers.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--text-secondary);">Leaderboard is currently empty. Update your profile to join!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-secondary);">Leaderboard is currently empty. Update your profile to join!</td></tr>`;
             return;
         }
 
@@ -913,20 +957,39 @@ function loadLeaderboard() {
             tr.style.borderBottom = "1px solid var(--border-light)";
 
             let rankBadge = `${index + 1}`;
-            if (index === 0) rankBadge = "🏆 1";
-            else if (index === 1) rankBadge = "🥈 2";
-            else if (index === 2) rankBadge = "🥉 3";
+            if (index === 0) rankBadge = "👑 1";
+            else if (index === 1) rankBadge = "⚔️ 2";
+            else if (index === 2) rankBadge = "🛡️ 3";
+
+            const userXP = record.xp || 0;
+            const userLevel = record.level || Math.floor(userXP / 1000) + 1;
+
+            const currentUser = firebase.auth().currentUser;
+            const isMe = currentUser && currentUser.uid === record.uid;
+
+            let actionHtml = '';
+            if (isMe) {
+                actionHtml = `<span style="font-size: 11px; color: var(--text-secondary); font-style: italic;">You</span>`;
+            } else {
+                actionHtml = `
+                    <div style="display:flex; gap: 4px; justify-content: center; align-items:center;">
+                        <button class="add-btn manual-add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin:0;" onclick="window.sendLoungeRequest('${record.uid}')">Add</button>
+                        <button class="add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin:0; background: var(--primary-color); color: #000;" onclick="window.openLoungeComparison('${record.uid}')">Compare</button>
+                    </div>
+                `;
+            }
 
             tr.innerHTML = `
                 <td style="padding: 12px 8px; font-weight: bold; color: var(--primary-color);">${rankBadge}</td>
                 <td style="padding: 12px 8px; display: flex; align-items: center; gap: 8px;">
                     <img src="${record.avatarUrl || 'https://via.placeholder.com/25'}" style="width: 26px; height: 26px; border-radius: 50%; object-fit: cover;">
-                    <span style="font-weight: 600;">${record.displayName || 'Guest'}</span>
+                    <span style="font-weight: 600; color: ${isMe ? 'var(--primary-color)' : 'inherit'};">${record.displayName || 'Guest'}</span>
                 </td>
+                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--success-color);">Lv.${userLevel}</td>
+                <td style="padding: 12px 8px; text-align: center; font-weight: 500; color: var(--text-secondary);">${userXP} XP</td>
                 <td style="padding: 12px 8px; color: var(--text-secondary); font-size: 12px;">${record.title || 'Newbie Tracker'}</td>
-                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--success-color);">${record.completedCount || 0} Anime</td>
                 <td style="padding: 12px 8px; text-align: center;">
-                    <button class="add-btn manual-add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin:0;" onclick="window.sendLoungeRequest('${record.uid}')">Add Friend</button>
+                    ${actionHtml}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -1103,6 +1166,275 @@ window.startLoungeChat = function(friendUid) {
     startChat(friendUid);
 };
 
+// --- COMPARISON ENGINE & SIDE DRAWER ---
+let activeCompareFriendUid = null;
+let currentComparisonTab = "mutual";
+let comparativeCache = {
+    myWatched: [],
+    friendWatched: []
+};
+
+window.openLoungeComparison = function(friendUid) {
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        showToast("Please log in to compare profiles.", "error");
+        return;
+    }
+
+    activeCompareFriendUid = friendUid;
+    currentComparisonTab = "mutual";
+
+    // Set avatars
+    const myAvatar = document.getElementById('compare-my-avatar');
+    const friendAvatar = document.getElementById('compare-friend-avatar');
+    if (myAvatar) {
+        myAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.uid}`;
+    }
+
+    const container = document.getElementById('compare-list-container');
+    if (container) {
+        container.innerHTML = `<p class="empty-state-message" style="font-size:12px; margin:auto;">Crunching lists...</p>`;
+    }
+
+    document.getElementById('comparison-drawer')?.classList.remove('hidden');
+
+    // Load friend's data from leaderboard profile
+    firebase.database().ref(`leaderboard/${friendUid}`).once('value', snapshot => {
+        const friendProfile = snapshot.val() || {};
+        if (friendAvatar) {
+            friendAvatar.src = friendProfile.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${friendUid}`;
+        }
+
+        // Read my watched list safely
+        let myWatched = [];
+        const storageKey = 'animeDashboard_v6_combined';
+        const rawLocal = localStorage.getItem(storageKey);
+        if (rawLocal) {
+            try {
+                const parsed = JSON.parse(rawLocal);
+                const dailyWatchedAnime = Object.values(parsed.days || {}).flatMap(day => day.watched || []);
+                const uniqueMap = new Map();
+                dailyWatchedAnime.forEach(item => {
+                    const key = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
+                    if (!uniqueMap.has(key)) {
+                        uniqueMap.set(key, {
+                            mal_id: item.mal_id || null,
+                            title: item.title,
+                            user_score: item.user_score || null,
+                            type: item.type || 'TV',
+                            isManual: !!item.isManual
+                        });
+                    }
+                });
+                myWatched = Array.from(uniqueMap.values());
+            } catch(e) {}
+        }
+
+        const friendWatched = friendProfile.watchedList || [];
+
+        comparativeCache.myWatched = myWatched;
+        comparativeCache.friendWatched = friendWatched;
+
+        // Calculate Compatibility Algorithmic Jaccard Match + Rating Overlap
+        const myKeys = new Set(myWatched.map(a => a.isManual ? a.title.toLowerCase().trim() : a.mal_id));
+        const friendKeys = new Set(friendWatched.map(a => a.isManual ? a.title.toLowerCase().trim() : a.mal_id));
+
+        let intersectionSize = 0;
+        let scoreDeviationSum = 0;
+        let ratedCount = 0;
+
+        myWatched.forEach(a => {
+            const key = a.isManual ? a.title.toLowerCase().trim() : a.mal_id;
+            if (friendKeys.has(key)) {
+                intersectionSize++;
+                const fbMatch = friendWatched.find(f => (f.isManual ? f.title.toLowerCase().trim() : f.mal_id) === key);
+                if (fbMatch && a.user_score && fbMatch.user_score) {
+                    scoreDeviationSum += Math.abs(a.user_score - fbMatch.user_score);
+                    ratedCount++;
+                }
+            }
+        });
+
+        const unionSize = myKeys.size + friendKeys.size - intersectionSize;
+        const jaccardMatch = unionSize > 0 ? (intersectionSize / unionSize) : 0;
+
+        // 100% minus deviation penalty (average rating variance can penalize up to 30%)
+        let ratingPenalty = 0;
+        if (ratedCount > 0) {
+            const avgDev = scoreDeviationSum / ratedCount; // 0 to 9 max dev
+            ratingPenalty = Math.min(0.3, (avgDev / 10));
+        }
+
+        const compatibilityFactor = Math.round(((jaccardMatch * 0.7) + (0.3 - ratingPenalty)) * 100);
+        const scoreEl = document.getElementById('compare-compatibility-score');
+        if (scoreEl) {
+            scoreEl.textContent = `${Math.max(10, Math.min(100, compatibilityFactor))}%`;
+        }
+
+        renderComparisonTabContent();
+    });
+};
+
+function renderComparisonTabContent() {
+    const container = document.getElementById('compare-list-container');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const myWatched = comparativeCache.myWatched;
+    const friendWatched = comparativeCache.friendWatched;
+
+    const myKeysMap = new Map(myWatched.map(a => [a.isManual ? a.title.toLowerCase().trim() : a.mal_id, a]));
+    const friendKeysMap = new Map(friendWatched.map(a => [a.isManual ? a.title.toLowerCase().trim() : a.mal_id, a]));
+
+    if (currentComparisonTab === "mutual") {
+        const mutuals = myWatched.filter(a => friendKeysMap.has(a.isManual ? a.title.toLowerCase().trim() : a.mal_id));
+        if (mutuals.length === 0) {
+            container.innerHTML = `<p class="empty-state-message" style="font-size:12px; margin:auto;">No shared completed titles yet. Watch some anime together!</p>`;
+            return;
+        }
+
+        mutuals.forEach(a => {
+            const key = a.isManual ? a.title.toLowerCase().trim() : a.mal_id;
+            const match = friendKeysMap.get(key);
+            const row = document.createElement('div');
+            row.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: rgba(255,255,255,0.02);
+                border: 1px solid var(--border-light);
+                padding: 10px;
+                border-radius: 8px;
+                font-size: 12px;
+            `;
+            row.innerHTML = `
+                <div>
+                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${a.title}</h5>
+                    <span style="font-size:10px; color:var(--text-secondary);">${a.type || 'TV'}</span>
+                </div>
+                <div style="font-size:11px; font-weight:bold; color:var(--success-color);">
+                    My: ${a.user_score || 'N/A'} ★ • Theirs: ${match.user_score || 'N/A'} ★
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    } else if (currentComparisonTab === "unique-them") {
+        const uniqueThem = friendWatched.filter(a => !myKeysMap.has(a.isManual ? a.title.toLowerCase().trim() : a.mal_id));
+        if (uniqueThem.length === 0) {
+            container.innerHTML = `<p class="empty-state-message" style="font-size:12px; margin:auto;">They haven't completed any titles that you haven't seen!</p>`;
+            return;
+        }
+
+        uniqueThem.forEach(a => {
+            const row = document.createElement('div');
+            row.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: rgba(255,255,255,0.02);
+                border: 1px solid var(--border-light);
+                padding: 10px;
+                border-radius: 8px;
+                font-size: 12px;
+            `;
+            row.innerHTML = `
+                <div>
+                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${a.title}</h5>
+                    <span style="font-size:10px; color:var(--text-secondary);">${a.type || 'TV'} • Score: ${a.user_score || 'N/A'}</span>
+                </div>
+                <button class="add-btn" style="padding: 4px 8px; font-size: 10px; height:auto; margin:0;" onclick="window.quickAddBacklogTitle('${escapeHTML(a.title)}', ${a.mal_id || 'null'}, '${a.type || 'TV'}')">Add Backlog</button>
+            `;
+            container.appendChild(row);
+        });
+    } else if (currentComparisonTab === "unique-me") {
+        const uniqueMe = myWatched.filter(a => !friendKeysMap.has(a.isManual ? a.title.toLowerCase().trim() : a.mal_id));
+        if (uniqueMe.length === 0) {
+            container.innerHTML = `<p class="empty-state-message" style="font-size:12px; margin:auto;">You haven't completed any unique titles yet!</p>`;
+            return;
+        }
+
+        uniqueMe.forEach(a => {
+            const row = document.createElement('div');
+            row.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: rgba(255,255,255,0.02);
+                border: 1px solid var(--border-light);
+                padding: 10px;
+                border-radius: 8px;
+                font-size: 12px;
+            `;
+            row.innerHTML = `
+                <div>
+                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${a.title}</h5>
+                    <span style="font-size:10px; color:var(--text-secondary);">${a.type || 'TV'} • Score: ${a.user_score || 'N/A'}</span>
+                </div>
+                <button class="add-btn manual-add-btn" style="padding: 4px 8px; font-size: 10px; height:auto; margin:0;" onclick="window.recommendLoungeTitle('${activeCompareFriendUid}', '${escapeHTML(a.title)}')">Recommend</button>
+            `;
+            container.appendChild(row);
+        });
+    }
+}
+
+window.quickAddBacklogTitle = function(title, malId, type) {
+    const storageKey = 'animeDashboard_v6_combined';
+    const rawLocal = localStorage.getItem(storageKey);
+    if (rawLocal) {
+        try {
+            const parsed = JSON.parse(rawLocal);
+            const isManual = !malId;
+            const duplicate = (parsed.backlog || []).some(item =>
+                isManual ? item.title.toLowerCase().trim() === title.toLowerCase().trim() : item.mal_id === malId
+            );
+            if (duplicate) {
+                showToast("This item is already in your backlog!", "error");
+                return;
+            }
+
+            const item = {
+                mal_id: malId,
+                title: title,
+                type: type,
+                isManual: isManual,
+                date_added: new Date().toISOString()
+            };
+
+            parsed.backlog = parsed.backlog || [];
+            parsed.backlog.push(item);
+            localStorage.setItem(storageKey, JSON.stringify(parsed));
+            showToast(`Added ${title} to your backlog!`);
+        } catch(e) {}
+    }
+};
+
+window.recommendLoungeTitle = function(friendUid, title) {
+    const user = firebase.auth().currentUser;
+    if (!user || !friendUid) return;
+
+    const activeChat = [user.uid, friendUid].sort().join('_');
+    const message = {
+        senderUid: user.uid,
+        text: `Hey, check out this recommendation: "${title}"! You should totally log this!`,
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        type: 'text'
+    };
+
+    firebase.database().ref(`chats/${activeChat}`).push(message)
+        .then(() => {
+            showToast(`Recommended "${title}" in your active chat thread!`);
+            startLoungeChat(friendUid);
+            document.getElementById('comparison-drawer')?.classList.add('hidden');
+
+            // Switch screen to lounge and friends tab if not there
+            const loungeBtn = document.getElementById('switch-to-lounge-btn');
+            if (loungeBtn) {
+                loungeBtn.click();
+            }
+        })
+        .catch(err => showToast(err.message, "error"));
+};
+
 // --- INITIALIZE SOCIAL LOUNGE ---
 function initLoungeTabSwitching() {
     const tabBtns = document.querySelectorAll('.lounge-tab-btn');
@@ -1170,6 +1502,32 @@ document.addEventListener('DOMContentLoaded', () => {
     initEmojiPicker();
     initAnimeEmbedShare();
     initSmartBingePlanner();
+
+    // Wire up Otaku Comparison Close and Tab clicks
+    const compareClose = document.getElementById('close-comparison-drawer');
+    const comparisonDrawer = document.getElementById('comparison-drawer');
+    if (compareClose) {
+        compareClose.onclick = () => {
+            comparisonDrawer?.classList.add('hidden');
+        };
+    }
+    if (comparisonDrawer) {
+        comparisonDrawer.onclick = (e) => {
+            if (e.target === comparisonDrawer) {
+                comparisonDrawer.classList.add('hidden');
+            }
+        };
+    }
+
+    const compareTabs = document.querySelectorAll('.compare-tab-btn');
+    compareTabs.forEach(btn => {
+        btn.onclick = () => {
+            compareTabs.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentComparisonTab = btn.dataset.tab;
+            renderComparisonTabContent();
+        };
+    });
 
     // Wire up text chat send buttons
     const sendBtn = document.getElementById('send-dm-btn');

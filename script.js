@@ -540,18 +540,35 @@ function calculateDailyPace(challengeAnimeCount) {
     }
 }
 
+function calculateUserXPAndLevel() {
+    const challengeCount = getChallengeAnime().length;
+    const backlogCount = getBacklogAnime().length;
+    const achievementsCount = (challengeData.unlockedAchievements || []).length;
+    const episodesCount = anipaceData.history ? anipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
+
+    // XP Weights: Completed Challenge: +100 XP, Backlog: +20 XP, Achievement: +500 XP, AniPace ep: +10 XP
+    const totalXP = (challengeCount * 100) + (backlogCount * 20) + (achievementsCount * 500) + (episodesCount * 10);
+    const userLevel = Math.floor(totalXP / 1000) + 1;
+
+    return { totalXP, userLevel };
+}
+
 function updateAllDisplays() {
     const challengeAnime = getChallengeAnime();
     const backlogAnime = getBacklogAnime();
     const allUniqueAnime = getUniqueAnime(); 
     const currentGoal = GOAL_TIERS.find(goal => goal > challengeAnime.length) || GOAL_TIERS[GOAL_TIERS.length - 1];
 
+    const { totalXP, userLevel } = calculateUserXPAndLevel();
+
     document.getElementById('total-watched-card').querySelector('h3').textContent = `Challenge Anime / ${currentGoal}`;
     document.getElementById('total-watched-value').textContent = challengeAnime.length;
     document.getElementById('days-logged-value').textContent = Object.keys(challengeData.days).filter(key => (challengeData.days[key].watched || []).length > 0).length;
     document.getElementById('achievements-unlocked-value').textContent = `${challengeData.unlockedAchievements.length} / ${achievements.length}`;
     
-    document.getElementById('rank-badge').textContent = ranks.slice().reverse().find(r => challengeAnime.length >= r.min)?.title || 'Newbie';
+    // Modern Display: Level + Rank Badge
+    const calculatedRank = ranks.slice().reverse().find(r => challengeAnime.length >= r.min)?.title || 'Newbie';
+    document.getElementById('rank-badge').textContent = `Lv.${userLevel} - ${calculatedRank} (${totalXP} XP)`;
     
     calculateDailyPace(challengeAnime.length);
 
@@ -1612,28 +1629,102 @@ function initializeApp() {
             grid.innerHTML = `<div class="empty-state-message">No achievements defined.</div>`; 
         } else { 
             const categories = {
-                'Milestone Achievements': achievements.filter(a => a.id.startsWith('total_')),
-                'Genre Achievements': achievements.filter(a => a.id.includes('_1') || a.id.includes('_2') || a.id.includes('_3')),
-                'Decade Achievements': achievements.filter(a => a.id.startsWith('decade_')),
-                'Studio Achievements': achievements.filter(a => a.id.startsWith('studio_')),
-                'Special Achievements': achievements.filter(a => !a.id.startsWith('total_') && !a.id.startsWith('decade_') && !a.id.startsWith('studio_') && 
+                '🎯 Milestone Milestones': achievements.filter(a => a.id.startsWith('total_')),
+                '🌸 Genre Badges': achievements.filter(a => a.id.includes('_1') || a.id.includes('_2') || a.id.includes('_3')),
+                '📅 Retro Decades': achievements.filter(a => a.id.startsWith('decade_')),
+                '🎬 Animation Studios': achievements.filter(a => a.id.startsWith('studio_')),
+                '🔥 Special Challenges': achievements.filter(a => !a.id.startsWith('total_') && !a.id.startsWith('decade_') && !a.id.startsWith('studio_') &&
                     !(a.id.includes('_1') || a.id.includes('_2') || a.id.includes('_3')))
             };
             
+            const totalUniqueAnime = getUniqueAnime();
+            const episodesCount = anipaceData.history ? anipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
+
             Object.entries(categories).forEach(([category, categoryAchievements]) => {
                 if (categoryAchievements.length > 0) {
                     const categoryDiv = document.createElement('div');
                     categoryDiv.className = 'achievement-category';
-                    categoryDiv.innerHTML = `<h3>${category}</h3>`;
+                    categoryDiv.style.cssText = `
+                        margin-bottom: 25px;
+                        border-bottom: 1px solid rgba(255,255,255,0.04);
+                        padding-bottom: 15px;
+                    `;
+                    categoryDiv.innerHTML = `<h3 style="color: var(--primary-color); margin-bottom: 15px; font-size: 16px; border-left: 3px solid var(--primary-color); padding-left: 8px;">${category}</h3>`;
+
+                    const subGrid = document.createElement('div');
+                    subGrid.style.cssText = `
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                        gap: 12px;
+                    `;
                     
                     categoryAchievements.forEach(ach => { 
                         const isUnlocked = challengeData.unlockedAchievements.includes(ach.id); 
                         const item = document.createElement('div'); 
-                        item.className = `achievement-item ${isUnlocked ? 'unlocked' : ''}`; 
-                        item.innerHTML = `<h4>${ach.title}</h4><p>${ach.description}</p>`; 
-                        categoryDiv.appendChild(item); 
+                        item.className = `achievement-item ${isUnlocked ? 'unlocked' : ''}`;
+                        item.style.cssText = `
+                            background: rgba(255, 255, 255, 0.02);
+                            border: 1px solid rgba(255,255,255,0.04);
+                            padding: 14px;
+                            border-radius: 12px;
+                            opacity: ${isUnlocked ? '1' : '0.6'};
+                            border-left: 4px solid ${isUnlocked ? 'var(--primary-color)' : '#4B5563'};
+                            position: relative;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 4px;
+                        `;
+
+                        // Compute dynamic progress metrics for achievements to make it highly professional
+                        let progressText = '';
+                        let percent = 0;
+                        if (ach.id.startsWith('total_')) {
+                            const target = parseInt(ach.id.split('_')[1]);
+                            percent = Math.min(100, (totalUniqueAnime.length / target) * 100);
+                            progressText = `${totalUniqueAnime.length}/${target}`;
+                        } else if (ach.id.startsWith('decade_')) {
+                            const target = ach.id === 'decade_80s' ? 3 : (ach.id === 'decade_90s' ? 5 : (ach.id === 'decade_2000s' ? 10 : (ach.id === 'decade_2010s' ? 15 : 20)));
+                            const startYear = ach.id === 'decade_80s' ? 1980 : (ach.id === 'decade_90s' ? 1990 : (ach.id === 'decade_2000s' ? 2000 : (ach.id === 'decade_2010s' ? 2010 : 2020)));
+                            const matchedCount = totalUniqueAnime.filter(a => !a.isManual && a.year >= startYear && (ach.id === 'decade_2020s' ? true : a.year < startYear + 10)).length;
+                            percent = Math.min(100, (matchedCount / target) * 100);
+                            progressText = `${matchedCount}/${target}`;
+                        } else if (ach.id.includes('_1') || ach.id.includes('_2') || ach.id.includes('_3')) {
+                            const target = ach.id.endsWith('_1') ? 5 : (ach.id.endsWith('_2') ? 15 : 30);
+                            const rawGenre = ach.description.split(' ')[1]; // Extract genre name safely from string
+                            const matchedCount = countGenre(totalUniqueAnime, rawGenre);
+                            percent = Math.min(100, (matchedCount / target) * 100);
+                            progressText = `${matchedCount}/${target}`;
+                        } else if (ach.id === 'marathon_runner') {
+                            const maxSingleDay = anipaceData.history ? Math.max(0, ...anipaceData.history.map(h => h.episodes || 0)) : 0;
+                            percent = Math.min(100, (maxSingleDay / 10) * 100);
+                            progressText = `${maxSingleDay}/10 ep`;
+                        } else {
+                            percent = isUnlocked ? 100 : 0;
+                            progressText = isUnlocked ? '1/1' : '0/1';
+                        }
+
+                        const barColor = isUnlocked ? 'var(--success-color)' : 'var(--primary-color)';
+
+                        item.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h4 style="margin: 0; font-size: 13px; color: ${isUnlocked ? 'var(--primary-color)' : '#9CA3AF'}; font-weight:700;">${ach.title}</h4>
+                                <span style="font-size: 10px; font-weight:800; color:var(--success-color);">+500 XP</span>
+                            </div>
+                            <p style="margin: 0; font-size: 11px; color: var(--text-secondary); line-height:1.4;">${ach.description}</p>
+                            <div style="margin-top: auto; padding-top: 6px;">
+                                <div style="display:flex; justify-content:space-between; font-size: 9px; color: var(--text-secondary); font-weight:bold; margin-bottom: 2px;">
+                                    <span>Progress</span>
+                                    <span>${progressText} (${Math.floor(percent)}%)</span>
+                                </div>
+                                <div style="height:4px; width:100%; background:rgba(0,0,0,0.4); border-radius:3px; overflow:hidden;">
+                                    <div style="height:100%; width:${percent}%; background:${barColor}; border-radius:3px;"></div>
+                                </div>
+                            </div>
+                        `;
+                        subGrid.appendChild(item);
                     });
                     
+                    categoryDiv.appendChild(subGrid);
                     grid.appendChild(categoryDiv);
                 }
             });
@@ -1843,9 +1934,69 @@ function initializeFirebase() {
                     }
                 } else {
                     // First-time sync: Upload existing local progress to the cloud database
+            const { totalXP, userLevel } = calculateUserXPAndLevel();
+            const storageKey = 'animeDashboard_v6_combined';
+            const rawLocal = localStorage.getItem(storageKey);
+            let watchedListSync = [];
+            let backlogListSync = [];
+            if (rawLocal) {
+                try {
+                    const parsed = JSON.parse(rawLocal);
+                    const dailyWatchedAnime = Object.values(parsed.days || {}).flatMap(day => day.watched || []);
+                    const uniqueMap = new Map();
+                    dailyWatchedAnime.forEach(item => {
+                        const key = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
+                        if (!uniqueMap.has(key)) {
+                            uniqueMap.set(key, {
+                                mal_id: item.mal_id || null,
+                                title: item.title,
+                                user_score: item.user_score || null,
+                                type: item.type || 'TV',
+                                isManual: !!item.isManual
+                            });
+                        }
+                    });
+                    watchedListSync = Array.from(uniqueMap.values());
+                    backlogListSync = (parsed.backlog || []).map(item => ({
+                        mal_id: item.mal_id || null,
+                        title: item.title,
+                        user_score: item.user_score || null,
+                        type: item.type || 'TV',
+                        isManual: !!item.isManual
+                    }));
+                } catch(e) {}
+            }
+
+            const challengeAnime = getChallengeAnime();
+            const calculatedRank = ranks.slice().reverse().find(r => challengeAnime.length >= r.min)?.title || 'Newbie';
+
                     firebase.database().ref(`users/${user.uid}`).set({
                         challengeData: challengeData,
                         anipaceData: anipaceData
+            }).then(() => {
+                // Initialize default profile values to avoid empty details
+                firebase.database().ref(`users/${user.uid}/profile`).update({
+                    displayName: user.displayName || `Otaku#${user.uid.substring(0,4)}`,
+                    avatarUrl: user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.uid}`,
+                    title: calculatedRank,
+                    completedCount: challengeAnime.length,
+                    totalCount: challengeAnime.length + backlogListSync.length,
+                    xp: totalXP,
+                    level: userLevel,
+                    watchedList: watchedListSync,
+                    backlogList: backlogListSync
+                });
+                firebase.database().ref(`leaderboard/${user.uid}`).update({
+                    displayName: user.displayName || `Otaku#${user.uid.substring(0,4)}`,
+                    avatarUrl: user.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.uid}`,
+                    title: calculatedRank,
+                    completedCount: challengeAnime.length,
+                    totalCount: challengeAnime.length + backlogListSync.length,
+                    xp: totalXP,
+                    level: userLevel,
+                    watchedList: watchedListSync,
+                    backlogList: backlogListSync
+                });
                     }).catch(err => console.error("Firebase init set error:", err));
                 }
             }).catch(err => {

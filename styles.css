@@ -58,6 +58,7 @@ body {
 
 /* PREMIUM BACKLOG SCREEN (Light Mode Adapter with Premium Contrast) */
 body.backlog-active {
+    --primary-color: #B45309 !important; /* Rich Dark Amber/Bronze for high contrast on light backgrounds */
     background-color: #F4F6F9 !important;
     background-image: none !important;
     color: #111827 !important;
@@ -319,13 +320,13 @@ header h1 {
     font-weight: 700;
     letter-spacing: -0.03em;
     color: var(--primary-color);
-    text-shadow: 0 2px 10px rgba(255, 193, 7, 0.2);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9); /* Enhanced text shadow for outstanding readability on all viewports */
 }
 
 .rank-badge {
     background: linear-gradient(135deg, var(--primary-color), #FFA000);
-    color: #000;
-    font-weight: 700;
+    color: #000 !important;
+    font-weight: 800 !important;
     font-size: 13px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -334,6 +335,7 @@ header h1 {
     margin-top: 10px;
     display: inline-block;
     box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+    text-shadow: none !important; /* Ensure crisp black text on shiny gold badge background */
 }
 
 .top-bar {
@@ -596,9 +598,10 @@ header h1 {
 .anime-info-title {
     margin: 0 0 6px 0 !important;
     font-size: 16px !important;
-    font-weight: 600;
+    font-weight: 700 !important;
     color: var(--primary-color);
     line-height: 1.4;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); /* Subtle text shadow for solid readability of yellow titles */
 }
 .manual-entry-badge {
     font-size: 11px;
@@ -1021,9 +1024,10 @@ header h1 {
 .backlog-title {
     margin: 0 0 8px 0 !important;
     font-size: 18px !important;
-    font-weight: 600;
+    font-weight: 700 !important;
     color: var(--primary-color);
     line-height: 1.4;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45); /* Enhanced contrast for high-readability backlog titles */
 }
 
 /* Badges and Tags */

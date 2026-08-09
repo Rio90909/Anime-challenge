@@ -438,15 +438,16 @@
             <div id="lounge-leaderboard-tab" class="lounge-tab-content hidden">
                 <div class="anipace-card" style="padding: 20px;">
                     <h3 style="margin-top:0; margin-bottom: 15px; color: var(--primary-color);">🏆 Global Otaku Leaderboard</h3>
-                    <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 13px;">Compete with challenge participants worldwide. Ranks are based on total challenge anime logged + backlog tracking!</p>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 13px;">Compete with challenge participants worldwide. Ranks are based on level achievements and total earned XP!</p>
                     <div style="overflow-x: auto;">
                         <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
                             <thead>
                                 <tr style="border-bottom: 2px solid var(--border-light); color: var(--text-secondary); font-weight: bold;">
                                     <th style="padding: 10px 8px;">Rank</th>
                                     <th style="padding: 10px 8px;">User</th>
-                                    <th style="padding: 10px 8px;">Dynamic Title</th>
-                                    <th style="padding: 10px 8px; text-align: center;">Logged Items</th>
+                                    <th style="padding: 10px 8px; text-align: center;">Level</th>
+                                    <th style="padding: 10px 8px; text-align: center;">Total XP</th>
+                                    <th style="padding: 10px 8px; text-align: center;">Dynamic Title</th>
                                     <th style="padding: 10px 8px; text-align: center;">Actions</th>
                                 </tr>
                             </thead>
@@ -491,6 +492,44 @@
             <p style="color: var(--text-secondary); font-size: 12px; margin-bottom: 15px;">Select any anime from your logged list or backlog to share directly into your active chat.</p>
             <div id="share-anime-list-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; background-color: rgba(0,0,0,0.15); padding: 10px; border-radius: 10px; border: 1px solid var(--border-light);">
                 <!-- Anime options mapped dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Otaku Compatibility & Comparison Side Drawer -->
+    <div id="comparison-drawer" class="modal hidden">
+        <div class="modal-content" style="max-width: 600px; padding: 25px; border-radius: 16px;">
+            <span class="close-btn" aria-label="Close modal" id="close-comparison-drawer">&times;</span>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: var(--primary-color); margin-bottom: 4px;">🤝 Otaku Compatibility</h2>
+                <p style="color: var(--text-secondary); font-size: 12px; margin: 0;">Compare completed watchlists, backlogs, and scores with your friends!</p>
+            </div>
+
+            <!-- Compatibility Score Indicator -->
+            <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-light); border-radius: 12px; padding: 15px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-around;">
+                <div style="text-align: center;">
+                    <div id="compare-user-avatar-container" style="display: flex; align-items: center; gap: 8px;">
+                        <img id="compare-my-avatar" src="https://via.placeholder.com/40" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--success-color);">
+                        <span style="font-size: 14px; font-weight: bold;">VS</span>
+                        <img id="compare-friend-avatar" src="https://via.placeholder.com/40" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--primary-color);">
+                    </div>
+                </div>
+                <div style="text-align: center;">
+                    <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 2px;">Compatibility</span>
+                    <span id="compare-compatibility-score" style="font-size: 28px; font-weight: 800; color: var(--primary-color); text-shadow: 0 0 10px rgba(255,193,7,0.3);">--%</span>
+                </div>
+            </div>
+
+            <!-- Comparison Tabs -->
+            <div class="schedule-day-tabs" style="margin-bottom: 15px;">
+                <button class="compare-tab-btn active" data-tab="mutual">Shared List</button>
+                <button class="compare-tab-btn" data-tab="unique-them">Unique to Them</button>
+                <button class="compare-tab-btn" data-tab="unique-me">Unique to Me</button>
+            </div>
+
+            <!-- List Outputs -->
+            <div id="compare-list-container" style="max-height: 250px; overflow-y: auto; background-color: rgba(0,0,0,0.15); padding: 12px; border-radius: 10px; border: 1px solid var(--border-light); display: flex; flex-direction: column; gap: 8px;">
+                <!-- Filled dynamically -->
             </div>
         </div>
     </div>
