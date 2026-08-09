@@ -303,10 +303,57 @@ const ranks = [
 
 // --- DATA PERSISTENCE FUNCTIONS ---
 
+function syncUserProfileAndLeaderboard() {
+    if (!firebaseUser) return;
+    try {
+        const challengeAnime = getChallengeAnime();
+        const backlogAnime = getBacklogAnime();
+        const { totalXP, userLevel } = calculateUserXPAndLevel();
+        const calculatedRank = ranks.slice().reverse().find(r => challengeAnime.length >= r.min)?.title || 'Newbie';
+
+        const watchedListSync = challengeAnime.map(item => ({
+            mal_id: item.mal_id || null,
+            title: item.title,
+            user_score: item.user_score || null,
+            type: item.type || 'TV',
+            isManual: !!item.isManual
+        }));
+
+        const backlogListSync = backlogAnime.map(item => ({
+            mal_id: item.mal_id || null,
+            title: item.title,
+            user_score: item.user_score || null,
+            type: item.type || 'TV',
+            isManual: !!item.isManual
+        }));
+
+        const statsUpdate = {
+            title: calculatedRank,
+            completedCount: challengeAnime.length,
+            totalCount: challengeAnime.length + backlogListSync.length,
+            xp: totalXP,
+            level: userLevel,
+            watchedList: watchedListSync,
+            backlogList: backlogListSync
+        };
+
+        firebase.database().ref(`users/${firebaseUser.uid}/profile`).update(statsUpdate)
+            .catch(err => console.error("Firebase profile real-time update error:", err));
+
+        firebase.database().ref(`leaderboard/${firebaseUser.uid}`).update(statsUpdate)
+            .catch(err => console.error("Firebase leaderboard real-time update error:", err));
+    } catch (e) {
+        console.error("Error during real-time profile/leaderboard sync:", e);
+    }
+}
+
 function saveData() { 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(challengeData));
     if (firebaseUser) {
         firebase.database().ref(`users/${firebaseUser.uid}/challengeData`).set(challengeData)
+            .then(() => {
+                syncUserProfileAndLeaderboard();
+            })
             .catch(err => console.error("Firebase save error:", err));
     }
 }
@@ -315,6 +362,9 @@ function saveAniPaceData() {
     localStorage.setItem(ANIPACE_STORAGE_KEY, JSON.stringify(anipaceData));
     if (firebaseUser) {
         firebase.database().ref(`users/${firebaseUser.uid}/anipaceData`).set(anipaceData)
+            .then(() => {
+                syncUserProfileAndLeaderboard();
+            })
             .catch(err => console.error("Firebase save error:", err));
     }
 }
