@@ -261,11 +261,13 @@ function stopLoungeListeners() {
     if (requestsListenerRef) requestsListenerRef.off();
     if (presenceListenerRef) presenceListenerRef.off();
     if (chatListenerRef) chatListenerRef.off();
+    if (leaderboardListenerRef) leaderboardListenerRef.off();
 
     friendsListenerRef = null;
     requestsListenerRef = null;
     presenceListenerRef = null;
     chatListenerRef = null;
+    leaderboardListenerRef = null;
 }
 
 // --- PROFILE CUSTOMIZATION & PRESENCE ---
@@ -929,13 +931,16 @@ function embedAnimeMessage(title, imageUrl, type, score) {
 }
 
 // --- LEADERBOARD ---
+let leaderboardListenerRef = null;
 function loadLeaderboard() {
     const tbody = document.getElementById('leaderboard-table-body');
     if (!tbody) return;
 
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading rankings...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading rankings...</td></tr>`;
 
-    firebase.database().ref('leaderboard').once('value', snapshot => {
+    if (leaderboardListenerRef) leaderboardListenerRef.off();
+    leaderboardListenerRef = firebase.database().ref('leaderboard');
+    leaderboardListenerRef.on('value', snapshot => {
         const records = snapshot.val() || {};
         tbody.innerHTML = '';
 
@@ -948,7 +953,7 @@ function loadLeaderboard() {
         });
 
         if (sortedUsers.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-secondary);">Leaderboard is currently empty. Update your profile to join!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-secondary);">Leaderboard is currently empty. Update your profile to join!</td></tr>`;
             return;
         }
 
@@ -963,6 +968,7 @@ function loadLeaderboard() {
 
             const userXP = record.xp || 0;
             const userLevel = record.level || Math.floor(userXP / 1000) + 1;
+            const completedCount = record.completedCount || 0;
 
             const currentUser = firebase.auth().currentUser;
             const isMe = currentUser && currentUser.uid === record.uid;
@@ -987,6 +993,7 @@ function loadLeaderboard() {
                 </td>
                 <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--success-color);">Lv.${userLevel}</td>
                 <td style="padding: 12px 8px; text-align: center; font-weight: 500; color: var(--text-secondary);">${userXP} XP</td>
+                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${completedCount} Anime</td>
                 <td style="padding: 12px 8px; color: var(--text-secondary); font-size: 12px;">${record.title || 'Newbie Tracker'}</td>
                 <td style="padding: 12px 8px; text-align: center;">
                     ${actionHtml}
