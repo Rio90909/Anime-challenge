@@ -307,6 +307,35 @@ body.backlog-active .modal-content select option,
     background-color: #151C2C !important;
     color: #F3F4F6 !important;
 }
+
+/* Ensure buttons inside modal-content are never styled by backlog-active body classes */
+body.backlog-active .modal-content .add-btn,
+.modal-content .add-btn {
+    background: linear-gradient(135deg, #FFFFFF, #E5E7EB) !important;
+    background-color: transparent !important;
+    color: #0A0E17 !important;
+}
+
+body.backlog-active .modal-content .add-btn:hover:not(:disabled),
+.modal-content .add-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #FFFFFF, #E5E7EB) !important;
+    color: #0A0E17 !important;
+    transform: translateY(-2px) scale(1.02);
+}
+
+body.backlog-active .modal-content .manual-add-btn,
+.modal-content .manual-add-btn {
+    background: transparent !important;
+    border: 1px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    box-shadow: none !important;
+}
+
+body.backlog-active .modal-content .manual-add-btn:hover:not(:disabled),
+.modal-content .manual-add-btn:hover:not(:disabled) {
+    background: var(--primary-glow) !important;
+    color: var(--primary-color) !important;
+}
 /* End STYLES for Black & White Backlog Screen */
 
 .hidden { display: none !important; }

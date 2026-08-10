@@ -969,7 +969,7 @@ function loadLeaderboard() {
 
             const userXP = record.xp || 0;
             const userLevel = record.level || Math.floor(userXP / 1000) + 1;
-            const completedCount = record.completedCount || 0;
+            const totalCount = record.totalCount || record.completedCount || 0;
 
             const currentUser = firebase.auth().currentUser;
             const isMe = currentUser && currentUser.uid === record.uid;
@@ -994,7 +994,7 @@ function loadLeaderboard() {
                 </td>
                 <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--success-color);">Lv.${escapeHTML(String(userLevel))}</td>
                 <td style="padding: 12px 8px; text-align: center; font-weight: 500; color: var(--text-secondary);">${escapeHTML(String(userXP))} XP</td>
-                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${escapeHTML(String(completedCount))} Anime</td>
+                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${escapeHTML(String(totalCount))} Anime</td>
                 <td style="padding: 12px 8px; color: var(--text-secondary); font-size: 12px;">${escapeHTML(record.title || 'Newbie Tracker')}</td>
                 <td style="padding: 12px 8px; text-align: center;">
                     ${actionHtml}
@@ -1213,7 +1213,7 @@ window.openLoungeComparison = function(friendUid) {
             friendAvatar.src = friendProfile.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${friendUid}`;
         }
 
-        // Read my watched list safely
+        // Read my watched list safely (including backlog list)
         let myWatched = [];
         const storageKey = 'animeDashboard_v6_combined';
         const rawLocal = localStorage.getItem(storageKey);
@@ -1221,8 +1221,10 @@ window.openLoungeComparison = function(friendUid) {
             try {
                 const parsed = JSON.parse(rawLocal);
                 const dailyWatchedAnime = Object.values(parsed.days || {}).flatMap(day => day.watched || []);
+                const backlogAnime = parsed.backlog || [];
+                const allWatchedAnime = [...dailyWatchedAnime, ...backlogAnime];
                 const uniqueMap = new Map();
-                dailyWatchedAnime.forEach(item => {
+                allWatchedAnime.forEach(item => {
                     const key = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
                     if (!uniqueMap.has(key)) {
                         uniqueMap.set(key, {
@@ -1238,7 +1240,21 @@ window.openLoungeComparison = function(friendUid) {
             } catch(e) {}
         }
 
-        const friendWatched = friendProfile.watchedList || [];
+        // Friend's watched list (including backlog list)
+        const rawFriendWatched = [
+            ...(friendProfile.watchedList || []),
+            ...(friendProfile.backlogList || [])
+        ];
+
+        // Remove duplicates from friend's combined list
+        const friendUniqueMap = new Map();
+        rawFriendWatched.forEach(item => {
+            const key = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
+            if (!friendUniqueMap.has(key)) {
+                friendUniqueMap.set(key, item);
+            }
+        });
+        const friendWatched = Array.from(friendUniqueMap.values());
 
         comparativeCache.myWatched = myWatched;
         comparativeCache.friendWatched = friendWatched;

@@ -457,6 +457,25 @@ function getChallengeAnime() {
     return Array.from(uniqueMap.values());
 }
 
+function isDuplicateAnime(anime) {
+    const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
+
+    // Check in challenge days
+    const dailyWatchedAnime = Object.values(challengeData.days).flatMap(day => day.watched || []);
+    const inChallenge = dailyWatchedAnime.some(item => {
+        const itemKey = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
+        return itemKey === key;
+    });
+    if (inChallenge) return true;
+
+    // Check in backlog
+    const inBacklog = (challengeData.backlog || []).some(item => {
+        const itemKey = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
+        return itemKey === key;
+    });
+    return inBacklog;
+}
+
 function getBacklogAnime() {
     const backlogAnime = challengeData.backlog || [];
     const uniqueMap = new Map();
@@ -1069,7 +1088,10 @@ function createDayEntry(date) {
             const searchData = await response.json(); 
             const normalizedData = normalizeKitsuResponse(searchData);
             showSearchResults(normalizedData, (selectedAnime) => {
-                
+                if (isDuplicateAnime(selectedAnime)) {
+                    showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                    return;
+                }
                 const rating = promptForRating(getEnglishTitle(selectedAnime));
                 const newAnime = { ...selectedAnime, date_added: new Date().toISOString() };
                 if (rating !== null) newAnime.user_score = rating;
@@ -1483,6 +1505,10 @@ function renderScheduleGrid(gridId, animeList) {
         `;
 
         item.querySelector('.add-to-challenge-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
             const rating = promptForRating(title);
             const newAnime = { ...anime, date_added: new Date().toISOString() };
             if (rating !== null) newAnime.user_score = rating;
@@ -1498,6 +1524,10 @@ function renderScheduleGrid(gridId, animeList) {
         };
 
         item.querySelector('.add-to-backlog-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
             const rating = promptForRating(title);
             const newAnime = { ...anime, date_added: new Date().toISOString() };
             if (rating !== null) newAnime.user_score = rating;
@@ -1579,6 +1609,10 @@ function renderTrendGrid(gridId, animeList) {
         `;
 
         item.querySelector('.add-to-challenge-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
             const rating = promptForRating(title);
             const newAnime = { ...anime, date_added: new Date().toISOString() };
             if (rating !== null) newAnime.user_score = rating;
@@ -1594,6 +1628,10 @@ function renderTrendGrid(gridId, animeList) {
         };
 
         item.querySelector('.add-to-backlog-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
             const rating = promptForRating(title);
             const newAnime = { ...anime, date_added: new Date().toISOString() };
             if (rating !== null) newAnime.user_score = rating;
@@ -1809,7 +1847,10 @@ function initializeApp() {
             const searchData = await response.json(); 
             const normalizedData = normalizeKitsuResponse(searchData);
             showSearchResults(normalizedData, (selectedAnime) => {
-                
+                if (isDuplicateAnime(selectedAnime)) {
+                    showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                    return;
+                }
                 const rating = promptForRating(getEnglishTitle(selectedAnime));
                 const newAnime = { ...selectedAnime, date_added: new Date().toISOString() };
                 if (rating !== null) newAnime.user_score = rating;
