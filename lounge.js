@@ -414,7 +414,8 @@ function initProfileSettings() {
             }
 
             // XP Progression Formula
-            const episodesCount = anipaceData && anipaceData.history ? anipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
+            const currentAnipaceData = window.anipaceData;
+            const episodesCount = currentAnipaceData && currentAnipaceData.history ? currentAnipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
             const achievementsCount = unlockedAchievements ? unlockedAchievements.length : 0;
             const computedXP = (counts.completedCount * 100) + (backlogListSync.length * 20) + (achievementsCount * 500) + (episodesCount * 10);
             const computedLevel = Math.floor(computedXP / 1000) + 1;
@@ -520,19 +521,19 @@ function renderFriendsList() {
             itemDiv.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <div style="position: relative;">
-                        <img src="${profile.avatarUrl}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
-                        <span class="presence-dot-${friendUid}" style="position: absolute; bottom: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-secondary); border: 1.5px solid var(--surface-color);"></span>
+                        <img src="${escapeHTML(profile.avatarUrl)}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+                        <span class="presence-dot-${escapeHTML(friendUid)}" style="position: absolute; bottom: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background-color: var(--text-secondary); border: 1.5px solid var(--surface-color);"></span>
                     </div>
                     <div>
-                        <h4 style="margin: 0; font-size: 13px; color: var(--text-color);">${profile.displayName} <span style="font-size: 10px; font-weight:800; color:var(--success-color); margin-left:4px;">Lv.${profile.level || 1}</span></h4>
-                        <p style="margin: 0; font-size: 10px; color: var(--text-secondary);">${profile.title}</p>
-                        <span class="presence-watching-${friendUid}" style="font-size: 9px; color: var(--success-color); display: block; margin-top: 1px;"></span>
+                        <h4 style="margin: 0; font-size: 13px; color: var(--text-color);">${escapeHTML(profile.displayName)} <span style="font-size: 10px; font-weight:800; color:var(--success-color); margin-left:4px;">Lv.${profile.level || 1}</span></h4>
+                        <p style="margin: 0; font-size: 10px; color: var(--text-secondary);">${escapeHTML(profile.title)}</p>
+                        <span class="presence-watching-${escapeHTML(friendUid)}" style="font-size: 9px; color: var(--success-color); display: block; margin-top: 1px;"></span>
                     </div>
                 </div>
                 <div style="display: flex; gap: 4px; align-items:center;">
-                    <button class="add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0; background: var(--primary-color); color: #000;" onclick="window.startLoungeChat('${friendUid}')">Chat</button>
-                    <button class="add-btn manual-add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0;" onclick="window.openLoungeComparison('${friendUid}')">Compare</button>
-                    <button class="remove-btn" style="padding: 0 5px; font-size: 16px;" onclick="window.removeLoungeFriend('${friendUid}')">&times;</button>
+                    <button class="add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0; background: var(--primary-color); color: #000;" onclick="window.startLoungeChat('${escapeHTML(friendUid)}')">Chat</button>
+                    <button class="add-btn manual-add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0;" onclick="window.openLoungeComparison('${escapeHTML(friendUid)}')">Compare</button>
+                    <button class="remove-btn" style="padding: 0 5px; font-size: 16px;" onclick="window.removeLoungeFriend('${escapeHTML(friendUid)}')">&times;</button>
                 </div>
             `;
             // Trigger update of online dots
@@ -582,15 +583,15 @@ function renderIncomingRequests(requestsObj) {
         getProfileData(senderUid, profile => {
             itemDiv.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <img src="${profile.avatarUrl}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                    <img src="${escapeHTML(profile.avatarUrl)}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
                     <div>
-                        <h4 style="margin: 0; font-size: 12px; color: var(--text-color);">${profile.displayName}</h4>
-                        <p style="margin: 0; font-size: 9px; color: var(--text-secondary);">${profile.title}</p>
+                        <h4 style="margin: 0; font-size: 12px; color: var(--text-color);">${escapeHTML(profile.displayName)}</h4>
+                        <p style="margin: 0; font-size: 9px; color: var(--text-secondary);">${escapeHTML(profile.title)}</p>
                     </div>
                 </div>
                 <div style="display: flex; gap: 6px;">
-                    <button class="add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin: 0; background: var(--success-color); color: #FFF;" onclick="window.acceptLoungeRequest('${senderUid}')">Accept</button>
-                    <button class="add-btn manual-add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin: 0; border-color: var(--error-color); color: var(--error-color);" onclick="window.rejectLoungeRequest('${senderUid}')">Reject</button>
+                    <button class="add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin: 0; background: var(--success-color); color: #FFF;" onclick="window.acceptLoungeRequest('${escapeHTML(senderUid)}')">Accept</button>
+                    <button class="add-btn manual-add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin: 0; border-color: var(--error-color); color: var(--error-color);" onclick="window.rejectLoungeRequest('${escapeHTML(senderUid)}')">Reject</button>
                 </div>
             `;
         });
@@ -721,10 +722,10 @@ function renderChatMessages(messagesObj) {
             if (msg.type === 'anime-embed' && msg.anime) {
                 bodyHtml = `
                     <div style="display: flex; gap: 8px; background-color: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px; border-left: 2px solid var(--primary-color);">
-                        <img src="${msg.anime.imageUrl || 'https://via.placeholder.com/40x55?text=N/A'}" style="width: 40px; height: 55px; object-fit: cover; border-radius: 4px;">
+                        <img src="${escapeHTML(msg.anime.imageUrl || 'https://via.placeholder.com/40x55?text=N/A')}" style="width: 40px; height: 55px; object-fit: cover; border-radius: 4px;">
                         <div style="display: flex; flex-direction: column; justify-content: space-between;">
-                            <h5 style="margin: 0; font-size: 11.5px; color: var(--primary-color); font-weight: 700;">${msg.anime.title}</h5>
-                            <span style="font-size: 10px; color: var(--text-secondary);">${msg.anime.type || 'TV'} • ⭐ ${msg.anime.score || 'N/A'}</span>
+                            <h5 style="margin: 0; font-size: 11.5px; color: var(--primary-color); font-weight: 700;">${escapeHTML(msg.anime.title || '')}</h5>
+                            <span style="font-size: 10px; color: var(--text-secondary);">${escapeHTML(msg.anime.type || 'TV')} • ⭐ ${escapeHTML(String(msg.anime.score || 'N/A'))}</span>
                         </div>
                     </div>
                 `;
@@ -734,9 +735,9 @@ function renderChatMessages(messagesObj) {
 
             bubbleDiv.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
-                    <img src="${profile.avatarUrl}" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover;">
-                    <span style="font-weight: bold; font-size: 11px; color: var(--primary-color);">${profile.displayName}</span>
-                    <span style="font-size: 9px; color: var(--text-secondary); margin-left: auto;">${timeStr}</span>
+                    <img src="${escapeHTML(profile.avatarUrl)}" style="width: 18px; height: 18px; border-radius: 50%; object-fit: cover;">
+                    <span style="font-weight: bold; font-size: 11px; color: var(--primary-color);">${escapeHTML(profile.displayName)}</span>
+                    <span style="font-size: 9px; color: var(--text-secondary); margin-left: auto;">${escapeHTML(timeStr)}</span>
                 </div>
                 ${bodyHtml}
             `;
@@ -979,22 +980,22 @@ function loadLeaderboard() {
             } else {
                 actionHtml = `
                     <div style="display:flex; gap: 4px; justify-content: center; align-items:center;">
-                        <button class="add-btn manual-add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin:0;" onclick="window.sendLoungeRequest('${record.uid}')">Add</button>
-                        <button class="add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin:0; background: var(--primary-color); color: #000;" onclick="window.openLoungeComparison('${record.uid}')">Compare</button>
+                        <button class="add-btn manual-add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin:0;" onclick="window.sendLoungeRequest('${escapeHTML(record.uid)}')">Add</button>
+                        <button class="add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin:0; background: var(--primary-color); color: #000;" onclick="window.openLoungeComparison('${escapeHTML(record.uid)}')">Compare</button>
                     </div>
                 `;
             }
 
             tr.innerHTML = `
-                <td style="padding: 12px 8px; font-weight: bold; color: var(--primary-color);">${rankBadge}</td>
+                <td style="padding: 12px 8px; font-weight: bold; color: var(--primary-color);">${escapeHTML(rankBadge)}</td>
                 <td style="padding: 12px 8px; display: flex; align-items: center; gap: 8px;">
-                    <img src="${record.avatarUrl || 'https://via.placeholder.com/25'}" style="width: 26px; height: 26px; border-radius: 50%; object-fit: cover;">
-                    <span style="font-weight: 600; color: ${isMe ? 'var(--primary-color)' : 'inherit'};">${record.displayName || 'Guest'}</span>
+                    <img src="${escapeHTML(record.avatarUrl || 'https://via.placeholder.com/25')}" style="width: 26px; height: 26px; border-radius: 50%; object-fit: cover;">
+                    <span style="font-weight: 600; color: ${isMe ? 'var(--primary-color)' : 'inherit'};">${escapeHTML(record.displayName || 'Guest')}</span>
                 </td>
-                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--success-color);">Lv.${userLevel}</td>
-                <td style="padding: 12px 8px; text-align: center; font-weight: 500; color: var(--text-secondary);">${userXP} XP</td>
-                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${completedCount} Anime</td>
-                <td style="padding: 12px 8px; color: var(--text-secondary); font-size: 12px;">${record.title || 'Newbie Tracker'}</td>
+                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--success-color);">Lv.${escapeHTML(String(userLevel))}</td>
+                <td style="padding: 12px 8px; text-align: center; font-weight: 500; color: var(--text-secondary);">${escapeHTML(String(userXP))} XP</td>
+                <td style="padding: 12px 8px; text-align: center; font-weight: bold; color: var(--primary-color);">${escapeHTML(String(completedCount))} Anime</td>
+                <td style="padding: 12px 8px; color: var(--text-secondary); font-size: 12px;">${escapeHTML(record.title || 'Newbie Tracker')}</td>
                 <td style="padding: 12px 8px; text-align: center;">
                     ${actionHtml}
                 </td>
@@ -1316,11 +1317,11 @@ function renderComparisonTabContent() {
             `;
             row.innerHTML = `
                 <div>
-                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${a.title}</h5>
-                    <span style="font-size:10px; color:var(--text-secondary);">${a.type || 'TV'}</span>
+                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${escapeHTML(a.title)}</h5>
+                    <span style="font-size:10px; color:var(--text-secondary);">${escapeHTML(a.type || 'TV')}</span>
                 </div>
                 <div style="font-size:11px; font-weight:bold; color:var(--success-color);">
-                    My: ${a.user_score || 'N/A'} ★ • Theirs: ${match.user_score || 'N/A'} ★
+                    My: ${escapeHTML(String(a.user_score || 'N/A'))} ★ • Theirs: ${escapeHTML(String(match.user_score || 'N/A'))} ★
                 </div>
             `;
             container.appendChild(row);
@@ -1346,10 +1347,10 @@ function renderComparisonTabContent() {
             `;
             row.innerHTML = `
                 <div>
-                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${a.title}</h5>
-                    <span style="font-size:10px; color:var(--text-secondary);">${a.type || 'TV'} • Score: ${a.user_score || 'N/A'}</span>
+                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${escapeHTML(a.title)}</h5>
+                    <span style="font-size:10px; color:var(--text-secondary);">${escapeHTML(a.type || 'TV')} • Score: ${escapeHTML(String(a.user_score || 'N/A'))}</span>
                 </div>
-                <button class="add-btn" style="padding: 4px 8px; font-size: 10px; height:auto; margin:0;" onclick="window.quickAddBacklogTitle('${escapeHTML(a.title)}', ${a.mal_id || 'null'}, '${a.type || 'TV'}')">Add Backlog</button>
+                <button class="add-btn" style="padding: 4px 8px; font-size: 10px; height:auto; margin:0;" onclick="window.quickAddBacklogTitle('${escapeHTML(a.title)}', ${a.mal_id || 'null'}, '${escapeHTML(a.type || 'TV')}')">Add Backlog</button>
             `;
             container.appendChild(row);
         });
@@ -1374,10 +1375,10 @@ function renderComparisonTabContent() {
             `;
             row.innerHTML = `
                 <div>
-                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${a.title}</h5>
-                    <span style="font-size:10px; color:var(--text-secondary);">${a.type || 'TV'} • Score: ${a.user_score || 'N/A'}</span>
+                    <h5 style="margin:0; font-size:12px; color:var(--primary-color); font-weight:700;">${escapeHTML(a.title)}</h5>
+                    <span style="font-size:10px; color:var(--text-secondary);">${escapeHTML(a.type || 'TV')} • Score: ${escapeHTML(String(a.user_score || 'N/A'))}</span>
                 </div>
-                <button class="add-btn manual-add-btn" style="padding: 4px 8px; font-size: 10px; height:auto; margin:0;" onclick="window.recommendLoungeTitle('${activeCompareFriendUid}', '${escapeHTML(a.title)}')">Recommend</button>
+                <button class="add-btn manual-add-btn" style="padding: 4px 8px; font-size: 10px; height:auto; margin:0;" onclick="window.recommendLoungeTitle('${escapeHTML(activeCompareFriendUid)}', '${escapeHTML(a.title)}')">Recommend</button>
             `;
             container.appendChild(row);
         });
@@ -1385,33 +1386,64 @@ function renderComparisonTabContent() {
 }
 
 window.quickAddBacklogTitle = function(title, malId, type) {
-    const storageKey = 'animeDashboard_v6_combined';
-    const rawLocal = localStorage.getItem(storageKey);
-    if (rawLocal) {
-        try {
-            const parsed = JSON.parse(rawLocal);
-            const isManual = !malId;
-            const duplicate = (parsed.backlog || []).some(item =>
-                isManual ? item.title.toLowerCase().trim() === title.toLowerCase().trim() : item.mal_id === malId
-            );
-            if (duplicate) {
-                showToast("This item is already in your backlog!", "error");
-                return;
-            }
+    const isManual = !malId;
+    if (window.challengeData) {
+        window.challengeData.backlog = window.challengeData.backlog || [];
+        const duplicate = window.challengeData.backlog.some(item =>
+            isManual ? item.title.toLowerCase().trim() === title.toLowerCase().trim() : item.mal_id === malId
+        );
+        if (duplicate) {
+            showToast("This item is already in your backlog!", "error");
+            return;
+        }
 
-            const item = {
-                mal_id: malId,
-                title: title,
-                type: type,
-                isManual: isManual,
-                date_added: new Date().toISOString()
-            };
+        const item = {
+            mal_id: malId,
+            title: title,
+            type: type,
+            isManual: isManual,
+            date_added: new Date().toISOString()
+        };
 
-            parsed.backlog = parsed.backlog || [];
-            parsed.backlog.push(item);
-            localStorage.setItem(storageKey, JSON.stringify(parsed));
-            showToast(`Added ${title} to your backlog!`);
-        } catch(e) {}
+        window.challengeData.backlog.push(item);
+        if (typeof window.saveData === "function") {
+            window.saveData();
+        }
+        if (typeof window.updateAllDisplays === "function") {
+            window.updateAllDisplays();
+        }
+        if (typeof window.processAchievements === "function") {
+            window.processAchievements();
+        }
+        showToast(`Added ${title} to your backlog!`);
+    } else {
+        const storageKey = 'animeDashboard_v6_combined';
+        const rawLocal = localStorage.getItem(storageKey);
+        if (rawLocal) {
+            try {
+                const parsed = JSON.parse(rawLocal);
+                const duplicate = (parsed.backlog || []).some(item =>
+                    isManual ? item.title.toLowerCase().trim() === title.toLowerCase().trim() : item.mal_id === malId
+                );
+                if (duplicate) {
+                    showToast("This item is already in your backlog!", "error");
+                    return;
+                }
+
+                const item = {
+                    mal_id: malId,
+                    title: title,
+                    type: type,
+                    isManual: isManual,
+                    date_added: new Date().toISOString()
+                };
+
+                parsed.backlog = parsed.backlog || [];
+                parsed.backlog.push(item);
+                localStorage.setItem(storageKey, JSON.stringify(parsed));
+                showToast(`Added ${title} to your backlog!`);
+            } catch(e) {}
+        }
     }
 };
 

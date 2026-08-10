@@ -2194,6 +2194,16 @@ function initializeFirebase() {
 initializeApp();
 initializeFirebase();
 
+// Expose core variables and functions globally for module access (e.g., from lounge.js)
+window.challengeData = challengeData;
+Object.defineProperty(window, 'anipaceData', {
+    get: () => anipaceData,
+    set: (val) => { anipaceData = val; }
+});
+window.saveData = saveData;
+window.updateAllDisplays = updateAllDisplays;
+window.processAchievements = processAchievements;
+
 /*
 ========================================================================
 FIREBASE SETUP INSTRUCTIONS

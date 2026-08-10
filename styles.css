@@ -263,6 +263,7 @@ body.backlog-active .modal-content,
 .modal-content {
     background-color: #151C2C !important;
     color: #F3F4F6 !important;
+    --primary-color: #FFFFFF !important;
 }
 body.backlog-active .modal-content h2,
 .modal-content h2 {

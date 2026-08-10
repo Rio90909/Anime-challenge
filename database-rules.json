@@ -33,14 +33,14 @@
     "friends": {
       "$uid": {
         ".read": "auth != null && (auth.uid == $uid || data.child(auth.uid).exists() || !data.exists())",
-        ".write": "auth != null"
+        ".write": "auth != null && auth.uid == $uid"
       }
     },
     "friendRequests": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$senderUid": {
-          ".write": "auth != null"
+          ".write": "auth != null && auth.uid == $senderUid"
         }
       }
     },
