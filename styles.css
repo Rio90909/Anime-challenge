@@ -30,6 +30,26 @@
     padding: 0;
 }
 
+/* Prevent accidental text selection and native copy-paste menu on all interactive elements */
+button,
+.add-btn,
+.manual-add-btn,
+.day-tab-btn,
+.trend-tab-btn,
+.lounge-tab-btn,
+.close-btn,
+.synopsis-toggle-btn,
+.backlog-synopsis-toggle-btn,
+.rank-badge,
+.trend-rank-badge {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none;   /* Safari */
+    -khtml-user-select: none;     /* Konqueror HTML */
+    -moz-user-select: none;      /* Firefox */
+    -ms-user-select: none;       /* Internet Explorer/Edge */
+    user-select: none;           /* Non-prefixed version, currently supported by Chrome, Opera and Firefox */
+}
+
 html {
     max-width: 100%;
     overflow-x: hidden;

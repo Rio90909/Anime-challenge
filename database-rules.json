@@ -32,15 +32,18 @@
     },
     "friends": {
       "$uid": {
-        ".read": "auth != null && (auth.uid == $uid || data.child(auth.uid).exists() || !data.exists())",
-        ".write": "auth != null && auth.uid == $uid"
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        "$friendUid": {
+          ".read": "auth != null && (auth.uid == $uid || auth.uid == $friendUid)"
+        }
       }
     },
     "friendRequests": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
         "$senderUid": {
-          ".write": "auth != null && auth.uid == $senderUid"
+          ".write": "auth != null && (auth.uid == $senderUid || auth.uid == $uid)"
         }
       }
     },
