@@ -139,9 +139,9 @@ body.backlog-active .remove-btn {
     color: var(--error-color);
 }
 body.backlog-active .add-btn {
-     background: #FFFFFF !important;
-     color: #000000 !important;
-     border: 1px solid #D1D5DB !important;
+     background: #1F2937 !important;
+     color: #FFFFFF !important;
+     border: none !important;
 }
 body.backlog-active .manual-add-btn {
      background-color: #9CA3AF;
@@ -238,9 +238,8 @@ body.backlog-active #backlog-entry-controls textarea::placeholder {
 }
 
 body.backlog-active .add-btn:hover:not(:disabled) {
-    background: #E5E7EB !important;
-    color: #000000 !important;
-    border-color: #9CA3AF !important;
+    background: #111827 !important;
+    color: #FFFFFF !important;
 }
 
 body.backlog-active .manual-add-btn:hover:not(:disabled) {
