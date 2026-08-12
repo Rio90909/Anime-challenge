@@ -139,8 +139,8 @@ body.backlog-active .remove-btn {
     color: var(--error-color);
 }
 body.backlog-active .add-btn {
-     background-color: #1F2937;
-     color: #FFFFFF;
+     background: #1F2937 !important;
+     color: #FFFFFF !important;
 }
 body.backlog-active .manual-add-btn {
      background-color: #9CA3AF;
@@ -237,7 +237,7 @@ body.backlog-active #backlog-entry-controls textarea::placeholder {
 }
 
 body.backlog-active .add-btn:hover:not(:disabled) {
-    background-color: #111827 !important;
+    background: #111827 !important;
     color: #FFFFFF !important;
 }
 
