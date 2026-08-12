@@ -669,7 +669,7 @@ function updateAllDisplays() {
         document.getElementById('backlog-top-genre-value').textContent = 'None';
     }
     
-    document.getElementById('header-title').textContent = `${currentGoal} Anime Challenge`;
+    document.getElementById('header-title').textContent = `Aniclipse`;
 
     populateYearFilter(allUniqueAnime);
     populateGenreFilter(allUniqueAnime); 
@@ -1214,7 +1214,7 @@ function switchToScreen(screenId) {
     } else {
         challengeScreen.classList.remove('hidden');
         switchToChallengeBtn.classList.add('hidden');
-        headerTitle.textContent = `${currentGoal} Anime Challenge`;
+        headerTitle.textContent = `Aniclipse`;
     }
 }
 
