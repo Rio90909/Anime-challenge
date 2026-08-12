@@ -329,18 +329,18 @@ body.backlog-active .modal-content select option,
     color: #F3F4F6 !important;
 }
 
-/* Ensure buttons inside modal-content are never styled by backlog-active body classes */
+/* Ensure buttons inside modal-content are high-contrast black background with white text */
 body.backlog-active .modal-content .add-btn,
 .modal-content .add-btn {
-    background: linear-gradient(135deg, #FFFFFF, #E5E7EB) !important;
-    background-color: transparent !important;
-    color: #0A0E17 !important;
+    background: #1F2937 !important;
+    color: #FFFFFF !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 
 body.backlog-active .modal-content .add-btn:hover:not(:disabled),
 .modal-content .add-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #FFFFFF, #E5E7EB) !important;
-    color: #0A0E17 !important;
+    background: #111827 !important;
+    color: #FFFFFF !important;
     transform: translateY(-2px) scale(1.02);
 }
 
@@ -586,20 +586,21 @@ header h1 {
 }
 .add-btn {
     flex-grow: 1;
-    background: linear-gradient(135deg, #FFFFFF, #E5E7EB);
-    color: #0A0E17;
+    background: #1F2937 !important;
+    color: #FFFFFF !important;
     font-weight: 700;
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
     padding: 13px;
     border-radius: 10px;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
 }
 .add-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #FFFFFF, #E5E7EB);
+    background: #111827 !important;
+    color: #FFFFFF !important;
     transform: translateY(-2px) scale(1.02);
-    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important;
 }
 .add-btn:disabled { background-color: #374151; color: #9CA3AF; cursor: not-allowed; box-shadow: none; }
 .manual-add-btn {
@@ -878,20 +879,23 @@ header h1 {
 }
 .search-result-item p { font-size: 12px; color: var(--text-secondary); margin: 0; }
 .search-result-item button {
-    background-color: var(--primary-color);
-    color: #000;
-    border: none;
+    background-color: #1F2937 !important;
+    color: #FFFFFF !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
     padding: 9px 15px;
     border-radius: 8px;
     cursor: pointer;
     font-weight: 700;
     width: 100%;
     margin-top: 10px;
-    box-shadow: 0 4px 10px rgba(255,193,7,0.15);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3) !important;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .search-result-item button:hover {
-    background-color: #E5E7EB;
-    box-shadow: 0 6px 15px rgba(255,255,255,0.2);
+    background-color: #111827 !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4) !important;
+    transform: translateY(-1px);
 }
 .empty-state-message { color: var(--text-secondary); text-align: center; padding: 40px; font-style: italic; }
 
@@ -1479,9 +1483,10 @@ input[type="date"]::-webkit-outer-spin-button {
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 .add-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #FFFFFF, #E5E7EB) !important;
+    background: #111827 !important;
+    color: #FFFFFF !important;
     transform: translateY(-2px) scale(1.03);
-    box-shadow: 0 8px 20px rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 .add-btn:active:not(:disabled) {
     transform: translateY(0) scale(1);
