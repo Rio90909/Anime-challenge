@@ -160,14 +160,96 @@ function parseBulkLine(line) {
     return { title: line, rating: null };
 }
 
-window.toggleSynopsis = function(btn) {
+window.toggleSynopsis = function(btn, animeId) {
     const p = btn.nextElementSibling;
     if (p.classList.contains('hidden')) {
         p.classList.remove('hidden');
         btn.textContent = 'Hide Story ▴';
+        if (animeId) {
+            window.lazyLoadDetails(animeId);
+        }
     } else {
         p.classList.add('hidden');
         btn.textContent = 'Read Story ▾';
+    }
+};
+
+window.lazyLoadDetails = function(animeId) {
+    const linksContainer = document.getElementById(`streaming-links-${animeId}`);
+    const charsContainer = document.getElementById(`characters-${animeId}`);
+
+    if (linksContainer && !linksContainer.dataset.loaded) {
+        linksContainer.dataset.loaded = 'true';
+        linksContainer.innerHTML = '<span style="font-size: 10px; color: var(--text-secondary);">Loading streaming options...</span>';
+        fetch(`https://kitsu.io/api/edge/anime/${animeId}/streaming-links`)
+            .then(res => res.json())
+            .then(resData => {
+                const links = resData.data || [];
+                if (links.length === 0) {
+                    linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--text-secondary);">Streaming: No official links found.</span>';
+                    return;
+                }
+                let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color);">📺 Stream Officially:</strong><div style="display: flex; gap: 8px; flex-wrap: wrap;">';
+                links.forEach(link => {
+                    const url = link.attributes?.url || '#';
+                    let platform = 'Streaming Service';
+                    if (url.includes('crunchyroll.com')) platform = 'Crunchyroll';
+                    else if (url.includes('netflix.com')) platform = 'Netflix';
+                    else if (url.includes('hulu.com')) platform = 'Hulu';
+                    else if (url.includes('funimation.com')) platform = 'Funimation';
+                    else if (url.includes('hidive.com')) platform = 'HIDIVE';
+                    else if (url.includes('youtube.com')) platform = 'YouTube';
+                    else if (url.includes('amazon.com')) platform = 'Amazon Prime';
+
+                    html += `<a href="${url}" target="_blank" rel="noopener noreferrer" class="streaming-link-badge" style="background: #1F2937; color: #FFFFFF; font-size: 10px; padding: 4px 8px; border-radius: 4px; text-decoration: none; border: 1px solid rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 4px; font-weight: bold; transition: background 0.2s;">📺 ${platform}</a>`;
+                });
+                html += '</div>';
+                linksContainer.innerHTML = html;
+            })
+            .catch(err => {
+                console.error("Streaming fetch error:", err);
+                linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--error-color);">Failed to load streaming links.</span>';
+            });
+    }
+
+    if (charsContainer && !charsContainer.dataset.loaded) {
+        charsContainer.dataset.loaded = 'true';
+        charsContainer.innerHTML = '<span style="font-size: 10px; color: var(--text-secondary);">Loading characters...</span>';
+        fetch(`https://kitsu.io/api/edge/anime/${animeId}/characters?include=character&page[limit]=4`)
+            .then(res => res.json())
+            .then(resData => {
+                const roles = resData.data || [];
+                const included = resData.included || [];
+                if (roles.length === 0) {
+                    charsContainer.innerHTML = '';
+                    return;
+                }
+                let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color); margin-top: 8px;">🎭 Main Characters:</strong><div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;">';
+                roles.forEach(role => {
+                    const charRef = role.relationships?.character?.data;
+                    if (!charRef) return;
+                    const charObj = included.find(inc => inc.type === 'characters' && inc.id === charRef.id);
+                    if (!charObj) return;
+
+                    const name = charObj.attributes?.name || 'Unknown';
+                    const img = charObj.attributes?.image?.original || charObj.attributes?.image?.medium || 'https://via.placeholder.com/40x50';
+                    const roleType = role.attributes?.role || 'Main';
+
+                    html += `
+                        <div style="flex: 0 0 auto; width: 80px; text-align: center; background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                            <img src="${img}" alt="${name}" style="width: 100%; height: 70px; object-fit: cover; border-radius: 4px; margin-bottom: 4px;">
+                            <div style="font-size: 9px; font-weight: bold; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</div>
+                            <div style="font-size: 8px; color: var(--text-secondary);">${roleType}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                charsContainer.innerHTML = html;
+            })
+            .catch(err => {
+                console.error("Characters fetch error:", err);
+                charsContainer.innerHTML = '';
+            });
     }
 };
 
@@ -1269,10 +1351,66 @@ let trendDataCache = {
     'highest-rated': null,
     anticipated: null
 };
+let activeDiscoverFormat = 'all';
+let activeDiscoverGenre = 'all';
+let discoverCacheTimestamp = null;
 
 function initScheduleScreen() {
     const upcomingLoadingEl = document.getElementById('upcoming-loading');
     const upcomingGrid = document.getElementById('upcoming-grid');
+
+    // Helper to format/display Last Updated status
+    function updateDiscoverLastUpdatedText(timestamp) {
+        const el = document.getElementById('discover-last-updated');
+        if (!el) return;
+        if (!timestamp) {
+            el.textContent = 'Last updated: Never';
+            return;
+        }
+        const diffMs = Date.now() - timestamp;
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins < 1) {
+            el.textContent = 'Last updated: Just now';
+        } else if (diffMins < 60) {
+            el.textContent = `Last updated: ${diffMins}m ago`;
+        } else {
+            const diffHours = Math.floor(diffMins / 60);
+            if (diffHours < 24) {
+                el.textContent = `Last updated: ${diffHours}h ago`;
+            } else {
+                const diffDays = Math.floor(diffHours / 24);
+                el.textContent = `Last updated: ${diffDays}d ago`;
+            }
+        }
+    }
+
+    // Save cache to localStorage
+    function saveDiscoverCache() {
+        discoverCacheTimestamp = Date.now();
+        const payload = {
+            timestamp: discoverCacheTimestamp,
+            upcoming: upcomingDataCache,
+            trends: trendDataCache
+        };
+        localStorage.setItem('aniclipse_discover_cache_v2', JSON.stringify(payload));
+        updateDiscoverLastUpdatedText(discoverCacheTimestamp);
+    }
+
+    // Load cache on init
+    const cachedData = localStorage.getItem('aniclipse_discover_cache_v2');
+    if (cachedData) {
+        try {
+            const parsed = JSON.parse(cachedData);
+            if (parsed && parsed.upcoming && parsed.trends) {
+                upcomingDataCache = parsed.upcoming;
+                trendDataCache = parsed.trends;
+                discoverCacheTimestamp = parsed.timestamp;
+                updateDiscoverLastUpdatedText(discoverCacheTimestamp);
+            }
+        } catch (e) {
+            console.error("Failed to parse discover cache", e);
+        }
+    }
 
     // Trend Tabs Wiring
     const trendButtons = document.querySelectorAll('.trend-tab-btn');
@@ -1284,11 +1422,45 @@ function initScheduleScreen() {
         };
     });
 
-    function loadTrend(trendType) {
+    // Format Selector Tabs Wiring
+    const formatButtons = document.querySelectorAll('.format-tab-btn');
+    formatButtons.forEach(btn => {
+        btn.onclick = () => {
+            formatButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeDiscoverFormat = btn.dataset.format;
+            renderFilteredLists();
+        };
+    });
+
+    // Genre Selector Tabs Wiring
+    const genreButtons = document.querySelectorAll('.genre-tab-btn');
+    genreButtons.forEach(btn => {
+        btn.onclick = () => {
+            genreButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeDiscoverGenre = btn.dataset.genre;
+            renderFilteredLists();
+        };
+    });
+
+    // Manual Refresh Button Wiring
+    const refreshBtn = document.getElementById('refresh-discover-btn');
+    if (refreshBtn) {
+        refreshBtn.onclick = () => {
+            showNotification("Refreshing Discover Feed...");
+            const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
+            const trendType = activeTrendBtn ? activeTrendBtn.dataset.trend : 'trending';
+            loadTrend(trendType, true);
+            loadUpcomingSeasonal(true);
+        };
+    }
+
+    function loadTrend(trendType, forceLive = false) {
         const trendLoadingEl = document.getElementById('trend-loading');
         const trendGrid = document.getElementById('trend-grid');
 
-        if (trendDataCache[trendType]) {
+        if (!forceLive && trendDataCache[trendType]) {
             trendLoadingEl.classList.add('hidden');
             renderFilteredLists();
             return;
@@ -1318,16 +1490,77 @@ function initScheduleScreen() {
                 const normalized = normalizeKitsuResponse(resData);
                 trendDataCache[trendType] = normalized;
                 trendLoadingEl.classList.add('hidden');
+                saveDiscoverCache();
                 renderFilteredLists();
             })
             .catch(err => {
                 console.error(err);
-                trendLoadingEl.textContent = 'Failed to load live trends. Check internet connection.';
+                trendLoadingEl.classList.add('hidden');
+                showNotification("Failed to fetch fresh live trends. Displaying saved feed.", "error");
+                if (trendDataCache[trendType]) {
+                    renderFilteredLists();
+                } else {
+                    trendLoadingEl.textContent = 'Failed to load live trends. Check internet connection.';
+                    trendLoadingEl.classList.remove('hidden');
+                }
+            });
+    }
+
+    function loadUpcomingSeasonal(forceLive = false) {
+        if (!forceLive && upcomingDataCache) {
+            renderScheduleGrid('upcoming-grid', upcomingDataCache);
+            return;
+        }
+        upcomingLoadingEl.classList.remove('hidden');
+        upcomingGrid.classList.add('hidden');
+
+        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&sort=-userCount&include=genres,categories,animeProductions.producer`, {
+            headers: {
+                'Accept': 'application/vnd.api+json',
+                'Content-Type': 'application/vnd.api+json'
+            }
+        })
+            .then(res => res.json())
+            .then(resData => {
+                const normalized = normalizeKitsuResponse(resData);
+                upcomingDataCache = normalized;
+                upcomingLoadingEl.classList.add('hidden');
+                saveDiscoverCache();
+                renderScheduleGrid('upcoming-grid', normalized);
+            })
+            .catch(err => {
+                console.error(err);
+                upcomingLoadingEl.classList.add('hidden');
+                showNotification("Failed to fetch seasonal releases. Displaying saved feed.", "error");
+                if (upcomingDataCache) {
+                    renderScheduleGrid('upcoming-grid', upcomingDataCache);
+                } else {
+                    upcomingLoadingEl.textContent = 'Failed to load upcoming seasonal releases.';
+                    upcomingLoadingEl.classList.remove('hidden');
+                }
             });
     }
 
     function renderFilteredLists() {
         const filterText = document.getElementById('schedule-search-input').value.toLowerCase().trim();
+
+        const matchesFilters = (anime) => {
+            const titleMatch = getEnglishTitle(anime).toLowerCase().includes(filterText);
+
+            // Format match
+            let formatMatch = true;
+            if (activeDiscoverFormat !== 'all') {
+                formatMatch = anime.type && anime.type.toLowerCase() === activeDiscoverFormat.toLowerCase();
+            }
+
+            // Genre match
+            let genreMatch = true;
+            if (activeDiscoverGenre !== 'all') {
+                genreMatch = anime.genres && anime.genres.some(g => g.name.toLowerCase() === activeDiscoverGenre.toLowerCase());
+            }
+
+            return titleMatch && formatMatch && genreMatch;
+        };
 
         // 1. Filter and render active trend
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
@@ -1335,14 +1568,14 @@ function initScheduleScreen() {
             const trendType = activeTrendBtn.dataset.trend;
             if (trendDataCache[trendType]) {
                 const rawList = trendDataCache[trendType] || [];
-                const filteredList = rawList.filter(anime => getEnglishTitle(anime).toLowerCase().includes(filterText));
+                const filteredList = rawList.filter(matchesFilters);
                 renderTrendGrid('trend-grid', filteredList);
             }
         }
 
         // 2. Filter and render upcoming seasonal showcases
         if (upcomingDataCache) {
-            const filteredList = upcomingDataCache.filter(anime => getEnglishTitle(anime).toLowerCase().includes(filterText));
+            const filteredList = upcomingDataCache.filter(matchesFilters);
             renderScheduleGrid('upcoming-grid', filteredList);
         }
     }
@@ -1397,30 +1630,9 @@ function initScheduleScreen() {
         return;
     }
 
-    upcomingLoadingEl.classList.remove('hidden');
-    upcomingGrid.classList.add('hidden');
-
-    fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&sort=-userCount&include=genres,categories,animeProductions.producer`, {
-        headers: {
-            'Accept': 'application/vnd.api+json',
-            'Content-Type': 'application/vnd.api+json'
-        }
-    })
-        .then(res => res.json())
-        .then(resData => {
-            const normalized = normalizeKitsuResponse(resData);
-            upcomingDataCache = normalized;
-            upcomingLoadingEl.classList.add('hidden');
-            renderScheduleGrid('upcoming-grid', normalized);
-
-            // Trigger first trend load
-            const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
-            if (activeTrendBtn) loadTrend(activeTrendBtn.dataset.trend);
-        })
-        .catch(err => {
-            console.error(err);
-            upcomingLoadingEl.textContent = 'Failed to load upcoming seasonal releases.';
-        });
+    loadUpcomingSeasonal();
+    const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
+    if (activeTrendBtn) loadTrend(activeTrendBtn.dataset.trend);
 }
 
 function renderScheduleGrid(gridId, animeList) {
@@ -1473,8 +1685,12 @@ function renderScheduleGrid(gridId, animeList) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
-                <p class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">${anime.synopsis}</p>
+                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">
+                    <p style="margin: 0 0 10px 0;">${anime.synopsis}</p>
+                    <div class="streaming-links-container" id="streaming-links-${anime.mal_id}" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                    <div class="characters-container" id="characters-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                </div>
             </div>
             ` : ''}
             ${actionButtonsHtml}
@@ -1602,8 +1818,12 @@ function renderTrendGrid(gridId, animeList) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
-                <p class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">${anime.synopsis}</p>
+                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">
+                    <p style="margin: 0 0 10px 0;">${anime.synopsis}</p>
+                    <div class="streaming-links-container" id="streaming-links-${anime.mal_id}" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                    <div class="characters-container" id="characters-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                </div>
             </div>
             ` : ''}
             ${actionButtonsHtml}

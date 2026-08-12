@@ -292,7 +292,13 @@
             </div>
 
             <div id="schedule-default-views">
-                <h2 style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 10px; margin-bottom: 5px; gap: 10px;">
+                    <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="refresh-discover-btn" class="add-btn" style="padding: 6px 12px; font-size: 11.5px; height: auto; margin: 0; background: #FFFFFF !important; color: #000000 !important; border-radius: 6px; font-weight: bold; cursor: pointer;">Refresh Feed ↻</button>
+                        <span id="discover-last-updated" style="font-size: 11px; color: var(--text-secondary);">Last updated: Just now</span>
+                    </div>
+                </div>
                 <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Browse the absolute best anime globally on Kitsu right now. See what is trending, highest rated, or most anticipated!</p>
 
                 <!-- Trend Selection Tabs -->
@@ -300,6 +306,26 @@
                     <button class="trend-tab-btn active" data-trend="trending">Trending Now</button>
                     <button class="trend-tab-btn" data-trend="highest-rated">Highest Rated</button>
                     <button class="trend-tab-btn" data-trend="anticipated">Most Anticipated</button>
+                </div>
+
+                <!-- Format Selection Tabs -->
+                <div id="discover-format-tabs" class="schedule-day-tabs" style="margin-top: 15px; margin-bottom: 10px; gap: 6px;">
+                    <button class="format-tab-btn active" data-format="all">All Formats</button>
+                    <button class="format-tab-btn" data-format="TV">TV Series</button>
+                    <button class="format-tab-btn" data-format="Movie">Movies</button>
+                    <button class="format-tab-btn" data-format="OVA">OVAs</button>
+                    <button class="format-tab-btn" data-format="special">Specials</button>
+                </div>
+
+                <!-- Genre & Tag Filter Row -->
+                <div id="discover-genre-tags" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-light);">
+                    <button class="genre-tab-btn active" data-genre="all">All Genres</button>
+                    <button class="genre-tab-btn" data-genre="Action">Action</button>
+                    <button class="genre-tab-btn" data-genre="Comedy">Comedy</button>
+                    <button class="genre-tab-btn" data-genre="Fantasy">Fantasy</button>
+                    <button class="genre-tab-btn" data-genre="Sci-Fi">Sci-Fi</button>
+                    <button class="genre-tab-btn" data-genre="Romance">Romance</button>
+                    <button class="genre-tab-btn" data-genre="Drama">Drama</button>
                 </div>
 
                 <div id="trend-content">

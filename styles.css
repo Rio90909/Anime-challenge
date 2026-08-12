@@ -1153,6 +1153,36 @@ header h1 {
     border: 1px solid rgba(156, 163, 175, 0.3);
 }
 
+/* NEW DISCOVER PAGE ADDITIONS STYLING */
+.format-tab-btn, .genre-tab-btn {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-light);
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.format-tab-btn:hover, .genre-tab-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+.format-tab-btn.active, .genre-tab-btn.active {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    border-color: var(--primary-color);
+}
+
+.streaming-link-badge:hover {
+    background: #374151 !important;
+    border-color: var(--primary-color) !important;
+    transform: translateY(-1px);
+}
+
 /* ========================================================================
    RESPONSIVE LOUNGE & MOBILE BOUNDARY OVERRIDES
    ======================================================================== */
