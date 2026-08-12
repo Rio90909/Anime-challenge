@@ -476,27 +476,6 @@ function isDuplicateAnime(anime) {
     return inBacklog;
 }
 
-function getAnimeTrackedStatus(anime) {
-    const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
-
-    // Check in challenge days
-    const dailyWatchedAnime = Object.values(challengeData.days).flatMap(day => day.watched || []);
-    const inChallenge = dailyWatchedAnime.some(item => {
-        const itemKey = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
-        return itemKey === key;
-    });
-    if (inChallenge) return 'completed';
-
-    // Check in backlog
-    const inBacklog = (challengeData.backlog || []).some(item => {
-        const itemKey = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
-        return itemKey === key;
-    });
-    if (inBacklog) return 'backlog';
-
-    return null;
-}
-
 function getBacklogAnime() {
     const backlogAnime = challengeData.backlog || [];
     const uniqueMap = new Map();
@@ -1221,7 +1200,7 @@ function switchToScreen(screenId) {
         scheduleScreen.classList.remove('hidden');
         switchToScheduleBtn.classList.add('hidden');
         jumpToTodayBtn.classList.add('hidden');
-        headerTitle.textContent = 'Discover & Trends';
+        headerTitle.textContent = 'Releases & Schedule';
         initScheduleScreen();
     } else if (screenId === 'lounge') {
         if (loungeScreen) loungeScreen.classList.remove('hidden');
@@ -1263,6 +1242,7 @@ function initializeChallengeLayout() {
 }
 
 // --- RELEASES & SCHEDULE LOGIC ---
+let scheduleDataCache = null;
 let upcomingDataCache = null;
 let trendDataCache = {
     trending: null,
@@ -1271,8 +1251,24 @@ let trendDataCache = {
 };
 
 function initScheduleScreen() {
+    const loadingEl = document.getElementById('schedule-loading');
     const upcomingLoadingEl = document.getElementById('upcoming-loading');
+    const grid = document.getElementById('schedule-grid');
     const upcomingGrid = document.getElementById('upcoming-grid');
+
+    // Day Tabs Wiring
+    const dayButtons = document.querySelectorAll('.day-tab-btn');
+    dayButtons.forEach(btn => {
+        btn.onclick = () => {
+            dayButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderSelectedDay();
+        };
+    });
+
+    function renderSelectedDay() {
+        renderFilteredLists();
+    }
 
     // Trend Tabs Wiring
     const trendButtons = document.querySelectorAll('.trend-tab-btn');
@@ -1329,7 +1325,16 @@ function initScheduleScreen() {
     function renderFilteredLists() {
         const filterText = document.getElementById('schedule-search-input').value.toLowerCase().trim();
 
-        // 1. Filter and render active trend
+        // 1. Filter and render selected day calendar
+        if (scheduleDataCache) {
+            const activeBtn = document.querySelector('.day-tab-btn.active');
+            const day = activeBtn ? activeBtn.dataset.day : 'monday';
+            const rawList = scheduleDataCache[day] || [];
+            const filteredList = rawList.filter(anime => getEnglishTitle(anime).toLowerCase().includes(filterText));
+            renderScheduleGrid('schedule-grid', filteredList);
+        }
+
+        // 2. Filter and render active trend
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
         if (activeTrendBtn) {
             const trendType = activeTrendBtn.dataset.trend;
@@ -1340,7 +1345,7 @@ function initScheduleScreen() {
             }
         }
 
-        // 2. Filter and render upcoming seasonal showcases
+        // 3. Filter and render upcoming seasonal showcases
         if (upcomingDataCache) {
             const filteredList = upcomingDataCache.filter(anime => getEnglishTitle(anime).toLowerCase().includes(filterText));
             renderScheduleGrid('upcoming-grid', filteredList);
@@ -1390,15 +1395,53 @@ function initScheduleScreen() {
     }, 300);
 
     // Initial triggers or cache usage
-    if (upcomingDataCache) {
+    if (scheduleDataCache && upcomingDataCache) {
+        renderSelectedDay();
         renderScheduleGrid('upcoming-grid', upcomingDataCache);
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
         if (activeTrendBtn) loadTrend(activeTrendBtn.dataset.trend);
         return;
     }
 
+    loadingEl.classList.remove('hidden');
     upcomingLoadingEl.classList.remove('hidden');
+    grid.classList.add('hidden');
     upcomingGrid.classList.add('hidden');
+
+    fetch(`${API_URL}?filter[status]=current&page[limit]=20&sort=-userCount&include=genres,categories,animeProductions.producer`, {
+        headers: {
+            'Accept': 'application/vnd.api+json',
+            'Content-Type': 'application/vnd.api+json'
+        }
+    })
+        .then(res => res.json())
+        .then(resData => {
+            const normalized = normalizeKitsuResponse(resData);
+            const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const grouped = {
+                monday: [], tuesday: [], wednesday: [], thursday: [], friday: [], saturday: [], sunday: []
+            };
+
+            normalized.forEach(anime => {
+                const rawAnime = resData.data.find(item => parseInt(item.id) === anime.mal_id);
+                const startDateStr = rawAnime?.attributes?.startDate;
+                if (startDateStr) {
+                    const dateObj = new Date(startDateStr);
+                    const dayName = daysOfWeek[dateObj.getDay()];
+                    grouped[dayName].push(anime);
+                } else {
+                    grouped.monday.push(anime);
+                }
+            });
+
+            scheduleDataCache = grouped;
+            loadingEl.classList.add('hidden');
+            renderSelectedDay();
+        })
+        .catch(err => {
+            console.error(err);
+            loadingEl.textContent = 'Failed to load weekly airing calendar.';
+        });
 
     fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&sort=-userCount&include=genres,categories,animeProductions.producer`, {
         headers: {
@@ -1440,28 +1483,6 @@ function renderScheduleGrid(gridId, animeList) {
         const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/105x145?text=No+Image';
         const genresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
 
-        let actionButtonsHtml = `
-            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
-                <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
-                <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
-            </div>
-        `;
-
-        const trackStatus = getAnimeTrackedStatus(anime);
-        if (trackStatus === 'completed') {
-            actionButtonsHtml = `
-                <div style="margin-top: auto; padding: 10px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-color); color: var(--success-color); font-weight: bold; font-size: 11px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: inset 0 0 4px rgba(16,185,129,0.15);">
-                    ✓ Completed Challenge
-                </div>
-            `;
-        } else if (trackStatus === 'backlog') {
-            actionButtonsHtml = `
-                <div style="margin-top: auto; padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid #A0AEC0; color: #FFFFFF; font-weight: bold; font-size: 11px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                    ✓ Tracked in Backlog
-                </div>
-            `;
-        }
-
         item.innerHTML = `
             <img src="${imageUrl}" alt="Poster">
             <h4 style="color: var(--text-color);">${title}</h4>
@@ -1477,49 +1498,46 @@ function renderScheduleGrid(gridId, animeList) {
                 <p class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">${anime.synopsis}</p>
             </div>
             ` : ''}
-            ${actionButtonsHtml}
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
+                <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
+                <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
+            </div>
         `;
 
-        const chalBtn = item.querySelector('.add-to-challenge-quick-btn');
-        if (chalBtn) {
-            chalBtn.onclick = () => {
-                if (isDuplicateAnime(anime)) {
-                    showNotification("This anime is already in your backlog or challenge watch list!", "error");
-                    return;
-                }
-                const rating = promptForRating(title);
-                const newAnime = { ...anime, date_added: new Date().toISOString() };
-                if (rating !== null) newAnime.user_score = rating;
+        item.querySelector('.add-to-challenge-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
 
-                const todayKey = getLocalDateString(new Date());
-                challengeData.days[todayKey] = challengeData.days[todayKey] || { watched: [] };
-                challengeData.days[todayKey].watched.push(newAnime);
+            const todayKey = getLocalDateString(new Date());
+            challengeData.days[todayKey] = challengeData.days[todayKey] || { watched: [] };
+            challengeData.days[todayKey].watched.push(newAnime);
 
-                saveData();
-                updateAllDisplays();
-                processAchievements();
-                showNotification(`Logged ${title} to today's watch list!`);
-            };
-        }
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Logged ${title} to today's watch list!`);
+        };
 
-        const blBtn = item.querySelector('.add-to-backlog-quick-btn');
-        if (blBtn) {
-            blBtn.onclick = () => {
-                if (isDuplicateAnime(anime)) {
-                    showNotification("This anime is already in your backlog or challenge watch list!", "error");
-                    return;
-                }
-                const rating = promptForRating(title);
-                const newAnime = { ...anime, date_added: new Date().toISOString() };
-                if (rating !== null) newAnime.user_score = rating;
+        item.querySelector('.add-to-backlog-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
 
-                challengeData.backlog.push(newAnime);
-                saveData();
-                updateAllDisplays();
-                processAchievements();
-                showNotification(`Added ${title} to your backlog watch list!`);
-            };
-        }
+            challengeData.backlog.push(newAnime);
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Added ${title} to your backlog watch list!`);
+        };
 
         grid.appendChild(item);
     });
@@ -1559,28 +1577,6 @@ function renderTrendGrid(gridId, animeList) {
 
         const allGenresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
 
-        let actionButtonsHtml = `
-            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
-                <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
-                <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
-            </div>
-        `;
-
-        const trackStatus = getAnimeTrackedStatus(anime);
-        if (trackStatus === 'completed') {
-            actionButtonsHtml = `
-                <div style="margin-top: auto; padding: 10px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-color); color: var(--success-color); font-weight: bold; font-size: 11px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: inset 0 0 4px rgba(16,185,129,0.15);">
-                    ✓ Completed Challenge
-                </div>
-            `;
-        } else if (trackStatus === 'backlog') {
-            actionButtonsHtml = `
-                <div style="margin-top: auto; padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid #A0AEC0; color: #FFFFFF; font-weight: bold; font-size: 11px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                    ✓ Tracked in Backlog
-                </div>
-            `;
-        }
-
         item.innerHTML = `
             <div class="trend-image-container" style="position: relative; width: 105px; height: 145px; margin-bottom: 12px; margin-left: auto; margin-right: auto;">
                 <img src="${imageUrl}" alt="Poster" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
@@ -1606,49 +1602,46 @@ function renderTrendGrid(gridId, animeList) {
                 <p class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left;">${anime.synopsis}</p>
             </div>
             ` : ''}
-            ${actionButtonsHtml}
+            <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
+                <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
+                <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
+            </div>
         `;
 
-        const chalBtn = item.querySelector('.add-to-challenge-quick-btn');
-        if (chalBtn) {
-            chalBtn.onclick = () => {
-                if (isDuplicateAnime(anime)) {
-                    showNotification("This anime is already in your backlog or challenge watch list!", "error");
-                    return;
-                }
-                const rating = promptForRating(title);
-                const newAnime = { ...anime, date_added: new Date().toISOString() };
-                if (rating !== null) newAnime.user_score = rating;
+        item.querySelector('.add-to-challenge-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
 
-                const todayKey = getLocalDateString(new Date());
-                challengeData.days[todayKey] = challengeData.days[todayKey] || { watched: [] };
-                challengeData.days[todayKey].watched.push(newAnime);
+            const todayKey = getLocalDateString(new Date());
+            challengeData.days[todayKey] = challengeData.days[todayKey] || { watched: [] };
+            challengeData.days[todayKey].watched.push(newAnime);
 
-                saveData();
-                updateAllDisplays();
-                processAchievements();
-                showNotification(`Logged ${title} to today's watch list!`);
-            };
-        }
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Logged ${title} to today's watch list!`);
+        };
 
-        const blBtn = item.querySelector('.add-to-backlog-quick-btn');
-        if (blBtn) {
-            blBtn.onclick = () => {
-                if (isDuplicateAnime(anime)) {
-                    showNotification("This anime is already in your backlog or challenge watch list!", "error");
-                    return;
-                }
-                const rating = promptForRating(title);
-                const newAnime = { ...anime, date_added: new Date().toISOString() };
-                if (rating !== null) newAnime.user_score = rating;
+        item.querySelector('.add-to-backlog-quick-btn').onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
 
-                challengeData.backlog.push(newAnime);
-                saveData();
-                updateAllDisplays();
-                processAchievements();
-                showNotification(`Added ${title} to your backlog watch list!`);
-            };
-        }
+            challengeData.backlog.push(newAnime);
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Added ${title} to your backlog watch list!`);
+        };
 
         grid.appendChild(item);
     });
