@@ -164,7 +164,7 @@
         <button id="jump-to-today-btn">Jump to Today</button>
         <button id="switch-to-backlog-btn">📚 My Anime Backlog</button> 
         <button id="switch-to-anipace-btn">⚡ Quick Episode Log (AniPace)</button> 
-        <button id="switch-to-schedule-btn">📅 Releases & Schedule</button>
+        <button id="switch-to-schedule-btn">🔍 Discover & Trends</button>
         <button id="switch-to-lounge-btn">💬 Social Lounge</button>
         <button id="settings-btn">⚙️ Settings</button>
     </nav>
@@ -276,12 +276,12 @@
         </div>
 
         <div id="schedule-screen" class="hidden container">
-            <h2>Weekly Airing Calendar</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">See currently airing anime sorted by their release days. Quick add any show directly to your active lists!</p>
+            <h2>Discover & Global Trends</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Discover the top-rated, trending, and highly anticipated anime, or search global records. Quick add any show directly to your active lists!</p>
 
             <!-- Professional Schedule & Trends Search Bar -->
             <div class="entry-controls-group" style="margin-bottom: 25px;">
-                <input type="text" id="schedule-search-input" placeholder="Search airing, trending, or upcoming anime by title..." title="Search releases by title">
+                <input type="text" id="schedule-search-input" placeholder="Search trending, top-rated, or upcoming anime by title..." title="Search releases by title">
             </div>
 
             <!-- Global Search Results Container -->
@@ -292,23 +292,7 @@
             </div>
 
             <div id="schedule-default-views">
-                <!-- Day Selection Tabs for mobile or desktop grid view -->
-                <div id="schedule-day-tabs" class="schedule-day-tabs">
-                    <button class="day-tab-btn active" data-day="monday">Mon</button>
-                    <button class="day-tab-btn" data-day="tuesday">Tue</button>
-                    <button class="day-tab-btn" data-day="wednesday">Wed</button>
-                    <button class="day-tab-btn" data-day="thursday">Thu</button>
-                    <button class="day-tab-btn" data-day="friday">Fri</button>
-                    <button class="day-tab-btn" data-day="saturday">Sat</button>
-                    <button class="day-tab-btn" data-day="sunday">Sun</button>
-                </div>
-
-                <div id="schedule-day-content" class="schedule-day-content">
-                    <div id="schedule-loading" class="empty-state-message">Loading airing calendar...</div>
-                    <div id="schedule-grid" class="schedule-grid hidden"></div>
-                </div>
-
-                <h2 style="margin-top: 40px; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
+                <h2 style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
                 <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Browse the absolute best anime globally on Kitsu right now. See what is trending, highest rated, or most anticipated!</p>
 
                 <!-- Trend Selection Tabs -->
