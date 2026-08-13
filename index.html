@@ -287,19 +287,22 @@
             <!-- Global Search Results Container -->
             <div id="schedule-search-results-section" class="hidden" style="margin-bottom: 30px;">
                 <h2 style="color: var(--primary-color); margin-bottom: 10px;">Global Search Results</h2>
-                <div id="schedule-search-results-loading" class="empty-state-message hidden">Searching Kitsu API...</div>
+                <div id="schedule-search-results-loading" class="empty-state-message hidden">Searching Global Database...</div>
                 <div id="schedule-search-results-grid" class="schedule-grid hidden"></div>
             </div>
 
             <div id="schedule-default-views">
                 <h2 style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Browse the absolute best anime globally on Kitsu right now. See what is trending, highest rated, or most anticipated!</p>
+                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Browse the absolute best anime globally right now. See what is trending, highest rated, or most anticipated!</p>
 
                 <!-- Trend Selection Tabs -->
-                <div id="trend-tabs" class="schedule-day-tabs">
+                <div id="trend-tabs" class="schedule-day-tabs" style="flex-wrap: wrap; justify-content: center; gap: 8px;">
                     <button class="trend-tab-btn active" data-trend="trending">Trending Now</button>
                     <button class="trend-tab-btn" data-trend="highest-rated">Highest Rated</button>
                     <button class="trend-tab-btn" data-trend="anticipated">Most Anticipated</button>
+                    <button class="trend-tab-btn" data-trend="recent-releases">Recent Releases</button>
+                    <button class="trend-tab-btn" data-trend="top-movies">Top Movies</button>
+                    <button class="trend-tab-btn" data-trend="popular-classics">Popular Classics</button>
                 </div>
 
                 <div id="trend-content">

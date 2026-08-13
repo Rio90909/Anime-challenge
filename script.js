@@ -1267,7 +1267,10 @@ let upcomingDataCache = null;
 let trendDataCache = {
     trending: null,
     'highest-rated': null,
-    anticipated: null
+    anticipated: null,
+    'recent-releases': null,
+    'top-movies': null,
+    'popular-classics': null
 };
 
 function initScheduleScreen() {
@@ -1298,13 +1301,19 @@ function initScheduleScreen() {
         trendLoadingEl.textContent = 'Loading live global rankings...';
         trendGrid.classList.add('hidden');
 
-        let fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&include=genres,categories,animeProductions.producer`;
+        let fetchUrl = `${API_URL}?sort=-userCount&page[limit]=24&include=genres,categories,animeProductions.producer`;
         if (trendType === 'trending') {
-            fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=12`;
+            fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=24`;
         } else if (trendType === 'highest-rated') {
-            fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&include=genres,categories,animeProductions.producer`;
+            fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=24&include=genres,categories,animeProductions.producer`;
         } else if (trendType === 'anticipated') {
-            fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&include=genres,categories,animeProductions.producer`;
+            fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=24&include=genres,categories,animeProductions.producer`;
+        } else if (trendType === 'recent-releases') {
+            fetchUrl = `${API_URL}?filter[status]=current&sort=-startDate&page[limit]=24&include=genres,categories,animeProductions.producer`;
+        } else if (trendType === 'top-movies') {
+            fetchUrl = `${API_URL}?filter[subtype]=movie&sort=-averageRating&page[limit]=24&include=genres,categories,animeProductions.producer`;
+        } else if (trendType === 'popular-classics') {
+            fetchUrl = `${API_URL}?filter[status]=finished&sort=-userCount&page[limit]=24&include=genres,categories,animeProductions.producer`;
         }
 
         fetch(fetchUrl, {
@@ -1400,7 +1409,7 @@ function initScheduleScreen() {
     upcomingLoadingEl.classList.remove('hidden');
     upcomingGrid.classList.add('hidden');
 
-    fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&sort=-userCount&include=genres,categories,animeProductions.producer`, {
+    fetch(`${API_URL}?filter[status]=upcoming&page[limit]=24&sort=-userCount&include=genres,categories,animeProductions.producer`, {
         headers: {
             'Accept': 'application/vnd.api+json',
             'Content-Type': 'application/vnd.api+json'
