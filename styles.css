@@ -1153,6 +1153,22 @@ header h1 {
     border: 1px solid rgba(156, 163, 175, 0.3);
 }
 
+/* Smooth Fade-in animation for newly loaded anime cards */
+@keyframes cardFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.96) translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.search-result-item {
+    animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* NEW DISCOVER PAGE ADDITIONS STYLING */
 .format-tab-btn, .genre-tab-btn {
     background-color: var(--surface-color);

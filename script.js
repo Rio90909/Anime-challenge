@@ -1370,6 +1370,8 @@ let trendDataCache = {};
 let activeDiscoverFormat = 'all';
 let activeDiscoverGenre = 'all';
 let discoverCacheTimestamp = null;
+let trendPageOffset = 0;
+let upcomingPageOffset = 0;
 
 function handleSurpriseMe() {
     const btn = document.getElementById('surprise-me-btn');
@@ -1615,6 +1617,9 @@ function initScheduleScreen() {
         btn.onclick = () => {
             trendButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            trendPageOffset = 0;
+            const loadMoreBtn = document.getElementById('load-more-trends-btn');
+            if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
             loadTrend(btn.dataset.trend);
         };
     });
@@ -1637,6 +1642,12 @@ function initScheduleScreen() {
             genreButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             activeDiscoverGenre = btn.dataset.genre;
+            trendPageOffset = 0;
+            upcomingPageOffset = 0;
+            const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
+            if (loadMoreTrendsBtn) loadMoreTrendsBtn.classList.add('hidden');
+            const loadMoreUpcomingBtn = document.getElementById('load-more-upcoming-btn');
+            if (loadMoreUpcomingBtn) loadMoreUpcomingBtn.classList.add('hidden');
 
             // Re-fetch or load from cache for the selected genre
             const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
@@ -1645,6 +1656,27 @@ function initScheduleScreen() {
             loadUpcomingSeasonal();
         };
     });
+
+    // Load More Buttons Wiring
+    const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
+    if (loadMoreTrendsBtn) {
+        loadMoreTrendsBtn.onclick = () => {
+            const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
+            const trendType = activeTrendBtn ? activeTrendBtn.dataset.trend : 'trending';
+            trendPageOffset += 12;
+            loadMoreTrendsBtn.textContent = 'Loading...';
+            loadTrend(trendType, true, true);
+        };
+    }
+
+    const loadMoreUpcomingBtn = document.getElementById('load-more-upcoming-btn');
+    if (loadMoreUpcomingBtn) {
+        loadMoreUpcomingBtn.onclick = () => {
+            upcomingPageOffset += 12;
+            loadMoreUpcomingBtn.textContent = 'Loading...';
+            loadUpcomingSeasonal(true, true);
+        };
+    }
 
     // Surprise Me Button Wiring
     const surpriseBtn = document.getElementById('surprise-me-btn');
@@ -1664,35 +1696,43 @@ function initScheduleScreen() {
         };
     }
 
-    function loadTrend(trendType, forceLive = false) {
+    function loadTrend(trendType, forceLive = false, isLoadMore = false) {
         const trendLoadingEl = document.getElementById('trend-loading');
         const trendGrid = document.getElementById('trend-grid');
+        const loadMoreBtn = document.getElementById('load-more-trends-btn');
 
         const cacheKey = `${trendType}_${activeDiscoverGenre}`;
 
-        if (!forceLive && trendDataCache[cacheKey]) {
+        if (!isLoadMore) {
+            trendPageOffset = 0;
+        }
+
+        if (!forceLive && !isLoadMore && trendDataCache[cacheKey]) {
             trendLoadingEl.classList.add('hidden');
             renderFilteredLists();
+            if (loadMoreBtn) loadMoreBtn.classList.remove('hidden');
             return;
         }
 
-        trendLoadingEl.classList.remove('hidden');
-        trendLoadingEl.textContent = 'Loading live global rankings...';
-        trendGrid.classList.add('hidden');
+        if (!isLoadMore) {
+            trendLoadingEl.classList.remove('hidden');
+            trendLoadingEl.textContent = 'Loading live global rankings...';
+            trendGrid.classList.add('hidden');
+        }
 
         let genreFilterQuery = '';
         if (activeDiscoverGenre !== 'all') {
-            genreFilterQuery = `&filter[categories]=${encodeURIComponent(activeDiscoverGenre)}`;
+            const slug = activeDiscoverGenre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            genreFilterQuery = `&filter[categories]=${encodeURIComponent(slug)}`;
         }
 
-        let fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
+        let fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
         if (trendType === 'trending') {
-            // Include genres/categories relationships so our normalizer works perfectly
-            fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=12${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
+            fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=12&offset=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
         } else if (trendType === 'highest-rated') {
-            fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
+            fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
         } else if (trendType === 'anticipated') {
-            fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
+            fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
         }
 
         fetch(fetchUrl, {
@@ -1704,14 +1744,26 @@ function initScheduleScreen() {
             .then(res => res.json())
             .then(resData => {
                 const normalized = normalizeKitsuResponse(resData);
-                trendDataCache[cacheKey] = normalized;
+                if (isLoadMore) {
+                    trendDataCache[cacheKey] = (trendDataCache[cacheKey] || []).concat(normalized);
+                } else {
+                    trendDataCache[cacheKey] = normalized;
+                }
                 trendLoadingEl.classList.add('hidden');
+                if (loadMoreBtn) {
+                    loadMoreBtn.classList.remove('hidden');
+                    loadMoreBtn.textContent = 'Load More Trends ▾';
+                }
                 saveDiscoverCache();
                 renderFilteredLists();
             })
             .catch(err => {
                 console.error(err);
                 trendLoadingEl.classList.add('hidden');
+                if (loadMoreBtn) {
+                    loadMoreBtn.classList.remove('hidden');
+                    loadMoreBtn.textContent = 'Load More Trends ▾';
+                }
                 showNotification("Failed to fetch fresh live trends. Displaying saved feed.", "error");
                 if (trendDataCache[cacheKey]) {
                     renderFilteredLists();
@@ -1722,22 +1774,32 @@ function initScheduleScreen() {
             });
     }
 
-    function loadUpcomingSeasonal(forceLive = false) {
+    function loadUpcomingSeasonal(forceLive = false, isLoadMore = false) {
         const cacheKey = `upcoming_${activeDiscoverGenre}`;
+        const loadMoreBtn = document.getElementById('load-more-upcoming-btn');
 
-        if (!forceLive && upcomingDataCache[cacheKey]) {
+        if (!isLoadMore) {
+            upcomingPageOffset = 0;
+        }
+
+        if (!forceLive && !isLoadMore && upcomingDataCache[cacheKey]) {
             renderScheduleGrid('upcoming-grid', upcomingDataCache[cacheKey]);
+            if (loadMoreBtn) loadMoreBtn.classList.remove('hidden');
             return;
         }
-        upcomingLoadingEl.classList.remove('hidden');
-        upcomingGrid.classList.add('hidden');
+
+        if (!isLoadMore) {
+            upcomingLoadingEl.classList.remove('hidden');
+            upcomingGrid.classList.add('hidden');
+        }
 
         let genreFilterQuery = '';
         if (activeDiscoverGenre !== 'all') {
-            genreFilterQuery = `&filter[categories]=${encodeURIComponent(activeDiscoverGenre)}`;
+            const slug = activeDiscoverGenre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            genreFilterQuery = `&filter[categories]=${encodeURIComponent(slug)}`;
         }
 
-        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&sort=-userCount${genreFilterQuery}&include=genres,categories,animeProductions.producer`, {
+        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&page[offset]=${upcomingPageOffset}&sort=-userCount${genreFilterQuery}&include=genres,categories,animeProductions.producer`, {
             headers: {
                 'Accept': 'application/vnd.api+json',
                 'Content-Type': 'application/vnd.api+json'
@@ -1746,14 +1808,26 @@ function initScheduleScreen() {
             .then(res => res.json())
             .then(resData => {
                 const normalized = normalizeKitsuResponse(resData);
-                upcomingDataCache[cacheKey] = normalized;
+                if (isLoadMore) {
+                    upcomingDataCache[cacheKey] = (upcomingDataCache[cacheKey] || []).concat(normalized);
+                } else {
+                    upcomingDataCache[cacheKey] = normalized;
+                }
                 upcomingLoadingEl.classList.add('hidden');
+                if (loadMoreBtn) {
+                    loadMoreBtn.classList.remove('hidden');
+                    loadMoreBtn.textContent = 'Load More Upcoming ▾';
+                }
                 saveDiscoverCache();
-                renderScheduleGrid('upcoming-grid', normalized);
+                renderScheduleGrid('upcoming-grid', upcomingDataCache[cacheKey]);
             })
             .catch(err => {
                 console.error(err);
                 upcomingLoadingEl.classList.add('hidden');
+                if (loadMoreBtn) {
+                    loadMoreBtn.classList.remove('hidden');
+                    loadMoreBtn.textContent = 'Load More Upcoming ▾';
+                }
                 showNotification("Failed to fetch seasonal releases. Displaying saved feed.", "error");
                 if (upcomingDataCache[cacheKey]) {
                     renderScheduleGrid('upcoming-grid', upcomingDataCache[cacheKey]);
@@ -1779,7 +1853,8 @@ function initScheduleScreen() {
             // Genre match - still keep a backup client filter in case
             let genreMatch = true;
             if (activeDiscoverGenre !== 'all') {
-                genreMatch = anime.genres && anime.genres.some(g => g.name.toLowerCase() === activeDiscoverGenre.toLowerCase());
+                const cleanGenre = activeDiscoverGenre.toLowerCase().replace(/[^a-z0-9]/g, '');
+                genreMatch = anime.genres && anime.genres.some(g => g.name.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanGenre);
             }
 
             return titleMatch && formatMatch && genreMatch;

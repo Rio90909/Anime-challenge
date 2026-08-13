@@ -335,22 +335,36 @@
                 <div id="discover-genre-tags" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-light);">
                     <button class="genre-tab-btn active" data-genre="all">All Genres</button>
                     <button class="genre-tab-btn" data-genre="Action">Action</button>
+                    <button class="genre-tab-btn" data-genre="Adventure">Adventure</button>
                     <button class="genre-tab-btn" data-genre="Comedy">Comedy</button>
-                    <button class="genre-tab-btn" data-genre="Fantasy">Fantasy</button>
-                    <button class="genre-tab-btn" data-genre="Sci-Fi">Sci-Fi</button>
-                    <button class="genre-tab-btn" data-genre="Romance">Romance</button>
                     <button class="genre-tab-btn" data-genre="Drama">Drama</button>
+                    <button class="genre-tab-btn" data-genre="Fantasy">Fantasy</button>
+                    <button class="genre-tab-btn" data-genre="Romance">Romance</button>
+                    <button class="genre-tab-btn" data-genre="Sci-Fi">Sci-Fi</button>
+                    <button class="genre-tab-btn" data-genre="Thriller">Thriller</button>
+                    <button class="genre-tab-btn" data-genre="Slice of Life">Slice of Life</button>
+                    <button class="genre-tab-btn" data-genre="Supernatural">Supernatural</button>
+                    <button class="genre-tab-btn" data-genre="Mystery">Mystery</button>
+                    <button class="genre-tab-btn" data-genre="Horror">Horror</button>
                 </div>
 
                 <div id="trend-content">
                     <div id="trend-loading" class="empty-state-message">Loading live trends...</div>
                     <div id="trend-grid" class="schedule-grid hidden"></div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button id="load-more-trends-btn" class="add-btn hidden" style="background: #FFFFFF !important; color: #000000 !important; font-weight: bold; padding: 10px 24px; border-radius: 8px; border: none; cursor: pointer; display: inline-block;">Load More Trends ▾</button>
+                    </div>
                 </div>
 
                 <h2 style="margin-top: 40px;">Upcoming Seasonal Showcases</h2>
                 <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Exciting upcoming anime series and movies scheduled to release soon.</p>
-                <div id="upcoming-loading" class="empty-state-message">Loading upcoming releases...</div>
-                <div id="upcoming-grid" class="schedule-grid hidden"></div>
+                <div id="upcoming-content">
+                    <div id="upcoming-loading" class="empty-state-message">Loading upcoming releases...</div>
+                    <div id="upcoming-grid" class="schedule-grid hidden"></div>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button id="load-more-upcoming-btn" class="add-btn hidden" style="background: #FFFFFF !important; color: #000000 !important; font-weight: bold; padding: 10px 24px; border-radius: 8px; border: none; cursor: pointer; display: inline-block;">Load More Upcoming ▾</button>
+                    </div>
+                </div>
             </div>
         </div>
 
