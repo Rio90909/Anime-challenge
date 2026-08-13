@@ -121,6 +121,19 @@
     </div>
     
     <div id="search-results-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" aria-label="Close modal">&times;</span><h2>Search Results</h2><div id="search-results-grid"></div></div></div>
+
+    <div id="surprise-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px; padding: 25px; border-radius: 16px;">
+            <span class="close-btn" aria-label="Close modal" id="close-surprise-modal">&times;</span>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: var(--primary-color); margin-bottom: 4px;">🎲 Otaku Surprise Generator</h2>
+                <p style="color: var(--text-secondary); font-size: 12px; margin: 0;">We picked a special anime just for you! Quick-add it or read more.</p>
+            </div>
+            <div id="surprise-anime-card-container">
+                <!-- Dynamic content will be injected here -->
+            </div>
+        </div>
+    </div>
     
     <div id="chart-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" aria-label="Close modal">&times;</span><h2>Dashboard Analytics</h2>
         <div class="chart-controls">
@@ -295,6 +308,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 10px; margin-bottom: 5px; gap: 10px;">
                     <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">🔥 Global Rankings & Live Trends</h2>
                     <div style="display: flex; align-items: center; gap: 10px;">
+                        <button id="surprise-me-btn" class="add-btn" style="padding: 6px 12px; font-size: 11.5px; height: auto; margin: 0; background: #FFFFFF !important; color: #000000 !important; border-radius: 6px; font-weight: bold; cursor: pointer;">Surprise Me 🎲</button>
                         <button id="refresh-discover-btn" class="add-btn" style="padding: 6px 12px; font-size: 11.5px; height: auto; margin: 0; background: #FFFFFF !important; color: #000000 !important; border-radius: 6px; font-weight: bold; cursor: pointer;">Refresh Feed ↻</button>
                         <span id="discover-last-updated" style="font-size: 11px; color: var(--text-secondary);">Last updated: Just now</span>
                     </div>
