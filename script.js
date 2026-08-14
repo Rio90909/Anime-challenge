@@ -1683,6 +1683,7 @@ function initScheduleScreen() {
 
         const fallbackGenres = [
             { title: 'All Genres', slug: 'all' },
+            { title: 'English Dub', slug: 'english-dub' },
             { title: 'Action', slug: 'action' },
             { title: 'Adventure', slug: 'adventure' },
             { title: 'Comedy', slug: 'comedy' },
@@ -1736,13 +1737,17 @@ function initScheduleScreen() {
         .then(resData => {
             if (resData && resData.data) {
                 const fetched = resData.data
-                    .filter(item => item.attributes && !item.attributes.nsfw)
+                    .filter(item => item.attributes && !item.attributes.nsfw && item.attributes.slug !== 'english-dub')
                     .map(item => ({
                         title: item.attributes.title,
                         slug: item.attributes.slug
                     }));
 
-                const finalGenres = [{ title: 'All Genres', slug: 'all' }, ...fetched];
+                const finalGenres = [
+                    { title: 'All Genres', slug: 'all' },
+                    { title: 'English Dub 🎙️', slug: 'english-dub' },
+                    ...fetched
+                ];
                 renderGenres(finalGenres);
             } else {
                 renderGenres(fallbackGenres);
