@@ -1606,6 +1606,22 @@ input[type="date"]::-webkit-outer-spin-button {
     padding-bottom: 8px;
     -webkit-overflow-scrolling: touch;
 }
+
+.scrollable-tabs-container {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    padding-bottom: 8px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.scrollable-tabs-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
 .day-tab-btn, .trend-tab-btn {
     background-color: var(--surface-color);
     color: var(--text-color);

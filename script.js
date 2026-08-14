@@ -1675,6 +1675,86 @@ function initScheduleScreen() {
         }
     }
 
+    function loadDiscoverCategories() {
+        const genreContainer = document.getElementById('discover-genre-tags');
+        if (!genreContainer) return;
+
+        const fallbackGenres = [
+            { title: 'All Genres', slug: 'all' },
+            { title: 'Action', slug: 'action' },
+            { title: 'Adventure', slug: 'adventure' },
+            { title: 'Comedy', slug: 'comedy' },
+            { title: 'Drama', slug: 'drama' },
+            { title: 'Fantasy', slug: 'fantasy' },
+            { title: 'Romance', slug: 'romance' },
+            { title: 'Sci-Fi', slug: 'science-fiction' },
+            { title: 'Thriller', slug: 'thriller' },
+            { title: 'Slice of Life', slug: 'slice-of-life' },
+            { title: 'Supernatural', slug: 'supernatural' },
+            { title: 'Mystery', slug: 'mystery' },
+            { title: 'Horror', slug: 'horror' }
+        ];
+
+        const renderGenres = (genresList) => {
+            genreContainer.innerHTML = '';
+            genresList.forEach(genre => {
+                const btn = document.createElement('button');
+                btn.className = 'genre-tab-btn' + (genre.slug === activeDiscoverGenre ? ' active' : '');
+                btn.dataset.genre = genre.slug;
+                btn.textContent = genre.title;
+                btn.onclick = () => {
+                    const allBtns = genreContainer.querySelectorAll('.genre-tab-btn');
+                    allBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    activeDiscoverGenre = genre.slug;
+                    trendPageOffset = 0;
+                    upcomingPageOffset = 0;
+                    const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
+                    if (loadMoreTrendsBtn) loadMoreTrendsBtn.classList.add('hidden');
+                    const loadMoreUpcomingBtn = document.getElementById('load-more-upcoming-btn');
+                    if (loadMoreUpcomingBtn) loadMoreUpcomingBtn.classList.add('hidden');
+
+                    const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
+                    const trendType = activeTrendBtn ? activeTrendBtn.dataset.trend : 'trending';
+                    loadTrend(trendType);
+                    loadUpcomingSeasonal();
+                };
+                genreContainer.appendChild(btn);
+            });
+        };
+
+        // Try fetching from Kitsu API
+        fetch('https://kitsu.io/api/edge/categories?page[limit]=40&sort=-totalMediaCount', {
+            headers: {
+                'Accept': 'application/vnd.api+json',
+                'Content-Type': 'application/vnd.api+json'
+            }
+        })
+        .then(res => res.json())
+        .then(resData => {
+            if (resData && resData.data) {
+                const fetched = resData.data
+                    .filter(item => item.attributes && !item.attributes.nsfw)
+                    .map(item => ({
+                        title: item.attributes.title,
+                        slug: item.attributes.slug
+                    }));
+
+                const finalGenres = [{ title: 'All Genres', slug: 'all' }, ...fetched];
+                renderGenres(finalGenres);
+            } else {
+                renderGenres(fallbackGenres);
+            }
+        })
+        .catch(err => {
+            console.error("Failed to fetch Kitsu categories:", err);
+            renderGenres(fallbackGenres);
+        });
+    }
+
+    // Call loadDiscoverCategories on init
+    loadDiscoverCategories();
+
     // Trend Tabs Wiring
     const trendButtons = document.querySelectorAll('.trend-tab-btn');
     trendButtons.forEach(btn => {
@@ -1695,17 +1775,6 @@ function initScheduleScreen() {
             formatButtons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             activeDiscoverFormat = btn.dataset.format;
-            renderFilteredLists();
-        };
-    });
-
-    // Genre Selector Tabs Wiring
-    const genreButtons = document.querySelectorAll('.genre-tab-btn');
-    genreButtons.forEach(btn => {
-        btn.onclick = () => {
-            genreButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            activeDiscoverGenre = btn.dataset.genre;
             trendPageOffset = 0;
             upcomingPageOffset = 0;
             const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
@@ -1713,7 +1782,6 @@ function initScheduleScreen() {
             const loadMoreUpcomingBtn = document.getElementById('load-more-upcoming-btn');
             if (loadMoreUpcomingBtn) loadMoreUpcomingBtn.classList.add('hidden');
 
-            // Re-fetch or load from cache for the selected genre
             const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
             const trendType = activeTrendBtn ? activeTrendBtn.dataset.trend : 'trending';
             loadTrend(trendType);
@@ -1765,7 +1833,7 @@ function initScheduleScreen() {
         const trendGrid = document.getElementById('trend-grid');
         const loadMoreBtn = document.getElementById('load-more-trends-btn');
 
-        const cacheKey = `${trendType}_${activeDiscoverGenre}`;
+        const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}`;
 
         if (!isLoadMore) {
             trendPageOffset = 0;
@@ -1786,17 +1854,31 @@ function initScheduleScreen() {
 
         let genreFilterQuery = '';
         if (activeDiscoverGenre !== 'all') {
-            const slug = activeDiscoverGenre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            genreFilterQuery = `&filter[categories]=${encodeURIComponent(slug)}`;
+            genreFilterQuery = `&filter[categories]=${encodeURIComponent(activeDiscoverGenre)}`;
         }
 
-        let fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
-        if (trendType === 'trending') {
-            fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=12&offset=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
-        } else if (trendType === 'highest-rated') {
-            fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
-        } else if (trendType === 'anticipated') {
-            fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}&include=genres,categories,animeProductions.producer`;
+        let formatFilterQuery = '';
+        if (activeDiscoverFormat !== 'all') {
+            formatFilterQuery = `&filter[subtype]=${encodeURIComponent(activeDiscoverFormat.toLowerCase())}`;
+        }
+
+        let fetchUrl = '';
+        if (activeDiscoverGenre !== 'all' || activeDiscoverFormat !== 'all') {
+            if (trendType === 'trending') {
+                fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+            } else if (trendType === 'highest-rated') {
+                fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+            } else if (trendType === 'anticipated') {
+                fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+            }
+        } else {
+            if (trendType === 'trending') {
+                fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=12&offset=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
+            } else if (trendType === 'highest-rated') {
+                fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
+            } else if (trendType === 'anticipated') {
+                fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
+            }
         }
 
         fetch(fetchUrl, {
@@ -1839,7 +1921,7 @@ function initScheduleScreen() {
     }
 
     function loadUpcomingSeasonal(forceLive = false, isLoadMore = false) {
-        const cacheKey = `upcoming_${activeDiscoverGenre}`;
+        const cacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}`;
         const loadMoreBtn = document.getElementById('load-more-upcoming-btn');
 
         if (!isLoadMore) {
@@ -1859,11 +1941,15 @@ function initScheduleScreen() {
 
         let genreFilterQuery = '';
         if (activeDiscoverGenre !== 'all') {
-            const slug = activeDiscoverGenre.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            genreFilterQuery = `&filter[categories]=${encodeURIComponent(slug)}`;
+            genreFilterQuery = `&filter[categories]=${encodeURIComponent(activeDiscoverGenre)}`;
         }
 
-        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&page[offset]=${upcomingPageOffset}&sort=-userCount${genreFilterQuery}&include=genres,categories,animeProductions.producer`, {
+        let formatFilterQuery = '';
+        if (activeDiscoverFormat !== 'all') {
+            formatFilterQuery = `&filter[subtype]=${encodeURIComponent(activeDiscoverFormat.toLowerCase())}`;
+        }
+
+        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&page[offset]=${upcomingPageOffset}&sort=-userCount${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`, {
             headers: {
                 'Accept': 'application/vnd.api+json',
                 'Content-Type': 'application/vnd.api+json'
@@ -1928,7 +2014,7 @@ function initScheduleScreen() {
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
         if (activeTrendBtn) {
             const trendType = activeTrendBtn.dataset.trend;
-            const cacheKey = `${trendType}_${activeDiscoverGenre}`;
+            const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}`;
             if (trendDataCache[cacheKey]) {
                 const rawList = trendDataCache[cacheKey] || [];
                 const filteredList = rawList.filter(matchesFilters);
@@ -1937,7 +2023,7 @@ function initScheduleScreen() {
         }
 
         // 2. Filter and render upcoming seasonal showcases
-        const upcomingCacheKey = `upcoming_${activeDiscoverGenre}`;
+        const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}`;
         if (upcomingDataCache[upcomingCacheKey]) {
             const filteredList = upcomingDataCache[upcomingCacheKey].filter(matchesFilters);
             renderScheduleGrid('upcoming-grid', filteredList);
@@ -1987,7 +2073,7 @@ function initScheduleScreen() {
     }, 300);
 
     // Initial triggers or cache usage
-    const upcomingCacheKey = `upcoming_${activeDiscoverGenre}`;
+    const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}`;
     if (upcomingDataCache && upcomingDataCache[upcomingCacheKey]) {
         renderScheduleGrid('upcoming-grid', upcomingDataCache[upcomingCacheKey]);
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
