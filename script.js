@@ -1103,6 +1103,7 @@ function renderAllAnimeList() {
                                 <p style="margin: 0 0 10px 0;">${synopsis}</p>
                                 <div class="streaming-links-container" id="streaming-links-${anime.mal_id}" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-light);"></div>
                                 <div class="characters-container" id="characters-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-light);"></div>
+                                <div class="episodes-container" id="episodes-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-light);"></div>
 
                                 <!-- Trailer Integration -->
                                 ${anime.youtubeVideoId ? `
@@ -1551,6 +1552,7 @@ function renderSurpriseModal(anime) {
                     <p style="margin: 0 0 10px 0;">${anime.synopsis}</p>
                     <div class="streaming-links-container" id="streaming-links-${anime.mal_id}" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
                     <div class="characters-container" id="characters-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                    <div class="episodes-container" id="episodes-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
 
                     <!-- Trailer Integration -->
                     ${anime.youtubeVideoId ? `
@@ -2164,6 +2166,7 @@ function renderScheduleGrid(gridId, animeList) {
                     <p style="margin: 0 0 10px 0;">${anime.synopsis}</p>
                     <div class="streaming-links-container" id="streaming-links-${anime.mal_id}" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
                     <div class="characters-container" id="characters-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                    <div class="episodes-container" id="episodes-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
 
                     <!-- Trailer Integration -->
                     ${anime.youtubeVideoId ? `
@@ -2325,6 +2328,7 @@ function renderTrendGrid(gridId, animeList) {
                     <p style="margin: 0 0 10px 0;">${anime.synopsis}</p>
                     <div class="streaming-links-container" id="streaming-links-${anime.mal_id}" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
                     <div class="characters-container" id="characters-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                    <div class="episodes-container" id="episodes-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);"></div>
 
                     <!-- Trailer Integration -->
                     ${anime.youtubeVideoId ? `
