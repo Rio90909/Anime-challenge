@@ -1866,6 +1866,8 @@ function initScheduleScreen() {
         if (activeDiscoverGenre !== 'all' || activeDiscoverFormat !== 'all') {
             if (trendType === 'trending') {
                 fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+            } else if (trendType === 'airing') {
+                fetchUrl = `${API_URL}?filter[status]=current&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
             } else if (trendType === 'highest-rated') {
                 fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
             } else if (trendType === 'anticipated') {
@@ -1874,6 +1876,8 @@ function initScheduleScreen() {
         } else {
             if (trendType === 'trending') {
                 fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=12&offset=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
+            } else if (trendType === 'airing') {
+                fetchUrl = `${API_URL}?filter[status]=current&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
             } else if (trendType === 'highest-rated') {
                 fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
             } else if (trendType === 'anticipated') {
