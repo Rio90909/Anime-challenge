@@ -21,7 +21,15 @@ const AVATAR_PRESETS = [
     { name: "👒 Luffy", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Luffy" },
     { name: "⚡ Goku", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Goku" },
     { name: "🌸 Usagi", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Usagi" },
-    { name: "🎒 Deku", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Deku" }
+    { name: "🎒 Deku", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Deku" },
+    { name: "⚔️ Zoro", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Zoro" },
+    { name: "🕶️ Gojo", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Gojo" },
+    { name: "🔥 Tanjiro", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Tanjiro" },
+    { name: "🎋 Nezuko", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Nezuko" },
+    { name: "🍵 Levi", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Levi" },
+    { name: "👁️ Kakashi", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Kakashi" },
+    { name: "🥚 Saitama", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Saitama" },
+    { name: "🦾 Edward", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Edward" }
 ];
 
 const EMOJIS = ["😊", "😂", "🔥", "✨", "🍿", "🎉", "💖", "🤩", "🤔", "😭", "😤", "🌸", "🍥", "⚔️", "🦊", "👒", "⚡", "🎒", "👽", "🤖"];
