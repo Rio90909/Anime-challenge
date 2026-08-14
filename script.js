@@ -255,7 +255,7 @@ window.lazyLoadDetails = function(animeId) {
                     charsContainer.innerHTML = '';
                     return;
                 }
-                let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color); margin-top: 8px;">🎭 Main Characters:</strong><div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;">';
+                let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color); margin-top: 8px;">🎭 Main Characters:</strong><div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; max-width: 100%; box-sizing: border-box;">';
                 roles.forEach(role => {
                     const charRef = role.relationships?.character?.data;
                     if (!charRef) return;
@@ -1078,9 +1078,9 @@ function renderAllAnimeList() {
                             <p><strong>Genres:</strong> ${genres}</p>
                         </div>
                         ${synopsis ? `
-                        <div class="backlog-synopsis-container" style="margin-top: 8px;">
+                        <div class="backlog-synopsis-container" style="margin-top: 8px; width: 100%; box-sizing: border-box;">
                             <button class="backlog-synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')">Read Story ▾</button>
-                            <div class="backlog-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light);">
+                            <div class="backlog-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); box-sizing: border-box; max-width: 100%; word-break: break-word; overflow-wrap: break-word; overflow-x: hidden;">
                                 <!-- Global Ranking Badges & Age Guide -->
                                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
                                     ${anime.ratingRank ? `<span style="background: rgba(255,193,7,0.1); border: 1px solid var(--primary-color); color: var(--primary-color); font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold;">🏆 Rating Rank #${anime.ratingRank}</span>` : ''}
