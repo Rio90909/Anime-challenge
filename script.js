@@ -1079,8 +1079,40 @@ function renderAllAnimeList() {
                         </div>
                         ${synopsis ? `
                         <div class="backlog-synopsis-container" style="margin-top: 8px;">
-                            <button class="backlog-synopsis-toggle-btn" onclick="toggleSynopsis(this)">Read Story ▾</button>
-                            <p class="backlog-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary);">${synopsis}</p>
+                            <button class="backlog-synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')">Read Story ▾</button>
+                            <div class="backlog-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light);">
+                                <!-- Global Ranking Badges & Age Guide -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                                    ${anime.ratingRank ? `<span style="background: rgba(255,193,7,0.1); border: 1px solid var(--primary-color); color: var(--primary-color); font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold;">🏆 Rating Rank #${anime.ratingRank}</span>` : ''}
+                                    ${anime.popularityRank ? `<span style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: var(--text-color); font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold;">👥 Popularity #${anime.popularityRank}</span>` : ''}
+                                    ${anime.ageRating ? `<span style="background: rgba(239,68,68,0.1); border: 1px solid #EF4444; color: #EF4444; font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: bold;" title="${anime.ageRatingGuide || ''}">🔞 Rated ${anime.ageRating}</span>` : ''}
+                                </div>
+
+                                <!-- Episodes details -->
+                                ${(anime.episodes || anime.episodeLength) ? `
+                                <div style="font-size: 11px; margin-bottom: 10px; color: var(--text-color); font-weight: bold; display: flex; align-items: center; gap: 6px;">
+                                    <span>⏱️ Watch Info:</span>
+                                    <span style="color: var(--text-secondary); font-weight: normal;">
+                                        ${anime.episodes ? `${anime.episodes} Episode${anime.episodes > 1 ? 's' : ''}` : ''}
+                                        ${(anime.episodes && anime.episodeLength) ? ' • ' : ''}
+                                        ${anime.episodeLength ? `${anime.episodeLength} mins each` : ''}
+                                    </span>
+                                </div>
+                                ` : ''}
+
+                                <p style="margin: 0 0 10px 0;">${synopsis}</p>
+                                <div class="streaming-links-container" id="streaming-links-${anime.mal_id}" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-light);"></div>
+                                <div class="characters-container" id="characters-${anime.mal_id}" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border-light);"></div>
+
+                                <!-- Trailer Integration -->
+                                ${anime.youtubeVideoId ? `
+                                <div class="trailer-trigger-container" style="margin-top: 10px; border-top: 1px solid var(--border-light); padding-top: 8px;">
+                                    <button class="add-btn manual-add-btn" onclick="window.playTrailer(this, '${anime.youtubeVideoId}')" style="width: 100%; margin: 0; padding: 6px 12px; font-size: 11px; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; height: auto; background: #FFFFFF !important; color: #000000 !important; border: none !important;">
+                                        🎬 Watch Official Trailer
+                                                    </button>
+                                </div>
+                                ` : ''}
+                            </div>
                         </div>
                         ` : ''}
                     </div>
