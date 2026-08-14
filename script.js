@@ -8,6 +8,24 @@ const ANIPACE_STORAGE_KEY = 'anipace_separate_data';
 const API_URL = 'https://kitsu.io/api/edge/anime';
 const TIME_PER_EPISODE = 24;
 
+// Ported Lounge State & Constants (hoisted to prevent ReferenceErrors on initialization)
+let activeChatId = null;
+let chatListenerRef = null;
+let friendsListenerRef = null;
+let presenceListenerRef = null;
+let requestsListenerRef = null;
+let otherUsersProfiles = {}; // Cache of user profiles
+
+const AVATAR_PRESETS = [
+    { name: "🦊 Naruto", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Naruto" },
+    { name: "👒 Luffy", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Luffy" },
+    { name: "⚡ Goku", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Goku" },
+    { name: "🌸 Usagi", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Usagi" },
+    { name: "🎒 Deku", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Deku" }
+];
+
+const EMOJIS = ["😊", "😂", "🔥", "✨", "🍿", "🎉", "💖", "🤩", "🤔", "😭", "😤", "🌸", "🍥", "⚔️", "🦊", "👒", "⚡", "🎒", "👽", "🤖"];
+
 // Normalizes Kitsu API response structure into Jikan format
 function normalizeKitsuResponse(searchData) {
     const included = searchData.included || [];
@@ -2825,8 +2843,8 @@ function initializeFirebase() {
     };
 }
 
-initializeApp();
 initializeFirebase();
+initializeApp();
 
 // Expose core variables and functions globally for module access (e.g., from lounge.js)
 window.challengeData = challengeData;
@@ -2841,24 +2859,6 @@ window.processAchievements = processAchievements;
 // ==========================================
 // PORTED LOUNGE.JS FUNCTIONALITIES (COMBINED)
 // ==========================================
-
-// Global state for lounge
-let activeChatId = null;
-let chatListenerRef = null;
-let friendsListenerRef = null;
-let presenceListenerRef = null;
-let requestsListenerRef = null;
-let otherUsersProfiles = {}; // Cache of user profiles
-
-const AVATAR_PRESETS = [
-    { name: "🦊 Naruto", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Naruto" },
-    { name: "👒 Luffy", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Luffy" },
-    { name: "⚡ Goku", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Goku" },
-    { name: "🌸 Usagi", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Usagi" },
-    { name: "🎒 Deku", url: "https://api.dicebear.com/7.x/adventurer/svg?seed=Deku" }
-];
-
-const EMOJIS = ["😊", "😂", "🔥", "✨", "🍿", "🎉", "💖", "🤩", "🤔", "😭", "😤", "🌸", "🍥", "⚔️", "🦊", "👒", "⚡", "🎒", "👽", "🤖"];
 
 // --- MOBILE VIEW CONTROLLER ---
 function updateMobileLoungeView() {
