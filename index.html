@@ -33,7 +33,7 @@
         <span class="close-btn" aria-label="Close banner">&times;</span>
     </div>
     
-    <div id="achievements-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" aria-label="Close modal">&times;</span><h2>Achievements</h2><div id="achievements-next-up"></div><div id="achievements-rank-tabs"></div><div id="achievements-grid"></div></div></div>
+    <div id="achievements-modal" class="modal hidden"><div class="modal-content"><span class="close-btn" aria-label="Close modal">&times;</span><h2>Achievements</h2><div id="achievements-next-up"></div><div id="achievements-rank-progress"></div><div id="achievements-rank-tabs"></div><div id="achievements-grid"></div></div></div>
     
     <div id="settings-modal" class="modal hidden">
         <div class="modal-content">
@@ -128,6 +128,12 @@
                     </div>
                     <button id="save-profile-settings-btn" class="add-btn" style="width: 100%; height: 38px; font-size: 13px; margin: 0;">Save Profile</button>
                 </div>
+            </div>
+
+            <div class="settings-section">
+                <h4>💾 Data Backup</h4>
+                <p style="color: var(--text-secondary); font-size: 12px; margin: 0 0 10px;">Download a backup file with all your anime, backlog, achievements and episode logs. Keep it safe — you can restore from it later.</p>
+                <button id="export-backup-btn" class="add-btn" style="width: 100%; height: 38px; font-size: 13px;">⬇️ Export / Backup Data</button>
             </div>
 
             <div class="settings-section">

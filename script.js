@@ -577,7 +577,9 @@ function syncUserProfileAndLeaderboard() {
         const challengeAnime = getChallengeAnime();
         const backlogAnime = getBacklogAnime();
         const { totalXP, userLevel } = calculateUserXPAndLevel();
-        const calculatedRank = ranks.slice().reverse().find(r => challengeAnime.length >= r.min)?.title || 'Newbie';
+        // Rank counts ALL anime (challenge days + backlog), not just challenge days.
+        const allUniqueCount = getUniqueAnime().length;
+        const calculatedRank = ranks.slice().reverse().find(r => allUniqueCount >= r.min)?.title || 'Newbie';
 
         const watchedListSync = challengeAnime.map(item => ({
             mal_id: item.mal_id || null,
@@ -634,6 +636,39 @@ function saveAniPaceData() {
                 syncUserProfileAndLeaderboard();
             })
             .catch(err => console.error("Firebase save error:", err));
+    }
+}
+
+// --- DATA BACKUP / EXPORT ---
+// Downloads a JSON backup of everything stored locally (challenge data +
+// AniPace data) so it can be kept safe or restored later. The file holds
+// the exact objects saved under the two localStorage keys, so a future
+// import can write them straight back. There is no file-based JSON import
+// in the app yet (bulk import is text lines only), so this file is a
+// backup first and the matching import is a planned next step.
+function exportBackupData() {
+    try {
+        const backup = {
+            app: 'Aniclipse',
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            storageKeys: { challengeData: STORAGE_KEY, anipaceData: ANIPACE_STORAGE_KEY },
+            challengeData: JSON.parse(JSON.stringify(challengeData)),
+            anipaceData: JSON.parse(JSON.stringify(anipaceData))
+        };
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aniclipse-backup-${getLocalDateString(new Date())}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showNotification('Backup downloaded! Keep the file safe — it holds all your anime and episode data.', 'success');
+    } catch (err) {
+        console.error('Backup export failed:', err);
+        showNotification('Backup failed. Please try again.', 'error');
     }
 }
 
@@ -853,6 +888,22 @@ function renderAchievementsModal() {
     const unlocked = challengeData.unlockedAchievements || [];
     const data = { allAnime: getUniqueAnime(), days: challengeData.days };
 
+    // --- Rank progress: how far to the next rank (counts ALL anime) ---
+    const rankProgressEl = document.getElementById('achievements-rank-progress');
+    if (rankProgressEl) {
+        const totalCount = getUniqueAnime().length;
+        const currentRank = ranks.slice().reverse().find(r => totalCount >= r.min) || ranks[0];
+        const nextRank = ranks.find(r => r.min > totalCount);
+        if (!nextRank) {
+            rankProgressEl.innerHTML = `<div class="ach-rank-progress"><div class="ach-rank-progress-text">🏆 Max rank — ${currentRank.title}! (${totalCount} anime)</div><div class="ach-progress-bar"><div class="ach-progress-fill" style="width:100%; background:#FFD700;"></div></div></div>`;
+        } else {
+            const away = nextRank.min - totalCount;
+            const span = nextRank.min - currentRank.min;
+            const pct = Math.min(100, Math.max(0, ((totalCount - currentRank.min) / span) * 100));
+            rankProgressEl.innerHTML = `<div class="ach-rank-progress"><div class="ach-rank-progress-text">🎖️ ${currentRank.title} · ${totalCount} anime · <b>${away} away from ${nextRank.title}</b></div><div class="ach-progress-bar"><div class="ach-progress-fill" style="width:${pct}%; background:var(--primary-color);"></div></div></div>`;
+        }
+    }
+
     // --- "Next up": the 3 locked achievements closest to being unlocked ---
     const locked = achievements.filter(a => !unlocked.includes(a.id));
     const nextUp = locked
@@ -1034,7 +1085,8 @@ function updateAllDisplays() {
     document.getElementById('achievements-unlocked-value').textContent = `${challengeData.unlockedAchievements.length} / ${achievements.length}`;
     
     // Modern Display: Level + Rank Badge
-    const calculatedRank = ranks.slice().reverse().find(r => challengeAnime.length >= r.min)?.title || 'Newbie';
+    // Rank counts ALL anime (challenge days + backlog), not just challenge days.
+    const calculatedRank = ranks.slice().reverse().find(r => allUniqueAnime.length >= r.min)?.title || 'Newbie';
     document.getElementById('rank-badge').textContent = `Lv.${userLevel} - ${calculatedRank} (${totalXP} XP)`;
     
     calculateDailyPace(challengeAnime.length);
@@ -2645,6 +2697,10 @@ function initializeApp() {
     
     document.getElementById('content-area').classList.remove('hidden');
     initializeChallengeLayout();
+    // Re-check achievements on open (e.g. backlog anime added earlier) so
+    // rank, level and unlocks refresh without needing a new action first.
+    // processAchievements only notifies for newly unlocked achievements.
+    processAchievements();
     updateAllDisplays(); 
     
     document.getElementById('switch-to-backlog-btn').onclick = () => switchToScreen('backlog');
@@ -2674,6 +2730,8 @@ function initializeApp() {
     };
     
     document.getElementById('settings-btn').onclick = () => document.getElementById('settings-modal').classList.remove('hidden');
+    const exportBackupBtn = document.getElementById('export-backup-btn');
+    if (exportBackupBtn) exportBackupBtn.onclick = exportBackupData;
     document.getElementById('open-planner-btn').onclick = () => { 
         document.getElementById('planner-playback-speed').value = anipaceData.playbackSpeed; 
         document.getElementById('planner-results').classList.add('hidden');
@@ -2908,6 +2966,9 @@ function initializeFirebase() {
                     }
                     if (updated) {
                         initializeChallengeLayout();
+                        // Re-check achievements after the cloud merge so
+                        // rank, level and unlocks refresh from cloud data too.
+                        processAchievements();
                         updateAllDisplays();
                     }
                 } else {
@@ -2946,7 +3007,8 @@ function initializeFirebase() {
             }
 
             const challengeAnime = getChallengeAnime();
-            const calculatedRank = ranks.slice().reverse().find(r => challengeAnime.length >= r.min)?.title || 'Newbie';
+            // Rank counts ALL anime (challenge days + backlog), not just challenge days.
+            const calculatedRank = ranks.slice().reverse().find(r => getUniqueAnime().length >= r.min)?.title || 'Newbie';
 
                     firebase.database().ref(`users/${user.uid}`).set({
                         challengeData: challengeData,
