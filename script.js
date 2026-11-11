@@ -642,10 +642,8 @@ function saveAniPaceData() {
 // --- DATA BACKUP / EXPORT ---
 // Downloads a JSON backup of everything stored locally (challenge data +
 // AniPace data) so it can be kept safe or restored later. The file holds
-// the exact objects saved under the two localStorage keys, so a future
-// import can write them straight back. There is no file-based JSON import
-// in the app yet (bulk import is text lines only), so this file is a
-// backup first and the matching import is a planned next step.
+// the exact objects saved under the two localStorage keys, and the matching
+// restore lives in importBackupData() below (Settings → Import / Restore).
 function exportBackupData() {
     try {
         const backup = {
@@ -669,6 +667,105 @@ function exportBackupData() {
     } catch (err) {
         console.error('Backup export failed:', err);
         showNotification('Backup failed. Please try again.', 'error');
+    }
+}
+
+// --- DATA RESTORE / IMPORT ---
+// Restores a backup file created by exportBackupData(). The file is
+// validated BEFORE anything is touched, the user confirms the overwrite,
+// and a safety copy of the current data is kept in localStorage first.
+const PRE_RESTORE_CHALLENGE_KEY = 'animeDashboard_v6_combined_pre_restore';
+const PRE_RESTORE_ANIPACE_KEY = 'anipace_separate_data_pre_restore';
+
+function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Checks a parsed backup file. Returns { ok: true } or
+// { ok: false, error: '<reason>' }. Pure function — no data is read or
+// changed here, so it is safe to call before any restore step.
+function validateBackupFile(parsed) {
+    if (!isPlainObject(parsed)) return { ok: false, error: 'That file is not a valid Aniclipse backup.' };
+    if (parsed.app !== undefined && parsed.app !== 'Aniclipse') return { ok: false, error: 'That file is not an Aniclipse backup.' };
+    const hasChallenge = isPlainObject(parsed.challengeData);
+    const hasAnipace = isPlainObject(parsed.anipaceData);
+    if (!hasChallenge && !hasAnipace) return { ok: false, error: 'Backup has no anime or episode data to restore.' };
+    if (hasChallenge) {
+        if (parsed.challengeData.days !== undefined && !isPlainObject(parsed.challengeData.days)) return { ok: false, error: 'Backup challenge data is damaged (days).' };
+        if (parsed.challengeData.backlog !== undefined && !Array.isArray(parsed.challengeData.backlog)) return { ok: false, error: 'Backup challenge data is damaged (backlog).' };
+        if (parsed.challengeData.unlockedAchievements !== undefined && !Array.isArray(parsed.challengeData.unlockedAchievements)) return { ok: false, error: 'Backup challenge data is damaged (achievements).' };
+    }
+    if (hasAnipace && parsed.anipaceData.history !== undefined && !Array.isArray(parsed.anipaceData.history)) return { ok: false, error: 'Backup episode data is damaged (history).' };
+    return { ok: true };
+}
+
+// File-picker handler: reads the chosen file, validates it, asks for
+// confirmation, and only then restores. Any failure or a cancelled
+// confirmation leaves the current data completely untouched.
+function handleBackupFileSelect(event) {
+    const file = event.target && event.target.files ? event.target.files[0] : null;
+    if (event.target) event.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        let parsed;
+        try {
+            parsed = JSON.parse(reader.result);
+        } catch (err) {
+            showNotification('Could not read that file — it is not valid JSON. Nothing was changed.', 'error');
+            return;
+        }
+        const check = validateBackupFile(parsed);
+        if (!check.ok) {
+            showNotification(check.error + ' Nothing was changed.', 'error');
+            return;
+        }
+        const parts = [];
+        if (isPlainObject(parsed.challengeData)) parts.push('anime, backlog and achievements');
+        if (isPlainObject(parsed.anipaceData)) parts.push('episode logs');
+        const ok = confirm('Restore this backup? Your current ' + parts.join(' and ') + ' will be replaced by the backup file.\n\nTip: export your current data first if you want to keep it.');
+        if (!ok) return; // Cancelled — nothing changed.
+        restoreBackupData(parsed);
+    };
+    reader.onerror = () => {
+        showNotification('Could not read that file. Nothing was changed.', 'error');
+    };
+    reader.readAsText(file);
+}
+
+function restoreBackupData(parsed) {
+    try {
+        // Safety copy of the CURRENT data first, so a bad restore can be
+        // undone from the pre-restore keys.
+        try {
+            const currentChallenge = localStorage.getItem(STORAGE_KEY);
+            if (currentChallenge) localStorage.setItem(PRE_RESTORE_CHALLENGE_KEY, currentChallenge);
+            const currentAnipace = localStorage.getItem(ANIPACE_STORAGE_KEY);
+            if (currentAnipace) localStorage.setItem(PRE_RESTORE_ANIPACE_KEY, currentAnipace);
+        } catch (err) {
+            console.error('Could not save pre-restore safety copy:', err);
+        }
+        // Assign into the live objects (keeps their references, like the
+        // Firebase login merge does), then save through the normal path so
+        // the restored data is written to localStorage AND to Firebase.
+        // This matters because the one-time login pull would otherwise
+        // overwrite a local-only restore with the old cloud data; pushing
+        // the restore to the cloud first means the next pull reads the
+        // restored data back. Logged out, saveData() is local-only and
+        // the reload below is enough.
+        if (isPlainObject(parsed.challengeData)) {
+            Object.assign(challengeData, parsed.challengeData);
+            saveData();
+        }
+        if (isPlainObject(parsed.anipaceData)) {
+            Object.assign(anipaceData, parsed.anipaceData);
+            saveAniPaceData();
+        }
+        showNotification('Backup restored — reloading…', 'success');
+        setTimeout(() => location.reload(), 900);
+    } catch (err) {
+        console.error('Backup restore failed:', err);
+        showNotification('Restore failed. Your current data was not changed.', 'error');
     }
 }
 
@@ -2732,6 +2829,12 @@ function initializeApp() {
     document.getElementById('settings-btn').onclick = () => document.getElementById('settings-modal').classList.remove('hidden');
     const exportBackupBtn = document.getElementById('export-backup-btn');
     if (exportBackupBtn) exportBackupBtn.onclick = exportBackupData;
+    const importBackupBtn = document.getElementById('import-backup-btn');
+    const importBackupInput = document.getElementById('import-backup-input');
+    if (importBackupBtn && importBackupInput) {
+        importBackupBtn.onclick = () => importBackupInput.click();
+        importBackupInput.onchange = handleBackupFileSelect;
+    }
     document.getElementById('open-planner-btn').onclick = () => { 
         document.getElementById('planner-playback-speed').value = anipaceData.playbackSpeed; 
         document.getElementById('planner-results').classList.add('hidden');
