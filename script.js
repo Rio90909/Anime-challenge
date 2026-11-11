@@ -339,82 +339,222 @@ let bannerTimeoutId = null;
 
 const GOAL_TIERS = [10, 30, 50, 100, 200, 400, 600, 800, 1000];
 
+// --- ACHIEVEMENT HELPERS ---
+// Longest run of consecutive days with at least one logged anime.
+// Shared by the streak achievements and their progress bars so the
+// logic lives in exactly one place.
+function getMaxLogStreak(days) {
+    const dates = Object.keys(days || {}).sort();
+    if (dates.length === 0) return 0;
+    let maxStreak = 1;
+    let currentStreak = 1;
+    for (let i = 1; i < dates.length; i++) {
+        const diffDays = Math.round((new Date(dates[i]).getTime() - new Date(dates[i - 1]).getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays === 1) {
+            currentStreak++;
+            maxStreak = Math.max(maxStreak, currentStreak);
+        } else if (diffDays > 1) {
+            currentStreak = 1;
+        }
+    }
+    return maxStreak;
+}
+
+// Total XP earned from unlocked achievements (tiered XP, not a flat rate).
+function calculateAchievementXP(unlockedIds) {
+    const unlocked = new Set(unlockedIds || []);
+    return achievements.reduce((sum, ach) => sum + (unlocked.has(ach.id) ? (ach.xp || 0) : 0), 0);
+}
+
+// Which rank tab is shown in the achievements modal. Reset to 'Newbie'
+// every time the modal opens (see the achievements-card click handler).
+let activeAchievementRank = 'Newbie';
+
+// Icon + accent colour for each genre's badge achievements.
+const GENRE_ACH_META = {
+    'Romance': { icon: '💕', color: '#F472B6' },
+    'Action': { icon: '⚔️', color: '#EF4444' },
+    'Comedy': { icon: '😂', color: '#FACC15' },
+    'Fantasy': { icon: '🐉', color: '#A78BFA' },
+    'Sci-Fi': { icon: '🚀', color: '#38BDF8' },
+    'Harem': { icon: '💘', color: '#FB7185' },
+    'Slice of Life': { icon: '🍵', color: '#4ADE80' },
+    'Isekai': { icon: '🌀', color: '#818CF8' },
+    'Drama': { icon: '🎭', color: '#FB923C' },
+    'Mystery': { icon: '🔍', color: '#94A3B8' },
+    'Horror': { icon: '👻', color: '#C084FC' },
+    'Adventure': { icon: '🗺️', color: '#34D399' },
+    'Supernatural': { icon: '👁️', color: '#E879F9' },
+    'Mecha': { icon: '🤖', color: '#67E8F9' },
+    'Sports': { icon: '⚽', color: '#F97316' },
+    'Psychological': { icon: '🧠', color: '#F472B6' },
+    'Thriller': { icon: '😱', color: '#F87171' },
+    'Music': { icon: '🎵', color: '#FBBF24' },
+    'Historical': { icon: '🏯', color: '#D97706' },
+    'Military': { icon: '🎖️', color: '#84CC16' }
+};
+
+// XP tiers: easy 100 / medium 250 / hard 500 / epic 1000.
+// `category` is the ONLY thing the modal filters on (never ID substrings).
+// `rank` is the rank tab an achievement appears under. `target` is the
+// number the progress bar counts towards. Existing IDs are unchanged so
+// already-unlocked achievements stay unlocked.
 const achievements = [
-    { id: 'total_1', title: 'First Step', description: 'Log your first anime.', check: (data) => data.allAnime.length >= 1 },
-    { id: 'total_10', title: 'Anime Novice', description: 'Log 10 different anime.', check: (data) => data.allAnime.length >= 10 },
-    { id: 'total_25', title: 'Anime Apprentice', description: 'Log 25 different anime.', check: (data) => data.allAnime.length >= 25 },
-    { id: 'total_50', title: 'Anime Adept', description: 'Log 50 different anime.', check: (data) => data.allAnime.length >= 50 },
-    { id: 'total_100', title: 'Anime Veteran', description: 'Log 100 different anime.', check: (data) => data.allAnime.length >= 100 },
-    { id: 'total_200', title: 'Anime Master', description: 'Log 200 different anime.', check: (data) => data.allAnime.length >= 200 },
-    { id: 'total_300', title: 'Anime Grandmaster', description: 'Log 300 different anime.', check: (data) => data.allAnime.length >= 300 },
-    { id: 'total_400', title: 'Anime Legend', description: 'Log 400 different anime.', check: (data) => data.allAnime.length >= 400 },
-    { id: 'total_500', title: 'Anime Mythic', description: 'Log 500 different anime.', check: (data) => data.allAnime.length >= 500 },
-    { id: 'total_1000', title: 'Anime Immortal', description: 'Log 1000 different anime.', check: (data) => data.allAnime.length >= 1000 },
+    { id: 'total_1', title: 'First Step', description: 'Log your first anime.', category: 'total', icon: '🌱', color: '#4ADE80', xp: 100, rank: 'Newbie', target: 1, check: (data) => data.allAnime.length >= 1 },
+    { id: 'total_10', title: 'Anime Novice', description: 'Log 10 different anime.', category: 'total', icon: '🚀', color: '#22C55E', xp: 100, rank: 'Novice', target: 10, check: (data) => data.allAnime.length >= 10 },
+    { id: 'total_25', title: 'Anime Apprentice', description: 'Log 25 different anime.', category: 'total', icon: '🌟', color: '#10B981', xp: 250, rank: 'Apprentice', target: 25, check: (data) => data.allAnime.length >= 25 },
+    { id: 'total_50', title: 'Anime Adept', description: 'Log 50 different anime.', category: 'total', icon: '🎖️', color: '#F59E0B', xp: 250, rank: 'Adept', target: 50, check: (data) => data.allAnime.length >= 50 },
+    { id: 'total_100', title: 'Anime Veteran', description: 'Log 100 different anime.', category: 'total', icon: '👑', color: '#F97316', xp: 500, rank: 'Veteran', target: 100, check: (data) => data.allAnime.length >= 100 },
+    { id: 'total_200', title: 'Anime Master', description: 'Log 200 different anime.', category: 'total', icon: '💎', color: '#38BDF8', xp: 500, rank: 'Master', target: 200, check: (data) => data.allAnime.length >= 200 },
+    { id: 'total_300', title: 'Anime Grandmaster', description: 'Log 300 different anime.', category: 'total', icon: '🔥', color: '#EF4444', xp: 500, rank: 'Master', target: 300, check: (data) => data.allAnime.length >= 300 },
+    { id: 'total_400', title: 'Anime Legend', description: 'Log 400 different anime.', category: 'total', icon: '⚡', color: '#A78BFA', xp: 1000, rank: 'Grandmaster', target: 400, check: (data) => data.allAnime.length >= 400 },
+    { id: 'total_500', title: 'Anime Mythic', description: 'Log 500 different anime.', category: 'total', icon: '🌌', color: '#818CF8', xp: 1000, rank: 'Grandmaster', target: 500, check: (data) => data.allAnime.length >= 500 },
+    { id: 'total_600', title: 'Legendary Watcher', description: 'Log 600 different anime.', category: 'total', icon: '🛡️', color: '#FACC15', xp: 1000, rank: 'Legend', target: 600, check: (data) => data.allAnime.length >= 600 },
+    { id: 'total_800', title: 'Mythical Watcher', description: 'Log 800 different anime.', category: 'total', icon: '🔮', color: '#C084FC', xp: 1000, rank: 'Mythic', target: 800, check: (data) => data.allAnime.length >= 800 },
+    { id: 'total_1000', title: 'Anime Immortal', description: 'Log 1000 different anime.', category: 'total', icon: '🏆', color: '#FFD700', xp: 1000, rank: 'Immortal', target: 1000, check: (data) => data.allAnime.length >= 1000 },
     
     ...['Romance', 'Action', 'Comedy', 'Fantasy', 'Sci-Fi', 'Harem', 'Slice of Life', 'Isekai', 'Drama', 'Mystery', 
-        'Horror', 'Adventure', 'Supernatural', 'Mecha', 'Sports', 'Psychological', 'Thriller', 'Music', 'Historical', 'Military'].map(genre => ([
-        { id: `${genre.toLowerCase()}_1`, title: `${genre} Fan`, description: `Watch 5 ${genre} anime.`, check: (data) => countGenre(data.allAnime, genre) >= 5 },
-        { id: `${genre.toLowerCase()}_2`, title: `${genre} Enthusiast`, description: `Watch 15 ${genre} anime.`, check: (data) => countGenre(data.allAnime, genre) >= 15 },
-        { id: `${genre.toLowerCase()}_3`, title: `${genre} Master`, description: `Watch 30 ${genre} anime.`, check: (data) => countGenre(data.allAnime, genre) >= 30 }
-    ])).flat(),
+        'Horror', 'Adventure', 'Supernatural', 'Mecha', 'Sports', 'Psychological', 'Thriller', 'Music', 'Historical', 'Military'].map(genre => {
+        const meta = GENRE_ACH_META[genre] || { icon: '🎬', color: '#9CA3AF' };
+        return ([
+            { id: `${genre.toLowerCase()}_1`, title: `${genre} Fan`, description: `Watch 5 ${genre} anime.`, category: 'genre', genre, icon: meta.icon, color: meta.color, xp: 100, rank: 'Newbie', target: 5, check: (data) => countGenre(data.allAnime, genre) >= 5 },
+            { id: `${genre.toLowerCase()}_2`, title: `${genre} Enthusiast`, description: `Watch 15 ${genre} anime.`, category: 'genre', genre, icon: meta.icon, color: meta.color, xp: 250, rank: 'Novice', target: 15, check: (data) => countGenre(data.allAnime, genre) >= 15 },
+            { id: `${genre.toLowerCase()}_3`, title: `${genre} Master`, description: `Watch 30 ${genre} anime.`, category: 'genre', genre, icon: meta.icon, color: meta.color, xp: 500, rank: 'Apprentice', target: 30, check: (data) => countGenre(data.allAnime, genre) >= 30 }
+        ]);
+    }).flat(),
     
-    { id: 'decade_80s', title: '80s Nostalgia', description: 'Watch 3 anime from the 1980s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 1980 && a.year < 1990).length >= 3 },
-    { id: 'decade_90s', title: '90s Nostalgia', description: 'Watch 5 anime from the 1990s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 1990 && a.year < 2000).length >= 5 },
-    { id: 'decade_2000s', title: 'Millennium Kid', description: 'Watch 10 anime from the 2000s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2000 && a.year < 2010).length >= 10 },
-    { id: 'decade_2010s', title: 'Modern Classic', description: 'Watch 15 anime from the 2010s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2010 && a.year < 2020).length >= 15 },
-    { id: 'decade_2020s', title: 'Current Era', description: 'Watch 20 anime from the 2020s.', check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2020).length >= 20 },
+    { id: 'decade_80s', title: '80s Nostalgia', description: 'Watch 3 anime from the 1980s.', category: 'decade', icon: '📼', color: '#F472B6', xp: 100, rank: 'Newbie', target: 3, startYear: 1980, endYear: 1990, check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 1980 && a.year < 1990).length >= 3 },
+    { id: 'decade_90s', title: '90s Nostalgia', description: 'Watch 5 anime from the 1990s.', category: 'decade', icon: '📟', color: '#FB923C', xp: 100, rank: 'Newbie', target: 5, startYear: 1990, endYear: 2000, check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 1990 && a.year < 2000).length >= 5 },
+    { id: 'decade_2000s', title: 'Millennium Kid', description: 'Watch 10 anime from the 2000s.', category: 'decade', icon: '💿', color: '#38BDF8', xp: 250, rank: 'Novice', target: 10, startYear: 2000, endYear: 2010, check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2000 && a.year < 2010).length >= 10 },
+    { id: 'decade_2010s', title: 'Modern Classic', description: 'Watch 15 anime from the 2010s.', category: 'decade', icon: '📱', color: '#A78BFA', xp: 250, rank: 'Apprentice', target: 15, startYear: 2010, endYear: 2020, check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2010 && a.year < 2020).length >= 15 },
+    { id: 'decade_2020s', title: 'Current Era', description: 'Watch 20 anime from the 2020s.', category: 'decade', icon: '🚀', color: '#4ADE80', xp: 500, rank: 'Apprentice', target: 20, startYear: 2020, endYear: null, check: (data) => data.allAnime.filter(a => !a.isManual && a.year >= 2020).length >= 20 },
     
-    { id: 'studio_kyoani', title: 'KyoAni Fan', description: 'Watch 3 anime from Kyoto Animation.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Kyoto Animation')).length >= 3 },
-    { id: 'studio_ghibli', title: 'Ghibli Lover', description: 'Watch 3 anime from Studio Ghibli.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Studio Ghibli')).length >= 3 },
-    { id: 'studio_madhouse', title: 'Madhouse Marathoner', description: 'Watch 5 anime from Madhouse.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Madhouse')).length >= 5 },
-    { id: 'studio_ufotable', title: 'Ufotable Visuals', description: 'Watch 3 anime from Ufotable.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Ufotable')).length >= 3 },
-    { id: 'studio_bones', title: 'Bones Collector', description: 'Watch 5 anime from Bones.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Bones')).length >= 5 },
-    { id: 'studio_wit', title: 'Wit Witness', description: 'Watch 3 anime from Wit Studio.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Wit Studio')).length >= 3 },
-    { id: 'studio_trigger', title: 'Trigger Happy', description: 'Watch 3 anime from Trigger.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Trigger')).length >= 3 },
-    { id: 'studio_cloverworks', title: 'Clover Collector', description: 'Watch 3 anime from CloverWorks.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'CloverWorks')).length >= 3 },
-    { id: 'studio_a1', title: 'A-1 Productions', description: 'Watch 5 anime from A-1 Pictures.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'A-1 Pictures')).length >= 5 },
-    { id: 'studio_production_ig', title: 'IG Enthusiast', description: 'Watch 3 anime from Production I.G.', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Production I.G')).length >= 3 },
+    { id: 'studio_kyoani', title: 'KyoAni Fan', description: 'Watch 3 anime from Kyoto Animation.', category: 'studio', icon: '🌸', color: '#F9A8D4', xp: 250, rank: 'Adept', target: 3, studio: 'Kyoto Animation', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Kyoto Animation')).length >= 3 },
+    { id: 'studio_ghibli', title: 'Ghibli Lover', description: 'Watch 3 anime from Studio Ghibli.', category: 'studio', icon: '🌿', color: '#86EFAC', xp: 250, rank: 'Adept', target: 3, studio: 'Studio Ghibli', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Studio Ghibli')).length >= 3 },
+    { id: 'studio_madhouse', title: 'Madhouse Marathoner', description: 'Watch 5 anime from Madhouse.', category: 'studio', icon: '🎭', color: '#FCA5A5', xp: 500, rank: 'Adept', target: 5, studio: 'Madhouse', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Madhouse')).length >= 5 },
+    { id: 'studio_ufotable', title: 'Ufotable Visuals', description: 'Watch 3 anime from Ufotable.', category: 'studio', icon: '⚔️', color: '#FDA4AF', xp: 250, rank: 'Adept', target: 3, studio: 'Ufotable', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Ufotable')).length >= 3 },
+    { id: 'studio_bones', title: 'Bones Collector', description: 'Watch 5 anime from Bones.', category: 'studio', icon: '💀', color: '#C4B5FD', xp: 500, rank: 'Adept', target: 5, studio: 'Bones', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Bones')).length >= 5 },
+    { id: 'studio_wit', title: 'Wit Witness', description: 'Watch 3 anime from Wit Studio.', category: 'studio', icon: '🗡️', color: '#93C5FD', xp: 250, rank: 'Expert', target: 3, studio: 'Wit Studio', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Wit Studio')).length >= 3 },
+    { id: 'studio_trigger', title: 'Trigger Happy', description: 'Watch 3 anime from Trigger.', category: 'studio', icon: '💥', color: '#FDBA74', xp: 250, rank: 'Expert', target: 3, studio: 'Trigger', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Trigger')).length >= 3 },
+    { id: 'studio_cloverworks', title: 'Clover Collector', description: 'Watch 3 anime from CloverWorks.', category: 'studio', icon: '🍀', color: '#86EFAC', xp: 250, rank: 'Expert', target: 3, studio: 'CloverWorks', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'CloverWorks')).length >= 3 },
+    { id: 'studio_a1', title: 'A-1 Productions', description: 'Watch 5 anime from A-1 Pictures.', category: 'studio', icon: '🎬', color: '#FCD34D', xp: 500, rank: 'Expert', target: 5, studio: 'A-1 Pictures', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'A-1 Pictures')).length >= 5 },
+    { id: 'studio_production_ig', title: 'IG Enthusiast', description: 'Watch 3 anime from Production I.G.', category: 'studio', icon: '🤖', color: '#67E8F9', xp: 250, rank: 'Expert', target: 3, studio: 'Production I.G', check: (data) => data.allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === 'Production I.G')).length >= 3 },
     
-    { id: 'binge_watcher', title: 'Binge Watcher', description: 'Watch 5+ anime on a single day.', check: (data) => Object.values(data.days).some(d => (d.watched || []).length >= 5) },
-    { id: 'critics_choice', title: 'Critic\'s Choice', description: 'Watch 5 anime with a score of 8.5 or higher.', check: (data) => data.allAnime.filter(a => !a.isManual && a.score >= 8.5).length >= 5 },
-    { id: 'hidden_gems', title: 'Hidden Gems', description: 'Watch 5 anime with a score below 7.0.', check: (data) => data.allAnime.filter(a => !a.isManual && a.score < 7.0).length >= 5 },
-    { id: 'long_runner', title: 'Long Runner', description: 'Watch an anime with 50+ episodes.', check: (data) => data.allAnime.some(a => !a.isManual && a.episodes >= 50) },
-    { id: 'movie_buff', title: 'Movie Buff', description: 'Watch 10 anime movies.', check: (data) => data.allAnime.filter(a => !a.isManual && a.type === 'Movie').length >= 10 },
-    { id: 'ova_collector', title: 'OVA Collector', description: 'Watch 5 OVAs.', check: (data) => data.allAnime.filter(a => !a.isManual && a.type === 'OVA').length >= 5 },
-    { id: 'seasonal_watcher', title: 'Seasonal Watcher', description: 'Watch anime from 5 different seasons.', check: (data) => new Set(data.allAnime.filter(a => !a.isManual && a.season).map(a => `${a.season} ${a.year}`)).size >= 5 },
-    { id: 'diverse_tastes', title: 'Diverse Tastes', description: 'Watch anime from 10 different genres.', check: (data) => new Set(data.allAnime.flatMap(a => !a.isManual ? (a.genres || []).map(g => g.name) : [])).size >= 10 },
-    { id: 'high_scorer', title: 'High Scorer', description: 'Rate 10 anime with 9 or higher.', check: (data) => data.allAnime.filter(a => a.user_score >= 9).length >= 10 },
-    { id: 'consistent_rater', title: 'Consistent Rater', description: 'Rate 20 different anime.', check: (data) => data.allAnime.filter(a => a.user_score && a.user_score > 0).length >= 20 },
-    { id: 'marathon_runner', title: 'Marathon Runner', description: 'Log 10+ episodes in a single day with AniPace.', check: (data) => anipaceData.history.some(h => h.episodes >= 10) },
-    { id: 'speed_demon', title: 'Speed Demon', description: 'Watch at 2.0x playback speed or higher.', check: (data) => anipaceData.playbackSpeed >= 2.0 },
-    { id: 'weekend_warrior', title: 'Weekend Warrior', description: 'Log anime on 10 different weekends.', check: (data) => Object.keys(data.days).filter(date => {
+    { id: 'binge_watcher', title: 'Binge Watcher', description: 'Watch 5+ anime on a single day.', category: 'special', icon: '🍿', color: '#F59E0B', xp: 250, rank: 'Newbie', target: 5, check: (data) => Object.values(data.days).some(d => (d.watched || []).length >= 5) },
+    { id: 'critics_choice', title: 'Critic\'s Choice', description: 'Watch 5 anime with a score of 8.5 or higher.', category: 'special', icon: '🎩', color: '#E879F9', xp: 250, rank: 'Novice', target: 5, check: (data) => data.allAnime.filter(a => !a.isManual && a.score >= 8.5).length >= 5 },
+    { id: 'hidden_gems', title: 'Hidden Gems', description: 'Watch 5 anime with a score below 7.0.', category: 'special', icon: '💎', color: '#38BDF8', xp: 250, rank: 'Newbie', target: 5, check: (data) => data.allAnime.filter(a => !a.isManual && a.score < 7.0).length >= 5 },
+    { id: 'long_runner', title: 'Long Runner', description: 'Watch an anime with 50+ episodes.', category: 'special', icon: '🏃', color: '#34D399', xp: 250, rank: 'Novice', target: 50, check: (data) => data.allAnime.some(a => !a.isManual && a.episodes >= 50) },
+    { id: 'movie_buff', title: 'Movie Buff', description: 'Watch 10 anime movies.', category: 'special', icon: '🎬', color: '#F472B6', xp: 500, rank: 'Novice', target: 10, check: (data) => data.allAnime.filter(a => !a.isManual && a.type === 'Movie').length >= 10 },
+    { id: 'ova_collector', title: 'OVA Collector', description: 'Watch 5 OVAs.', category: 'special', icon: '📀', color: '#A78BFA', xp: 250, rank: 'Novice', target: 5, check: (data) => data.allAnime.filter(a => !a.isManual && a.type === 'OVA').length >= 5 },
+    { id: 'seasonal_watcher', title: 'Seasonal Watcher', description: 'Watch anime from 5 different seasons.', category: 'special', icon: '🍂', color: '#FB923C', xp: 250, rank: 'Novice', target: 5, check: (data) => new Set(data.allAnime.filter(a => !a.isManual && a.season).map(a => `${a.season} ${a.year}`)).size >= 5 },
+    { id: 'diverse_tastes', title: 'Diverse Tastes', description: 'Watch anime from 10 different genres.', category: 'special', icon: '🌈', color: '#F472B6', xp: 250, rank: 'Novice', target: 10, check: (data) => new Set(data.allAnime.flatMap(a => !a.isManual ? (a.genres || []).map(g => g.name) : [])).size >= 10 },
+    { id: 'high_scorer', title: 'High Scorer', description: 'Rate 10 anime with 9 or higher.', category: 'special', icon: '⭐', color: '#FACC15', xp: 500, rank: 'Veteran', target: 10, check: (data) => data.allAnime.filter(a => a.user_score >= 9).length >= 10 },
+    { id: 'consistent_rater', title: 'Consistent Rater', description: 'Rate 20 different anime.', category: 'special', icon: '📝', color: '#60A5FA', xp: 500, rank: 'Expert', target: 20, check: (data) => data.allAnime.filter(a => a.user_score && a.user_score > 0).length >= 20 },
+    { id: 'marathon_runner', title: 'Marathon Runner', description: 'Log 10+ episodes in a single day with AniPace.', category: 'special', icon: '🏅', color: '#F97316', xp: 250, rank: 'Apprentice', target: 10, check: (data) => anipaceData.history.some(h => h.episodes >= 10) },
+    { id: 'speed_demon', title: 'Speed Demon', description: 'Watch at 2.0x playback speed or higher.', category: 'special', icon: '⚡', color: '#FACC15', xp: 100, rank: 'Apprentice', target: 2, check: (data) => anipaceData.playbackSpeed >= 2.0 },
+    { id: 'weekend_warrior', title: 'Weekend Warrior', description: 'Log anime on 10 different weekends.', category: 'special', icon: '🛋️', color: '#A78BFA', xp: 500, rank: 'Expert', target: 10, check: (data) => Object.keys(data.days).filter(date => {
         const day = new Date(date).getDay();
         return day === 0 || day === 6;
     }).length >= 10 },
-    { id: 'streak_master', title: 'Streak Master', description: 'Log anime for 7 consecutive days.', check: (data) => {
-        const dates = Object.keys(data.days).sort();
-        let maxStreak = 0;
-        let currentStreak = 1;
-        
-        for (let i = 1; i < dates.length; i++) {
-            const prevDate = new Date(dates[i-1]);
-            const currDate = new Date(dates[i]);
-            const diffTime = currDate.getTime() - prevDate.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            if (diffDays === 1) {
-                currentStreak++;
-                maxStreak = Math.max(maxStreak, currentStreak);
-            } else {
-                currentStreak = 1;
-            }
-        }
-        
-        return maxStreak >= 7;
-    }},
-    { id: 'completionist', title: 'Completionist', description: 'Complete 5 anime series (watch all episodes).', check: (data) => data.allAnime.filter(a => !a.isManual && a.watched_episodes === a.episodes).length >= 5 }
+    { id: 'streak_master', title: 'Streak Master', description: 'Log anime for 7 consecutive days.', category: 'special', icon: '🔥', color: '#EF4444', xp: 500, rank: 'Expert', target: 7, check: (data) => getMaxLogStreak(data.days) >= 7 },
+    { id: 'completionist', title: 'Completionist', description: 'Complete 5 anime series (watch all episodes).', category: 'special', icon: '✅', color: '#22C55E', xp: 500, rank: 'Expert', target: 5, check: (data) => data.allAnime.filter(a => !a.isManual && a.watched_episodes === a.episodes).length >= 5 },
+
+    // --- NEW ACHIEVEMENTS (added in the achievements redesign) ---
+    { id: 'first_week_streak', title: 'First Week Streak', description: 'Log anime 3 days in a row.', category: 'special', icon: '📅', color: '#4ADE80', xp: 100, rank: 'Newbie', target: 3, check: (data) => getMaxLogStreak(data.days) >= 3 },
+    { id: 'night_owl', title: 'Night Owl', description: 'Log episodes with AniPace late at night (10pm – 5am).', category: 'special', icon: '🦉', color: '#818CF8', xp: 100, rank: 'Newbie', target: 1, check: (data) => (anipaceData.history || []).some(h => {
+        const hour = new Date(h.timestamp).getHours();
+        return hour >= 22 || hour < 5;
+    }) },
+    { id: 'rewatch_master', title: 'Rewatch Master', description: 'Come back to the same anime on a different day.', category: 'special', icon: '🔁', color: '#38BDF8', xp: 250, rank: 'Novice', target: 2, check: (data) => {
+        const daysPerAnime = {};
+        Object.keys(data.days).forEach(date => {
+            (data.days[date].watched || []).forEach(a => {
+                const key = a.isManual ? a.title.toLowerCase().trim() : a.mal_id;
+                if (!daysPerAnime[key]) daysPerAnime[key] = new Set();
+                daysPerAnime[key].add(date);
+            });
+        });
+        return Object.values(daysPerAnime).some(dates => dates.size >= 2);
+    } },
+    { id: 'perfect_10', title: 'Perfect 10', description: 'Give an anime a perfect 10/10 score.', category: 'special', icon: '💯', color: '#FFD700', xp: 100, rank: 'Newbie', target: 1, check: (data) => data.allAnime.some(a => a.user_score === 10) }
 ];
 
+// Progress towards one achievement: { current, target, percent, text }.
+// Uses the explicit `target` / `genre` / `startYear` / `studio` fields —
+// never ID substrings — so the modal and the "Next up" row agree.
+function getAchievementProgress(ach, data) {
+    const allAnime = data.allAnime;
+    const days = data.days || {};
+    let current = 0;
+    let target = ach.target || 1;
+    let text = null;
+
+    if (ach.category === 'total') {
+        current = allAnime.length;
+    } else if (ach.category === 'genre') {
+        current = countGenre(allAnime, ach.genre);
+    } else if (ach.category === 'decade') {
+        current = allAnime.filter(a => !a.isManual && a.year >= ach.startYear && (ach.endYear === null || a.year < ach.endYear)).length;
+    } else if (ach.category === 'studio') {
+        current = allAnime.filter(a => !a.isManual && (a.studios || []).some(s => s.name === ach.studio)).length;
+    } else if (ach.id === 'binge_watcher') {
+        current = Math.max(0, ...Object.values(days).map(d => (d.watched || []).length));
+    } else if (ach.id === 'critics_choice') {
+        current = allAnime.filter(a => !a.isManual && a.score >= 8.5).length;
+    } else if (ach.id === 'hidden_gems') {
+        current = allAnime.filter(a => !a.isManual && a.score < 7.0).length;
+    } else if (ach.id === 'long_runner') {
+        current = Math.max(0, ...allAnime.filter(a => !a.isManual).map(a => a.episodes || 0));
+    } else if (ach.id === 'movie_buff') {
+        current = allAnime.filter(a => !a.isManual && a.type === 'Movie').length;
+    } else if (ach.id === 'ova_collector') {
+        current = allAnime.filter(a => !a.isManual && a.type === 'OVA').length;
+    } else if (ach.id === 'seasonal_watcher') {
+        current = new Set(allAnime.filter(a => !a.isManual && a.season).map(a => `${a.season} ${a.year}`)).size;
+    } else if (ach.id === 'diverse_tastes') {
+        current = new Set(allAnime.flatMap(a => !a.isManual ? (a.genres || []).map(g => g.name) : [])).size;
+    } else if (ach.id === 'high_scorer') {
+        current = allAnime.filter(a => a.user_score >= 9).length;
+    } else if (ach.id === 'consistent_rater') {
+        current = allAnime.filter(a => a.user_score && a.user_score > 0).length;
+    } else if (ach.id === 'marathon_runner') {
+        current = anipaceData.history ? Math.max(0, ...anipaceData.history.map(h => h.episodes || 0)) : 0;
+    } else if (ach.id === 'speed_demon') {
+        current = anipaceData.playbackSpeed || 1.0;
+        text = `${current.toFixed(2)}x / 2.00x`;
+    } else if (ach.id === 'weekend_warrior') {
+        current = Object.keys(days).filter(date => {
+            const day = new Date(date).getDay();
+            return day === 0 || day === 6;
+        }).length;
+    } else if (ach.id === 'streak_master' || ach.id === 'first_week_streak') {
+        current = getMaxLogStreak(days);
+    } else if (ach.id === 'completionist') {
+        current = allAnime.filter(a => !a.isManual && a.watched_episodes === a.episodes).length;
+    } else if (ach.id === 'night_owl') {
+        current = (anipaceData.history || []).some(h => {
+            const hour = new Date(h.timestamp).getHours();
+            return hour >= 22 || hour < 5;
+        }) ? 1 : 0;
+    } else if (ach.id === 'rewatch_master') {
+        const daysPerAnime = {};
+        Object.keys(days).forEach(date => {
+            (days[date].watched || []).forEach(a => {
+                const key = a.isManual ? a.title.toLowerCase().trim() : a.mal_id;
+                if (!daysPerAnime[key]) daysPerAnime[key] = new Set();
+                daysPerAnime[key].add(date);
+            });
+        });
+        current = Math.max(0, ...Object.values(daysPerAnime).map(dates => dates.size));
+    } else if (ach.id === 'perfect_10') {
+        current = allAnime.filter(a => a.user_score === 10).length;
+    } else {
+        current = (challengeData.unlockedAchievements || []).includes(ach.id) ? 1 : 0;
+    }
+
+    const percent = Math.min(100, (current / target) * 100);
+    return { current, target, percent, text: text || `${current}/${target}` };
+}
 const ranks = [ 
     { min: 0, title: 'Newbie' }, 
     { min: 10, title: 'Novice' }, 
@@ -693,6 +833,115 @@ function processAchievements() {
     saveData(); 
 }
 
+
+// --- ACHIEVEMENTS MODAL (redesigned) ---
+// Rank tabs (always defaulting to Newbie) + a "Next up" row + clean
+// category sections filtered on ach.category, never on ID substrings.
+
+const ACHIEVEMENT_CATEGORIES = [
+    { key: 'total', heading: '🎯 Milestones' },
+    { key: 'genre', heading: '🌸 Genre Badges' },
+    { key: 'decade', heading: '📅 Retro Decades' },
+    { key: 'studio', heading: '🎬 Animation Studios' },
+    { key: 'special', heading: '🔥 Special Challenges' }
+];
+
+function renderAchievementsModal() {
+    const nextUpEl = document.getElementById('achievements-next-up');
+    const tabsEl = document.getElementById('achievements-rank-tabs');
+    const grid = document.getElementById('achievements-grid');
+    const unlocked = challengeData.unlockedAchievements || [];
+    const data = { allAnime: getUniqueAnime(), days: challengeData.days };
+
+    // --- "Next up": the 3 locked achievements closest to being unlocked ---
+    const locked = achievements.filter(a => !unlocked.includes(a.id));
+    const nextUp = locked
+        .map(a => ({ ach: a, progress: getAchievementProgress(a, data) }))
+        .sort((x, y) => (y.progress.percent - x.progress.percent) || (x.ach.target - y.ach.target))
+        .slice(0, 3);
+    if (nextUp.length === 0) {
+        nextUpEl.innerHTML = `<div class="ach-next-up"><div class="ach-next-up-title">🎉 All achievements unlocked!</div></div>`;
+    } else {
+        nextUpEl.innerHTML = `<div class="ach-next-up">
+            <div class="ach-next-up-title">⏭️ Next up</div>
+            <div class="ach-next-up-row">
+                ${nextUp.map(({ ach, progress }) => `
+                    <div class="ach-next-up-card" style="--ach-color:${ach.color}">
+                        <span class="ach-icon">${ach.icon}</span>
+                        <div class="ach-next-up-info">
+                            <div class="ach-next-up-name">${ach.title}</div>
+                            <div class="ach-next-up-progress">${progress.text} (${Math.floor(progress.percent)}%)</div>
+                            <div class="ach-progress-bar"><div class="ach-progress-fill" style="width:${progress.percent}%; background:${ach.color};"></div></div>
+                        </div>
+                        <span class="ach-xp">+${ach.xp} XP</span>
+                    </div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    // --- Rank tabs ---
+    tabsEl.innerHTML = '';
+    const tabsWrap = document.createElement('div');
+    tabsWrap.className = 'ach-rank-tabs';
+    ranks.forEach(rank => {
+        const count = achievements.filter(a => a.rank === rank.title).length;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `ach-rank-tab${rank.title === activeAchievementRank ? ' active' : ''}`;
+        btn.textContent = `${rank.title} (${count})`;
+        btn.onclick = () => {
+            activeAchievementRank = rank.title;
+            renderAchievementsModal();
+        };
+        tabsWrap.appendChild(btn);
+    });
+    tabsEl.appendChild(tabsWrap);
+
+    // --- Category sections for the active rank tab ---
+    grid.innerHTML = '';
+    if (achievements.length === 0) {
+        grid.innerHTML = `<div class="empty-state-message">No achievements defined.</div>`;
+        return;
+    }
+    const rankAchievements = achievements.filter(a => a.rank === activeAchievementRank);
+    ACHIEVEMENT_CATEGORIES.forEach(({ key, heading }) => {
+        const categoryAchievements = rankAchievements.filter(a => a.category === key);
+        if (categoryAchievements.length === 0) return;
+
+        const categoryDiv = document.createElement('div');
+        categoryDiv.className = 'achievement-category';
+        categoryDiv.innerHTML = `<h3 class="achievement-category-heading">${heading}</h3>`;
+
+        const subGrid = document.createElement('div');
+        subGrid.className = 'achievement-subgrid';
+
+        categoryAchievements.forEach(ach => {
+            const isUnlocked = unlocked.includes(ach.id);
+            const progress = getAchievementProgress(ach, data);
+            const item = document.createElement('div');
+            item.className = `achievement-item ${isUnlocked ? 'unlocked' : 'locked'}`;
+            item.style.setProperty('--ach-color', ach.color);
+            item.innerHTML = `
+                <div class="ach-card-head">
+                    <span class="ach-icon">${ach.icon}</span>
+                    <h4>${ach.title}</h4>
+                    <span class="ach-xp">+${ach.xp} XP</span>
+                </div>
+                <p class="ach-desc">${ach.description}</p>
+                <div class="ach-status">${isUnlocked ? '✅ Unlocked' : '🔒 Locked'}</div>
+                <div class="ach-progress">
+                    <div class="ach-progress-labels"><span>Progress</span><span>${progress.text} (${Math.floor(progress.percent)}%)</span></div>
+                    <div class="ach-progress-bar"><div class="ach-progress-fill ${isUnlocked ? 'unlocked' : ''}" style="width:${progress.percent}%; background:${isUnlocked ? 'var(--success-color)' : ach.color};"></div></div>
+                </div>
+            `;
+            subGrid.appendChild(item);
+        });
+
+        categoryDiv.appendChild(subGrid);
+        grid.appendChild(categoryDiv);
+    });
+}
+
 function calculateDailyPace(challengeAnimeCount) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -761,11 +1010,11 @@ function calculateDailyPace(challengeAnimeCount) {
 function calculateUserXPAndLevel() {
     const challengeCount = getChallengeAnime().length;
     const backlogCount = getBacklogAnime().length;
-    const achievementsCount = (challengeData.unlockedAchievements || []).length;
+    const achievementXP = calculateAchievementXP(challengeData.unlockedAchievements || []);
     const episodesCount = anipaceData.history ? anipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
 
-    // XP Weights: Completed Challenge: +100 XP, Backlog: +20 XP, Achievement: +500 XP, AniPace ep: +10 XP
-    const totalXP = (challengeCount * 100) + (backlogCount * 20) + (achievementsCount * 500) + (episodesCount * 10);
+    // XP Weights: Completed Challenge: +100 XP, Backlog: +20 XP, Achievements: tiered XP (100/250/500/1000 each), AniPace ep: +10 XP
+    const totalXP = (challengeCount * 100) + (backlogCount * 20) + achievementXP + (episodesCount * 10);
     const userLevel = Math.floor(totalXP / 1000) + 1;
 
     return { totalXP, userLevel };
@@ -2448,114 +2697,11 @@ function initializeApp() {
         };
     });
     
-    document.getElementById('achievements-card').onclick = () => { 
-        const grid = document.getElementById('achievements-grid'); 
-        grid.innerHTML = ''; 
-        if(achievements.length === 0) { 
-            grid.innerHTML = `<div class="empty-state-message">No achievements defined.</div>`; 
-        } else { 
-            const categories = {
-                '🎯 Milestone Milestones': achievements.filter(a => a.id.startsWith('total_')),
-                '🌸 Genre Badges': achievements.filter(a => a.id.includes('_1') || a.id.includes('_2') || a.id.includes('_3')),
-                '📅 Retro Decades': achievements.filter(a => a.id.startsWith('decade_')),
-                '🎬 Animation Studios': achievements.filter(a => a.id.startsWith('studio_')),
-                '🔥 Special Challenges': achievements.filter(a => !a.id.startsWith('total_') && !a.id.startsWith('decade_') && !a.id.startsWith('studio_') &&
-                    !(a.id.includes('_1') || a.id.includes('_2') || a.id.includes('_3')))
-            };
-            
-            const totalUniqueAnime = getUniqueAnime();
-            const episodesCount = anipaceData.history ? anipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
-
-            Object.entries(categories).forEach(([category, categoryAchievements]) => {
-                if (categoryAchievements.length > 0) {
-                    const categoryDiv = document.createElement('div');
-                    categoryDiv.className = 'achievement-category';
-                    categoryDiv.style.cssText = `
-                        margin-bottom: 25px;
-                        border-bottom: 1px solid rgba(255,255,255,0.04);
-                        padding-bottom: 15px;
-                    `;
-                    categoryDiv.innerHTML = `<h3 style="color: var(--primary-color); margin-bottom: 15px; font-size: 16px; border-left: 3px solid var(--primary-color); padding-left: 8px;">${category}</h3>`;
-
-                    const subGrid = document.createElement('div');
-                    subGrid.style.cssText = `
-                        display: grid;
-                        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-                        gap: 12px;
-                    `;
-                    
-                    categoryAchievements.forEach(ach => { 
-                        const isUnlocked = challengeData.unlockedAchievements.includes(ach.id); 
-                        const item = document.createElement('div'); 
-                        item.className = `achievement-item ${isUnlocked ? 'unlocked' : ''}`;
-                        item.style.cssText = `
-                            background: rgba(255, 255, 255, 0.02);
-                            border: 1px solid rgba(255,255,255,0.04);
-                            padding: 14px;
-                            border-radius: 12px;
-                            opacity: ${isUnlocked ? '1' : '0.6'};
-                            border-left: 4px solid ${isUnlocked ? 'var(--primary-color)' : '#4B5563'};
-                            position: relative;
-                            display: flex;
-                            flex-direction: column;
-                            gap: 4px;
-                        `;
-
-                        // Compute dynamic progress metrics for achievements to make it highly professional
-                        let progressText = '';
-                        let percent = 0;
-                        if (ach.id.startsWith('total_')) {
-                            const target = parseInt(ach.id.split('_')[1]);
-                            percent = Math.min(100, (totalUniqueAnime.length / target) * 100);
-                            progressText = `${totalUniqueAnime.length}/${target}`;
-                        } else if (ach.id.startsWith('decade_')) {
-                            const target = ach.id === 'decade_80s' ? 3 : (ach.id === 'decade_90s' ? 5 : (ach.id === 'decade_2000s' ? 10 : (ach.id === 'decade_2010s' ? 15 : 20)));
-                            const startYear = ach.id === 'decade_80s' ? 1980 : (ach.id === 'decade_90s' ? 1990 : (ach.id === 'decade_2000s' ? 2000 : (ach.id === 'decade_2010s' ? 2010 : 2020)));
-                            const matchedCount = totalUniqueAnime.filter(a => !a.isManual && a.year >= startYear && (ach.id === 'decade_2020s' ? true : a.year < startYear + 10)).length;
-                            percent = Math.min(100, (matchedCount / target) * 100);
-                            progressText = `${matchedCount}/${target}`;
-                        } else if (ach.id.includes('_1') || ach.id.includes('_2') || ach.id.includes('_3')) {
-                            const target = ach.id.endsWith('_1') ? 5 : (ach.id.endsWith('_2') ? 15 : 30);
-                            const rawGenre = ach.description.split(' ')[1]; // Extract genre name safely from string
-                            const matchedCount = countGenre(totalUniqueAnime, rawGenre);
-                            percent = Math.min(100, (matchedCount / target) * 100);
-                            progressText = `${matchedCount}/${target}`;
-                        } else if (ach.id === 'marathon_runner') {
-                            const maxSingleDay = anipaceData.history ? Math.max(0, ...anipaceData.history.map(h => h.episodes || 0)) : 0;
-                            percent = Math.min(100, (maxSingleDay / 10) * 100);
-                            progressText = `${maxSingleDay}/10 ep`;
-                        } else {
-                            percent = isUnlocked ? 100 : 0;
-                            progressText = isUnlocked ? '1/1' : '0/1';
-                        }
-
-                        const barColor = isUnlocked ? 'var(--success-color)' : 'var(--primary-color)';
-
-                        item.innerHTML = `
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <h4 style="margin: 0; font-size: 13px; color: ${isUnlocked ? 'var(--primary-color)' : '#9CA3AF'}; font-weight:700;">${ach.title}</h4>
-                                <span style="font-size: 10px; font-weight:800; color:var(--success-color);">+500 XP</span>
-                            </div>
-                            <p style="margin: 0; font-size: 11px; color: var(--text-secondary); line-height:1.4;">${ach.description}</p>
-                            <div style="margin-top: auto; padding-top: 6px;">
-                                <div style="display:flex; justify-content:space-between; font-size: 9px; color: var(--text-secondary); font-weight:bold; margin-bottom: 2px;">
-                                    <span>Progress</span>
-                                    <span>${progressText} (${Math.floor(percent)}%)</span>
-                                </div>
-                                <div style="height:4px; width:100%; background:rgba(0,0,0,0.4); border-radius:3px; overflow:hidden;">
-                                    <div style="height:100%; width:${percent}%; background:${barColor}; border-radius:3px;"></div>
-                                </div>
-                            </div>
-                        `;
-                        subGrid.appendChild(item);
-                    });
-                    
-                    categoryDiv.appendChild(subGrid);
-                    grid.appendChild(categoryDiv);
-                }
-            });
-        } 
-        document.getElementById('achievements-modal').classList.remove('hidden'); 
+    document.getElementById('achievements-card').onclick = () => {
+        // ALWAYS open on the Newbie tab, every time the modal opens.
+        activeAchievementRank = 'Newbie';
+        renderAchievementsModal();
+        document.getElementById('achievements-modal').classList.remove('hidden');
     };
 
     const chartToggleBtns = document.querySelectorAll('.chart-toggle-btn');
@@ -3417,8 +3563,8 @@ function initProfileSettings() {
             // XP Progression Formula
             const currentAnipaceData = window.anipaceData;
             const episodesCount = currentAnipaceData && currentAnipaceData.history ? currentAnipaceData.history.reduce((sum, h) => sum + (h.episodes || 0), 0) : 0;
-            const achievementsCount = unlockedAchievements ? unlockedAchievements.length : 0;
-            const computedXP = (counts.completedCount * 100) + (backlogListSync.length * 20) + (achievementsCount * 500) + (episodesCount * 10);
+            const achievementXP = calculateAchievementXP(unlockedAchievements || []);
+            const computedXP = (counts.completedCount * 100) + (backlogListSync.length * 20) + achievementXP + (episodesCount * 10);
             const computedLevel = Math.floor(computedXP / 1000) + 1;
 
             const profileUpdate = {

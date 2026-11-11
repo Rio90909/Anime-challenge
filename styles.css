@@ -1714,3 +1714,39 @@ input[type="date"]::-webkit-outer-spin-button {
     color: #D1D5DB;
     border: 1px solid rgba(156, 163, 175, 0.3);
 }
+/* --- Achievements modal redesign --- */
+#achievements-next-up { margin-bottom: 16px; }
+.ach-next-up { background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 12px; padding: 14px; }
+.ach-next-up-title { font-size: 14px; font-weight: 800; color: var(--primary-color); margin-bottom: 10px; }
+.ach-next-up-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.ach-next-up-card { display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-left: 4px solid var(--ach-color, #9CA3AF); border-radius: 10px; padding: 10px 12px; }
+.ach-next-up-info { flex: 1; min-width: 0; }
+.ach-next-up-name { font-size: 13px; font-weight: 700; color: #FFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ach-next-up-progress { font-size: 11px; color: var(--text-secondary); font-weight: 700; margin: 2px 0 5px; }
+
+.ach-rank-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.ach-rank-tab { background: rgba(255,255,255,0.04); color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.08); border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
+.ach-rank-tab:hover { background: rgba(255,255,255,0.08); color: #FFF; }
+.ach-rank-tab.active { background: var(--primary-color); color: #000; border-color: var(--primary-color); }
+
+.achievement-category { margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.04); padding-bottom: 15px; }
+.achievement-category-heading { color: var(--primary-color); margin-bottom: 15px; font-size: 16px; border-left: 3px solid var(--primary-color); padding-left: 8px; }
+.achievement-subgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+
+.achievement-item { display: flex; flex-direction: column; gap: 4px; }
+.achievement-item.locked { opacity: 0.55; border-left-color: #4B5563; }
+.achievement-item.unlocked { border-left-color: var(--ach-color, var(--primary-color)); }
+.ach-card-head { display: flex; align-items: center; gap: 8px; }
+.ach-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.achievement-item.locked .ach-icon { filter: grayscale(1); opacity: 0.6; }
+.ach-card-head h4 { flex: 1; margin: 0; font-size: 13px; font-weight: 700; color: #FFF; }
+.achievement-item.locked .ach-card-head h4 { color: #9CA3AF; }
+.ach-xp { font-size: 10px; font-weight: 800; color: var(--success-color); white-space: nowrap; }
+.achievement-item.locked .ach-xp { color: #9CA3AF; }
+.ach-desc { margin: 0; font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
+.ach-status { font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+.achievement-item.unlocked .ach-status { color: var(--success-color); }
+.ach-progress { margin-top: auto; padding-top: 6px; }
+.ach-progress-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--text-secondary); font-weight: bold; margin-bottom: 2px; }
+.ach-progress-bar { height: 4px; width: 100%; background: rgba(0,0,0,0.4); border-radius: 3px; overflow: hidden; }
+.ach-progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
