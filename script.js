@@ -35,164 +35,200 @@ const AVATAR_PRESETS = [
 const EMOJIS = ["😊", "😂", "🔥", "✨", "🍿", "🎉", "💖", "🤩", "🤔", "😭", "😤", "🌸", "🍥", "⚔️", "🦊", "👒", "⚡", "🎒", "👽", "🤖"];
 
 // Normalizes Kitsu API response structure into Jikan format
-function normalizeKitsuResponse(searchData) {
-    const included = searchData.included || [];
-    const data = searchData.data || [];
+// ================= AniList API layer =================
+// AniList is the app's main anime data source (GraphQL, no key needed
+// for public data). Everything AniList returns is converted by
+// normalizeAniListResponse into the exact same object shape the rest
+// of the app has always consumed, so no screen or feature changes —
+// only the source underneath. Kitsu is kept for streaming links only.
+const ANILIST_API_URL = 'https://graphql.anilist.co';
 
-    return data.map(anime => {
-        const attrs = anime.attributes || {};
-        const mal_id = parseInt(anime.id) || anime.id;
+// AniList's genre list is fixed by AniList itself (no Setting/place
+// tags can ever appear, unlike Kitsu categories). Slugs are ours;
+// titles must match AniList's genre names exactly for filtering.
+const ANILIST_GENRES = [
+    { title: 'Action', slug: 'action' },
+    { title: 'Adventure', slug: 'adventure' },
+    { title: 'Comedy', slug: 'comedy' },
+    { title: 'Drama', slug: 'drama' },
+    { title: 'Ecchi', slug: 'ecchi' },
+    { title: 'Fantasy', slug: 'fantasy' },
+    { title: 'Horror', slug: 'horror' },
+    { title: 'Mahou Shoujo', slug: 'mahou-shoujo' },
+    { title: 'Mecha', slug: 'mecha' },
+    { title: 'Music', slug: 'music' },
+    { title: 'Mystery', slug: 'mystery' },
+    { title: 'Psychological', slug: 'psychological' },
+    { title: 'Romance', slug: 'romance' },
+    { title: 'Sci-Fi', slug: 'sci-fi' },
+    { title: 'Slice of Life', slug: 'slice-of-life' },
+    { title: 'Sports', slug: 'sports' },
+    { title: 'Supernatural', slug: 'supernatural' },
+    { title: 'Thriller', slug: 'thriller' }
+];
 
-        // Get genres matching this anime's relationships
-        const genreIds = (anime.relationships?.genres?.data || []).map(g => g.id);
-        const genres = included
-            .filter(item => item.type === 'genres' && genreIds.includes(item.id))
-            .map(item => ({ name: item.attributes?.name }));
+// Fresh API results are registered here (keyed by source + id) so the
+// Read Story details loader can tell AniList entries from older
+// Kitsu entries — both use plain numeric ids that can overlap.
+const ANIME_DETAILS_REGISTRY = {};
+function registerAnimeForDetails(anime) {
+    if (anime && anime.mal_id !== null && anime.mal_id !== undefined) {
+        ANIME_DETAILS_REGISTRY[`${anime.source || 'kitsu'}:${anime.mal_id}`] = anime;
+    }
+}
 
-        // Get categories matching this anime's relationships as fallback/additional genres
-        const categoryIds = (anime.relationships?.categories?.data || []).map(c => c.id);
-        const categories = included
-            .filter(item => item.type === 'categories' && categoryIds.includes(item.id))
-            .map(item => ({ name: item.attributes?.title || item.attributes?.name }))
-            .filter(Boolean);
+function stripHtmlTags(text) {
+    return (text || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
+}
 
-        // Combine and deduplicate genres and categories
-        const allGenresMap = {};
-        genres.forEach(g => { if (g.name) allGenresMap[g.name] = true; });
-        categories.forEach(c => { if (c.name) allGenresMap[c.name] = true; });
-        const combinedGenres = Object.keys(allGenresMap).map(name => ({ name }));
+async function anilistGraphQL(query, variables) {
+    const res = await fetch(ANILIST_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({ query, variables })
+    });
+    if (!res.ok) {
+        throw new Error(`AniList request failed: HTTP ${res.status}`);
+    }
+    const json = await res.json();
+    if (json.errors) {
+        throw new Error('AniList returned errors');
+    }
+    return json.data;
+}
 
-        // Get studios/producers matching this anime's relationships
-        const animeProductionData = anime.relationships?.animeProductions?.data || [];
-        const animeProductionIds = animeProductionData.map(ap => ap.id);
+const ANILIST_MEDIA_FIELDS = `
+    id
+    title { romaji english }
+    coverImage { large medium extraLarge }
+    bannerImage
+    episodes
+    duration
+    averageScore
+    popularity
+    seasonYear
+    startDate { year }
+    format
+    status
+    genres
+    description
+    isAdult
+    trailer { id site }
+    studios { edges { isMain node { name } } nodes { name } }
+    rankings { rank type allTime }
+`;
 
-        const animeProductions = included.filter(item =>
-            item.type === 'animeProductions' && animeProductionIds.includes(item.id)
-        );
-
-        // Map each animeProduction to its producer name and role
-        const mappedProductions = animeProductions.map(ap => {
-            const role = ap.attributes?.role || 'producer';
-            const producerId = ap.relationships?.producer?.data?.id;
-            const producerObj = producerId ? included.find(p => p.type === 'producers' && p.id === producerId) : null;
-            const name = producerObj?.attributes?.name;
-            return { name, role };
-        }).filter(item => item.name);
-
-        // Prioritize by role: studio > producer > licensor
-        const studiosWithRole = mappedProductions.filter(p => p.role === 'studio');
-        const producersWithRole = mappedProductions.filter(p => p.role === 'producer');
-        const licensorsWithRole = mappedProductions.filter(p => p.role === 'licensor');
-
-        let finalStudios = [];
-        if (studiosWithRole.length > 0) {
-            finalStudios = studiosWithRole.map(s => ({ name: s.name }));
-        } else if (producersWithRole.length > 0) {
-            finalStudios = producersWithRole.map(p => ({ name: p.name }));
-        } else if (licensorsWithRole.length > 0) {
-            finalStudios = licensorsWithRole.map(l => ({ name: l.name }));
+const ANILIST_PAGE_QUERY = `
+query ($page: Int, $perPage: Int, $sort: [MediaSort], $status: MediaStatus, $genre: String, $formatIn: [MediaFormat], $epGreater: Int, $epLesser: Int, $search: String) {
+    Page(page: $page, perPage: $perPage) {
+        media(type: ANIME, sort: $sort, status: $status, genre: $genre, format_in: $formatIn, episodes_greater: $epGreater, episodes_lesser: $epLesser, search: $search, isAdult: false) {
+            ${ANILIST_MEDIA_FIELDS}
         }
+    }
+}`;
 
-        const studios = finalStudios;
-
-        // Map subtype to Jikan-like type
-        let animeType = attrs.subtype || 'TV';
-        if (animeType.toLowerCase() === 'tv') animeType = 'TV';
-        else if (animeType.toLowerCase() === 'movie') animeType = 'Movie';
-        else if (animeType.toLowerCase() === 'ova') animeType = 'OVA';
-        else if (animeType.toLowerCase() === 'ona') animeType = 'ONA';
-        else if (animeType.toLowerCase() === 'special') animeType = 'Special';
-
-        // Map titles
-        const titles = [];
-        const canonical = attrs.canonicalTitle || attrs.titles?.en_jp || attrs.titles?.en || '';
-        if (canonical) {
-            titles.push({ type: 'Default', title: canonical });
-        }
-
-        let englishTitle = attrs.titles?.en || attrs.titles?.en_us || '';
-        if (englishTitle) {
-            titles.push({ type: 'English', title: englishTitle });
-        } else {
-            // fallback
-            englishTitle = canonical;
-            titles.push({ type: 'English', title: englishTitle });
-        }
-
-        const title = englishTitle || canonical;
-
-        // Map score
-        const score = attrs.averageRating ? parseFloat((parseFloat(attrs.averageRating) / 10).toFixed(2)) : null;
-
-        // Map year
-        const startDateStr = attrs.startDate;
-        const year = startDateStr ? new Date(startDateStr).getFullYear() : null;
-
-        // Map poster images
-        const posterUrl = attrs.posterImage?.medium || attrs.posterImage?.small || attrs.posterImage?.original || '';
-        const smallPosterUrl = attrs.posterImage?.small || attrs.posterImage?.tiny || '';
-        const images = {
-            jpg: {
-                image_url: posterUrl,
-                small_image_url: smallPosterUrl
+const ANILIST_CHARACTERS_QUERY = `
+query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        characters(sort: [ROLE, ID], page: 1, perPage: 4) {
+            edges {
+                role
+                node { name { full } image { medium } }
             }
-        };
+        }
+    }
+}`;
 
-        const episodes = attrs.episodeCount || null;
-        const synopsis = attrs.synopsis || attrs.description || '';
+// Converts an AniList Page result into the app's normalized shape —
+// the same fields the old Kitsu mapper used to produce.
+function normalizeAniListResponse(pageData) {
+    const media = (pageData && pageData.media) || [];
+    const formatMap = { TV: 'TV', TV_SHORT: 'TV', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music' };
+    const statusMap = { RELEASING: 'current', FINISHED: 'finished', NOT_YET_RELEASED: 'upcoming', CANCELLED: 'cancelled' };
 
-        return {
-            mal_id,
-            title,
-            titles,
-            genres: combinedGenres,
-            studios,
-            type: animeType,
-            score,
-            year,
-            images,
-            episodes,
-            synopsis,
-            popularityRank: attrs.popularityRank || null,
-            ratingRank: attrs.ratingRank || null,
-            userCount: attrs.userCount || null,
-            airingStatus: attrs.status || 'unknown',
-            averageRating: attrs.averageRating || null,
-            youtubeVideoId: attrs.youtubeVideoId || null,
-            ageRating: attrs.ageRating || null,
-            ageRatingGuide: attrs.ageRatingGuide || null,
-            episodeLength: attrs.episodeLength || null,
-            coverImage: attrs.coverImage?.large || attrs.coverImage?.original || attrs.coverImage?.medium || null,
-            isManual: false
+    return media.map(m => {
+        const romaji = (m.title && m.title.romaji) || '';
+        const english = (m.title && m.title.english) || null;
+        const title = english || romaji;
+        const titles = [];
+        if (romaji) titles.push({ type: 'Default', title: romaji });
+        titles.push({ type: 'English', title: title });
+
+        const mainStudios = ((m.studios && m.studios.edges) || []).filter(e => e.isMain && e.node).map(e => ({ name: e.node.name }));
+        const studios = mainStudios.length > 0 ? mainStudios : (((m.studios && m.studios.nodes) || []).slice(0, 1).map(n => ({ name: n.name })));
+
+        const rated = (m.rankings || []).find(r => r.type === 'RATED' && r.allTime);
+        const popular = (m.rankings || []).find(r => r.type === 'POPULAR' && r.allTime);
+
+        const anime = {
+            mal_id: m.id,
+            title: title,
+            titles: titles,
+            genres: (m.genres || []).map(name => ({ name: name })),
+            studios: studios,
+            type: formatMap[m.format] || 'TV',
+            score: (m.averageScore !== null && m.averageScore !== undefined) ? parseFloat((m.averageScore / 10).toFixed(2)) : null,
+            year: m.seasonYear || (m.startDate && m.startDate.year) || null,
+            images: {
+                jpg: {
+                    image_url: (m.coverImage && (m.coverImage.large || m.coverImage.medium)) || '',
+                    small_image_url: (m.coverImage && m.coverImage.medium) || ''
+                }
+            },
+            episodes: (m.episodes === undefined ? null : m.episodes),
+            synopsis: stripHtmlTags(m.description || ''),
+            popularityRank: popular ? popular.rank : null,
+            ratingRank: rated ? rated.rank : null,
+            userCount: m.popularity || null,
+            airingStatus: statusMap[m.status] || 'unknown',
+            averageRating: (m.averageScore !== null && m.averageScore !== undefined) ? String(m.averageScore) : null,
+            youtubeVideoId: (m.trailer && m.trailer.site === 'youtube') ? m.trailer.id : null,
+            ageRating: m.isAdult ? 'R' : null,
+            ageRatingGuide: null,
+            episodeLength: m.duration || null,
+            coverImage: m.bannerImage || (m.coverImage && m.coverImage.extraLarge) || null,
+            isManual: false,
+            source: 'anilist'
         };
+        registerAnimeForDetails(anime);
+        return anime;
     });
 }
 
-// The Kitsu trending endpoint returns anime WITHOUT genre/category data
-// (its relationships carry links only and there is no "included" array),
-// so cards built from it showed "Genres: N/A". This takes normalized
-// trending results, fetches the same anime from the main endpoint — which
-// does return genres, categories and studios — and swaps in the full
-// copies while keeping the trending order. On any failure it returns the
-// list unchanged, so trending still renders, just without genres.
-async function enrichWithFullAnimeData(normalizedList) {
-    try {
-        const ids = normalizedList.map(a => a.mal_id).filter(Boolean);
-        if (!ids.length) return normalizedList;
-        const res = await fetch(`${API_URL}?filter[id]=${ids.join(',')}&include=genres,categories,animeProductions.producer&page[limit]=${ids.length}`, {
-            headers: {
-                'Accept': 'application/vnd.api+json',
-                'Content-Type': 'application/vnd.api+json'
-            }
-        });
-        const fullData = await res.json();
-        const byId = {};
-        normalizeKitsuResponse(fullData).forEach(a => { byId[a.mal_id] = a; });
-        return normalizedList.map(a => byId[a.mal_id] || a);
-    } catch (e) {
-        console.error('Failed to enrich trending anime data:', e);
-        return normalizedList;
+async function searchAniList(text, perPage) {
+    const data = await anilistGraphQL(ANILIST_PAGE_QUERY, {
+        page: 1,
+        perPage: perPage || 10,
+        search: text,
+        sort: ['SEARCH_MATCH']
+    });
+    return normalizeAniListResponse(data.Page);
+}
+
+// Shared Discover filter variables (genre / format / episode length)
+// built from the current Discover filter state.
+function buildDiscoverVariables(page) {
+    const vars = { page: page, perPage: 12 };
+    if (activeDiscoverGenre !== 'all') {
+        const genre = ANILIST_GENRES.find(g => g.slug === activeDiscoverGenre);
+        if (genre) vars.genre = genre.title;
     }
+    if (activeDiscoverFormat !== 'all') {
+        const formatMap = { 'TV': ['TV', 'TV_SHORT'], 'Movie': ['MOVIE'], 'OVA': ['OVA'], 'special': ['SPECIAL'] };
+        if (formatMap[activeDiscoverFormat]) vars.formatIn = formatMap[activeDiscoverFormat];
+    }
+    if (activeDiscoverEpisodes !== 'all' && DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]) {
+        const rangeParts = DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes].split('..').map(Number);
+        // The trend grid's client-side filter enforces the exact range;
+        // the server range is kept one wider on the low side so an
+        // off-by-one in AniList's comparison can never hide a match.
+        vars.epGreater = rangeParts[0] - 1;
+        vars.epLesser = rangeParts[1];
+    }
+    return vars;
 }
 
 // Parses a single line for bulk imports, extracting optional rating at the end
@@ -218,13 +254,13 @@ function parseBulkLine(line) {
     return { title: line, rating: null };
 }
 
-window.toggleSynopsis = function(btn, animeId) {
+window.toggleSynopsis = function(btn, animeId, animeSource) {
     const p = btn.nextElementSibling;
     if (p.classList.contains('hidden')) {
         p.classList.remove('hidden');
         btn.textContent = 'Hide Story ▴';
         if (animeId) {
-            window.lazyLoadDetails(animeId);
+            window.lazyLoadDetails(animeId, animeSource);
         }
     } else {
         p.classList.add('hidden');
@@ -232,82 +268,152 @@ window.toggleSynopsis = function(btn, animeId) {
     }
 };
 
-window.lazyLoadDetails = function(animeId) {
+// Finds the full anime object behind a details panel: fresh API
+// results are in the registry; saved entries come from the user's
+// own lists. Older saved entries have no source — they are Kitsu
+// entries, because Kitsu was the only source when they were added.
+function resolveAnimeForDetails(animeId, animeSource) {
+    const source = animeSource || 'kitsu';
+    const registered = ANIME_DETAILS_REGISTRY[`${source}:${animeId}`];
+    if (registered) return registered;
+    const stored = getUniqueAnime().find(a => String(a.mal_id) === String(animeId) && (a.source || 'kitsu') === source);
+    if (stored) {
+        registerAnimeForDetails(stored);
+        return stored;
+    }
+    return null;
+}
+
+// Streaming links live on Kitsu. AniList entries carry AniList ids,
+// so their Kitsu entry is found by title first.
+async function kitsuIdByTitle(title) {
+    try {
+        const res = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=1&fields[anime]=id`);
+        const resData = await res.json();
+        return (resData.data && resData.data[0] && resData.data[0].id) || null;
+    } catch (err) {
+        console.error("Kitsu title lookup error:", err);
+        return null;
+    }
+}
+
+function renderStreamingLinks(linksContainer, kitsuId) {
+    fetch(`https://kitsu.io/api/edge/anime/${kitsuId}/streaming-links`)
+        .then(res => res.json())
+        .then(resData => {
+            const links = resData.data || [];
+            if (links.length === 0) {
+                linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--text-secondary);">Streaming: No official links found.</span>';
+                return;
+            }
+            let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color);">📺 Stream Officially:</strong><div style="display: flex; gap: 8px; flex-wrap: wrap;">';
+            links.forEach(link => {
+                const url = link.attributes?.url || '#';
+                let platform = 'Streaming Service';
+                if (url.includes('crunchyroll.com')) platform = 'Crunchyroll';
+                else if (url.includes('netflix.com')) platform = 'Netflix';
+                else if (url.includes('hulu.com')) platform = 'Hulu';
+                else if (url.includes('funimation.com')) platform = 'Funimation';
+                else if (url.includes('hidive.com')) platform = 'HIDIVE';
+                else if (url.includes('youtube.com')) platform = 'YouTube';
+                else if (url.includes('amazon.com')) platform = 'Amazon Prime';
+
+                html += `<a href="${url}" target="_blank" rel="noopener noreferrer" class="streaming-link-badge" style="background: #1F2937; color: #FFFFFF; font-size: 10px; padding: 4px 8px; border-radius: 4px; text-decoration: none; border: 1px solid rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 4px; font-weight: bold; transition: background 0.2s;">📺 ${platform}</a>`;
+            });
+            html += '</div>';
+            linksContainer.innerHTML = html;
+        })
+        .catch(err => {
+            console.error("Streaming fetch error:", err);
+            linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--error-color);">Failed to load streaming links.</span>';
+        });
+}
+
+// Characters come from AniList (names + images), rendered into the
+// same cards the Kitsu characters used.
+function renderAniListCharacters(charsContainer, anilistId) {
+    anilistGraphQL(ANILIST_CHARACTERS_QUERY, { id: anilistId })
+        .then(data => {
+            const edges = (data && data.Media && data.Media.characters && data.Media.characters.edges) || [];
+            if (edges.length === 0) {
+                charsContainer.innerHTML = '';
+                return;
+            }
+            let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color); margin-top: 8px;">🎭 Main Characters:</strong><div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; max-width: 100%; box-sizing: border-box;">';
+            edges.forEach(edge => {
+                if (!edge.node) return;
+                const name = (edge.node.name && edge.node.name.full) || 'Unknown';
+                const img = (edge.node.image && edge.node.image.medium) || 'https://via.placeholder.com/40x50';
+                const roleType = edge.role === 'MAIN' ? 'Main' : 'Supporting';
+
+                html += `
+                    <div style="flex: 0 0 auto; width: 80px; text-align: center; background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                        <img src="${img}" alt="${name}" style="width: 100%; height: 70px; object-fit: cover; border-radius: 4px; margin-bottom: 4px;">
+                        <div style="font-size: 9px; font-weight: bold; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</div>
+                        <div style="font-size: 8px; color: var(--text-secondary);">${roleType}</div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            charsContainer.innerHTML = html;
+        })
+        .catch(err => {
+            console.error("Characters fetch error:", err);
+            charsContainer.innerHTML = '';
+        });
+}
+
+window.lazyLoadDetails = function(animeId, animeSource) {
     const linksContainer = document.getElementById(`streaming-links-${animeId}`);
     const charsContainer = document.getElementById(`characters-${animeId}`);
+    const anime = resolveAnimeForDetails(animeId, animeSource);
+    const source = animeSource || (anime && anime.source) || 'kitsu';
 
     if (linksContainer && !linksContainer.dataset.loaded) {
         linksContainer.dataset.loaded = 'true';
         linksContainer.innerHTML = '<span style="font-size: 10px; color: var(--text-secondary);">Loading streaming options...</span>';
-        fetch(`https://kitsu.io/api/edge/anime/${animeId}/streaming-links`)
-            .then(res => res.json())
-            .then(resData => {
-                const links = resData.data || [];
-                if (links.length === 0) {
-                    linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--text-secondary);">Streaming: No official links found.</span>';
-                    return;
-                }
-                let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color);">📺 Stream Officially:</strong><div style="display: flex; gap: 8px; flex-wrap: wrap;">';
-                links.forEach(link => {
-                    const url = link.attributes?.url || '#';
-                    let platform = 'Streaming Service';
-                    if (url.includes('crunchyroll.com')) platform = 'Crunchyroll';
-                    else if (url.includes('netflix.com')) platform = 'Netflix';
-                    else if (url.includes('hulu.com')) platform = 'Hulu';
-                    else if (url.includes('funimation.com')) platform = 'Funimation';
-                    else if (url.includes('hidive.com')) platform = 'HIDIVE';
-                    else if (url.includes('youtube.com')) platform = 'YouTube';
-                    else if (url.includes('amazon.com')) platform = 'Amazon Prime';
-
-                    html += `<a href="${url}" target="_blank" rel="noopener noreferrer" class="streaming-link-badge" style="background: #1F2937; color: #FFFFFF; font-size: 10px; padding: 4px 8px; border-radius: 4px; text-decoration: none; border: 1px solid rgba(255,255,255,0.15); display: inline-flex; align-items: center; gap: 4px; font-weight: bold; transition: background 0.2s;">📺 ${platform}</a>`;
+        if (anime && anime.isManual) {
+            linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--text-secondary);">Streaming: No official links found.</span>';
+        } else if (source === 'anilist') {
+            const titleForLookup = anime ? getEnglishTitle(anime) : null;
+            if (!titleForLookup) {
+                linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--text-secondary);">Streaming: No official links found.</span>';
+            } else {
+                kitsuIdByTitle(titleForLookup).then(kitsuId => {
+                    if (kitsuId) {
+                        renderStreamingLinks(linksContainer, kitsuId);
+                    } else {
+                        linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--text-secondary);">Streaming: No official links found.</span>';
+                    }
                 });
-                html += '</div>';
-                linksContainer.innerHTML = html;
-            })
-            .catch(err => {
-                console.error("Streaming fetch error:", err);
-                linksContainer.innerHTML = '<span style="font-size: 10.5px; color: var(--error-color);">Failed to load streaming links.</span>';
-            });
+            }
+        } else {
+            renderStreamingLinks(linksContainer, animeId);
+        }
     }
 
     if (charsContainer && !charsContainer.dataset.loaded) {
         charsContainer.dataset.loaded = 'true';
         charsContainer.innerHTML = '<span style="font-size: 10px; color: var(--text-secondary);">Loading characters...</span>';
-        fetch(`https://kitsu.io/api/edge/anime/${animeId}/characters?include=character&page[limit]=4`)
-            .then(res => res.json())
-            .then(resData => {
-                const roles = resData.data || [];
-                const included = resData.included || [];
-                if (roles.length === 0) {
-                    charsContainer.innerHTML = '';
-                    return;
-                }
-                let html = '<strong style="font-size: 11px; display: block; margin-bottom: 6px; color: var(--primary-color); margin-top: 8px;">🎭 Main Characters:</strong><div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; max-width: 100%; box-sizing: border-box;">';
-                roles.forEach(role => {
-                    const charRef = role.relationships?.character?.data;
-                    if (!charRef) return;
-                    const charObj = included.find(inc => inc.type === 'characters' && inc.id === charRef.id);
-                    if (!charObj) return;
-
-                    const name = charObj.attributes?.name || 'Unknown';
-                    const img = charObj.attributes?.image?.original || charObj.attributes?.image?.medium || 'https://via.placeholder.com/40x50';
-                    const roleType = role.attributes?.role || 'Main';
-
-                    html += `
-                        <div style="flex: 0 0 auto; width: 80px; text-align: center; background: rgba(255,255,255,0.03); border-radius: 6px; padding: 6px; border: 1px solid rgba(255,255,255,0.05);">
-                            <img src="${img}" alt="${name}" style="width: 100%; height: 70px; object-fit: cover; border-radius: 4px; margin-bottom: 4px;">
-                            <div style="font-size: 9px; font-weight: bold; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</div>
-                            <div style="font-size: 8px; color: var(--text-secondary);">${roleType}</div>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-                charsContainer.innerHTML = html;
-            })
-            .catch(err => {
-                console.error("Characters fetch error:", err);
-                charsContainer.innerHTML = '';
-            });
+        if (anime && anime.isManual) {
+            charsContainer.innerHTML = '';
+        } else if (source === 'anilist') {
+            renderAniListCharacters(charsContainer, parseInt(animeId));
+        } else if (anime) {
+            // Kitsu-era entry: find its AniList match by title, then
+            // load that entry's characters from AniList.
+            searchAniList(getEnglishTitle(anime), 1)
+                .then(results => {
+                    if (results && results.length > 0) {
+                        renderAniListCharacters(charsContainer, results[0].mal_id);
+                    } else {
+                        charsContainer.innerHTML = '';
+                    }
+                })
+                .catch(() => { charsContainer.innerHTML = ''; });
+        } else {
+            charsContainer.innerHTML = '';
+        }
     }
 };
 
@@ -889,23 +995,39 @@ function getChallengeAnime() {
     return Array.from(uniqueMap.values());
 }
 
+function animeTitleKeys(anime) {
+    const keys = new Set();
+    if (anime.title) keys.add(anime.title.toLowerCase().trim());
+    (anime.titles || []).forEach(t => {
+        if (t && t.title) keys.add(t.title.toLowerCase().trim());
+    });
+    return keys;
+}
+
 function isDuplicateAnime(anime) {
-    const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
+    // The same show can arrive from two APIs with different numeric
+    // ids (Kitsu before the switch, AniList after), so duplicates are
+    // matched by title as well as by id within the same source.
+    const titleKeys = animeTitleKeys(anime);
+    const matches = (item) => {
+        if (!item) return false;
+        if (item.isManual || anime.isManual) {
+            return !!(item.title && anime.title && item.title.toLowerCase().trim() === anime.title.toLowerCase().trim());
+        }
+        if ((item.source || 'kitsu') === (anime.source || 'kitsu') && item.mal_id === anime.mal_id) return true;
+        const itemKeys = animeTitleKeys(item);
+        for (const k of titleKeys) {
+            if (itemKeys.has(k)) return true;
+        }
+        return false;
+    };
 
     // Check in challenge days
     const dailyWatchedAnime = Object.values(challengeData.days).flatMap(day => day.watched || []);
-    const inChallenge = dailyWatchedAnime.some(item => {
-        const itemKey = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
-        return itemKey === key;
-    });
-    if (inChallenge) return true;
+    if (dailyWatchedAnime.some(matches)) return true;
 
     // Check in backlog
-    const inBacklog = (challengeData.backlog || []).some(item => {
-        const itemKey = item.isManual ? item.title.toLowerCase().trim() : item.mal_id;
-        return itemKey === key;
-    });
-    return inBacklog;
+    return (challengeData.backlog || []).some(matches);
 }
 
 function getAnimeTrackedStatus(anime) {
@@ -1609,7 +1731,7 @@ function renderAllAnimeList() {
                         </div>
                         ${synopsis ? `
                         <div class="backlog-synopsis-container" style="margin-top: 8px; width: 100%; box-sizing: border-box;">
-                            <button class="backlog-synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')">Read Story ▾</button>
+                            <button class="backlog-synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')">Read Story ▾</button>
                             <div class="backlog-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); box-sizing: border-box; max-width: 100%; word-break: break-word; overflow-wrap: break-word; overflow-x: hidden;">
                                 <!-- Global Ranking Badges & Age Guide -->
                                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -1882,9 +2004,7 @@ function createDayEntry(date) {
         addOnlineBtn.textContent = 'Searching...'; 
         addOnlineBtn.disabled = true; 
         try { 
-            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,categories,animeProductions.producer`);
-            const searchData = await response.json(); 
-            const normalizedData = normalizeKitsuResponse(searchData);
+            const normalizedData = await searchAniList(title, 10);
             showSearchResults(normalizedData, (selectedAnime) => {
                 if (isDuplicateAnime(selectedAnime)) {
                     showNotification("This anime is already in your backlog or challenge watch list!", "error");
@@ -2064,18 +2184,12 @@ function handleSurpriseMe() {
         btn.disabled = true;
     }
 
-    const randomOffset = Math.floor(Math.random() * 200);
-    const fetchUrl = `${API_URL}?sort=-userCount&page[limit]=1&page[offset]=${randomOffset}&include=genres,categories,animeProductions.producer`;
+    // Pick a random page from the most popular anime on AniList.
+    const randomPage = 1 + Math.floor(Math.random() * 100);
 
-    fetch(fetchUrl, {
-        headers: {
-            'Accept': 'application/vnd.api+json',
-            'Content-Type': 'application/vnd.api+json'
-        }
-    })
-        .then(res => res.json())
-        .then(resData => {
-            const normalized = normalizeKitsuResponse(resData);
+    anilistGraphQL(ANILIST_PAGE_QUERY, { page: randomPage, perPage: 1, sort: ['POPULARITY_DESC'] })
+        .then(data => {
+            const normalized = normalizeAniListResponse(data.Page);
             if (!normalized || normalized.length === 0) {
                 showNotification("Surprise generator couldn't find an anime. Try again!", "error");
                 return;
@@ -2147,7 +2261,7 @@ function renderSurpriseModal(anime) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 10px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
                 <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left; ${anime.coverImage ? `background-image: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)), url('${anime.coverImage}'); background-size: cover; background-position: center;` : ''}">
                     <!-- Global Ranking Badges & Age Guide -->
                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -2271,12 +2385,12 @@ function initScheduleScreen() {
             upcoming: upcomingDataCache,
             trends: trendDataCache
         };
-        localStorage.setItem('aniclipse_discover_cache_v2', JSON.stringify(payload));
+        localStorage.setItem('aniclipse_discover_cache_v3', JSON.stringify(payload));
         updateDiscoverLastUpdatedText(discoverCacheTimestamp);
     }
 
     // Load cache on init
-    const cachedData = localStorage.getItem('aniclipse_discover_cache_v2');
+    const cachedData = localStorage.getItem('aniclipse_discover_cache_v3');
     if (cachedData) {
         try {
             const parsed = JSON.parse(cachedData);
@@ -2299,22 +2413,9 @@ function initScheduleScreen() {
         const genreContainer = document.getElementById('discover-genre-tags');
         if (!genreContainer) return;
 
-        const fallbackGenres = [
-            { title: 'All Genres', slug: 'all' },
-            { title: 'Action', slug: 'action' },
-            { title: 'Adventure', slug: 'adventure' },
-            { title: 'Comedy', slug: 'comedy' },
-            { title: 'Drama', slug: 'drama' },
-            { title: 'Fantasy', slug: 'fantasy' },
-            { title: 'Romance', slug: 'romance' },
-            { title: 'Sci-Fi', slug: 'science-fiction' },
-            { title: 'Thriller', slug: 'thriller' },
-            { title: 'Slice of Life', slug: 'slice-of-life' },
-            { title: 'Supernatural', slug: 'supernatural' },
-            { title: 'Mystery', slug: 'mystery' },
-            { title: 'Horror', slug: 'horror' }
-        ];
-
+        // AniList's genre list is fixed, so the filter buttons are
+        // rendered straight from it — no fetch, and Kitsu's place/
+        // setting tags can never appear here.
         const renderGenres = (genresList) => {
             genreContainer.innerHTML = '';
             genresList.forEach(genre => {
@@ -2343,50 +2444,7 @@ function initScheduleScreen() {
             });
         };
 
-        // Try fetching from Kitsu API
-        fetch('https://kitsu.io/api/edge/categories?page[limit]=40&sort=-totalMediaCount&include=parent', {
-            headers: {
-                'Accept': 'application/vnd.api+json',
-                'Content-Type': 'application/vnd.api+json'
-            }
-        })
-        .then(res => res.json())
-        .then(resData => {
-            if (resData && resData.data) {
-                // Kitsu groups place/time categories under a "Setting"
-                // parent, and that tree nests (Setting → Earth → Asia →
-                // Japan), so categories whose parent is any of those are
-                // not genres either — keep them all out of the genre filter.
-                const nonGenreParentSlugs = new Set(['setting', 'earth', 'asia']);
-                const parentSlugById = {};
-                // Look slugs up in the main list as well as "included":
-                // Kitsu does not repeat a category in "included" when it
-                // already appears in the main list, and the Setting tree's
-                // middle links (Earth, Asia) are exactly such categories —
-                // checking "included" only let Japan and Asia slip through.
-                (resData.data || []).forEach(p => { parentSlugById[p.id] = p.attributes?.slug; });
-                (resData.included || []).forEach(p => { parentSlugById[p.id] = p.attributes?.slug; });
-                const fetched = resData.data
-                    .filter(item => item.attributes && !item.attributes.nsfw)
-                    .filter(item => {
-                        const parentId = item.relationships?.parent?.data?.id;
-                        return !parentId || !nonGenreParentSlugs.has(parentSlugById[parentId]);
-                    })
-                    .map(item => ({
-                        title: item.attributes.title,
-                        slug: item.attributes.slug
-                    }));
-
-                const finalGenres = [{ title: 'All Genres', slug: 'all' }, ...fetched];
-                renderGenres(finalGenres);
-            } else {
-                renderGenres(fallbackGenres);
-            }
-        })
-        .catch(err => {
-            console.error("Failed to fetch Kitsu categories:", err);
-            renderGenres(fallbackGenres);
-        });
+        renderGenres([{ title: 'All Genres', slug: 'all' }, ...ANILIST_GENRES]);
     }
 
     // Call loadDiscoverCategories on init
@@ -2510,58 +2568,22 @@ function initScheduleScreen() {
             trendGrid.classList.add('hidden');
         }
 
-        let genreFilterQuery = '';
-        if (activeDiscoverGenre !== 'all') {
-            genreFilterQuery = `&filter[categories]=${encodeURIComponent(activeDiscoverGenre)}`;
+        const vars = buildDiscoverVariables(Math.floor(trendPageOffset / 12) + 1);
+        if (trendType === 'trending') {
+            vars.sort = ['TRENDING_DESC'];
+        } else if (trendType === 'airing') {
+            vars.status = 'RELEASING';
+            vars.sort = ['POPULARITY_DESC'];
+        } else if (trendType === 'highest-rated') {
+            vars.sort = ['SCORE_DESC'];
+        } else if (trendType === 'anticipated') {
+            vars.status = 'NOT_YET_RELEASED';
+            vars.sort = ['POPULARITY_DESC'];
         }
 
-        let formatFilterQuery = '';
-        if (activeDiscoverFormat !== 'all') {
-            formatFilterQuery = `&filter[subtype]=${encodeURIComponent(activeDiscoverFormat.toLowerCase())}`;
-        }
-
-        let episodeFilterQuery = '';
-        if (activeDiscoverEpisodes !== 'all' && DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]) {
-            episodeFilterQuery = `&filter[episodeCount]=${DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]}`;
-        }
-
-        let fetchUrl = '';
-        if (activeDiscoverGenre !== 'all' || activeDiscoverFormat !== 'all' || activeDiscoverEpisodes !== 'all') {
-            if (trendType === 'trending') {
-                fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
-            } else if (trendType === 'airing') {
-                fetchUrl = `${API_URL}?filter[status]=current&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
-            } else if (trendType === 'highest-rated') {
-                fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
-            } else if (trendType === 'anticipated') {
-                fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
-            }
-        } else {
-            if (trendType === 'trending') {
-                fetchUrl = `https://kitsu.io/api/edge/trending/anime?limit=12&offset=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
-            } else if (trendType === 'airing') {
-                fetchUrl = `${API_URL}?filter[status]=current&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
-            } else if (trendType === 'highest-rated') {
-                fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
-            } else if (trendType === 'anticipated') {
-                fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}&include=genres,categories,animeProductions.producer`;
-            }
-        }
-
-        fetch(fetchUrl, {
-            headers: {
-                'Accept': 'application/vnd.api+json',
-                'Content-Type': 'application/vnd.api+json'
-            }
-        })
-            .then(res => res.json())
-            .then(async resData => {
-                let normalized = normalizeKitsuResponse(resData);
-                // Only the dedicated trending endpoint lacks genre data;
-                // enrich that page of results before caching/rendering.
-                if (fetchUrl.includes('/trending/anime')) {
-                    normalized = await enrichWithFullAnimeData(normalized);
-                }
+        anilistGraphQL(ANILIST_PAGE_QUERY, vars)
+            .then(data => {
+                const normalized = normalizeAniListResponse(data.Page);
                 if (isLoadMore) {
                     trendDataCache[cacheKey] = (trendDataCache[cacheKey] || []).concat(normalized);
                 } else {
@@ -2611,30 +2633,13 @@ function initScheduleScreen() {
             upcomingGrid.classList.add('hidden');
         }
 
-        let genreFilterQuery = '';
-        if (activeDiscoverGenre !== 'all') {
-            genreFilterQuery = `&filter[categories]=${encodeURIComponent(activeDiscoverGenre)}`;
-        }
+        const vars = buildDiscoverVariables(Math.floor(upcomingPageOffset / 12) + 1);
+        vars.status = 'NOT_YET_RELEASED';
+        vars.sort = ['POPULARITY_DESC'];
 
-        let formatFilterQuery = '';
-        if (activeDiscoverFormat !== 'all') {
-            formatFilterQuery = `&filter[subtype]=${encodeURIComponent(activeDiscoverFormat.toLowerCase())}`;
-        }
-
-        let episodeFilterQuery = '';
-        if (activeDiscoverEpisodes !== 'all' && DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]) {
-            episodeFilterQuery = `&filter[episodeCount]=${DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]}`;
-        }
-
-        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&page[offset]=${upcomingPageOffset}&sort=-userCount${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`, {
-            headers: {
-                'Accept': 'application/vnd.api+json',
-                'Content-Type': 'application/vnd.api+json'
-            }
-        })
-            .then(res => res.json())
-            .then(resData => {
-                const normalized = normalizeKitsuResponse(resData);
+        anilistGraphQL(ANILIST_PAGE_QUERY, vars)
+            .then(data => {
+                const normalized = normalizeAniListResponse(data.Page);
                 if (isLoadMore) {
                     upcomingDataCache[cacheKey] = (upcomingDataCache[cacheKey] || []).concat(normalized);
                 } else {
@@ -2738,16 +2743,9 @@ function initScheduleScreen() {
         resultsLoading.classList.remove('hidden');
         resultsGrid.classList.add('hidden');
 
-        // Fetch Live Global Kitsu Search results
-        fetch(`${API_URL}?filter[text]=${encodeURIComponent(query)}&page[limit]=12&include=genres,categories,animeProductions.producer`, {
-            headers: {
-                'Accept': 'application/vnd.api+json',
-                'Content-Type': 'application/vnd.api+json'
-            }
-        })
-            .then(res => res.json())
-            .then(resData => {
-                const normalized = normalizeKitsuResponse(resData);
+        // Fetch live global AniList search results
+        searchAniList(query, 12)
+            .then(normalized => {
                 resultsLoading.classList.add('hidden');
                 renderTrendGrid('schedule-search-results-grid', normalized);
             })
@@ -2821,7 +2819,7 @@ function renderScheduleGrid(gridId, animeList) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
                 <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left; ${anime.coverImage ? `background-image: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)), url('${anime.coverImage}'); background-size: cover; background-position: center;` : ''}">
                     <!-- Global Ranking Badges & Age Guide -->
                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -2982,7 +2980,7 @@ function renderTrendGrid(gridId, animeList) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
                 <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left; ${anime.coverImage ? `background-image: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)), url('${anime.coverImage}'); background-size: cover; background-position: center;` : ''}">
                     <!-- Global Ranking Badges & Age Guide -->
                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -3198,14 +3196,7 @@ function initializeApp() {
         addBacklogOnlineBtn.textContent = 'Searching...'; 
         addBacklogOnlineBtn.disabled = true; 
         try { 
-            const response = await fetch(`${API_URL}?filter[text]=${encodeURIComponent(title)}&page[limit]=10&include=genres,categories,animeProductions.producer`, {
-                headers: {
-                    'Accept': 'application/vnd.api+json',
-                    'Content-Type': 'application/vnd.api+json'
-                }
-            });
-            const searchData = await response.json(); 
-            const normalizedData = normalizeKitsuResponse(searchData);
+            const normalizedData = await searchAniList(title, 10);
             showSearchResults(normalizedData, (selectedAnime) => {
                 if (isDuplicateAnime(selectedAnime)) {
                     showNotification("This anime is already in your backlog or challenge watch list!", "error");
