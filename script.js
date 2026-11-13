@@ -2050,6 +2050,9 @@ let upcomingDataCache = {};
 let trendDataCache = {};
 let activeDiscoverFormat = 'all';
 let activeDiscoverGenre = 'all';
+let activeDiscoverEpisodes = 'all';
+// Episode-count ranges for the Discover length filter (Kitsu range syntax).
+const DISCOVER_EPISODE_RANGES = { 'short': '1..12', 'medium': '13..24', 'long': '25..50', 'very-long': '50..9999' };
 let discoverCacheTimestamp = null;
 let trendPageOffset = 0;
 let upcomingPageOffset = 0;
@@ -2423,6 +2426,27 @@ function initScheduleScreen() {
         };
     });
 
+    // Episode Count Selector Tabs Wiring
+    const episodeButtons = document.querySelectorAll('.episode-tab-btn');
+    episodeButtons.forEach(btn => {
+        btn.onclick = () => {
+            episodeButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeDiscoverEpisodes = btn.dataset.episodes;
+            trendPageOffset = 0;
+            upcomingPageOffset = 0;
+            const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
+            if (loadMoreTrendsBtn) loadMoreTrendsBtn.classList.add('hidden');
+            const loadMoreUpcomingBtn = document.getElementById('load-more-upcoming-btn');
+            if (loadMoreUpcomingBtn) loadMoreUpcomingBtn.classList.add('hidden');
+
+            const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
+            const trendType = activeTrendBtn ? activeTrendBtn.dataset.trend : 'trending';
+            loadTrend(trendType);
+            loadUpcomingSeasonal();
+        };
+    });
+
     // Load More Buttons Wiring
     const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
     if (loadMoreTrendsBtn) {
@@ -2467,7 +2491,7 @@ function initScheduleScreen() {
         const trendGrid = document.getElementById('trend-grid');
         const loadMoreBtn = document.getElementById('load-more-trends-btn');
 
-        const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}`;
+        const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
 
         if (!isLoadMore) {
             trendPageOffset = 0;
@@ -2496,16 +2520,21 @@ function initScheduleScreen() {
             formatFilterQuery = `&filter[subtype]=${encodeURIComponent(activeDiscoverFormat.toLowerCase())}`;
         }
 
+        let episodeFilterQuery = '';
+        if (activeDiscoverEpisodes !== 'all' && DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]) {
+            episodeFilterQuery = `&filter[episodeCount]=${DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]}`;
+        }
+
         let fetchUrl = '';
-        if (activeDiscoverGenre !== 'all' || activeDiscoverFormat !== 'all') {
+        if (activeDiscoverGenre !== 'all' || activeDiscoverFormat !== 'all' || activeDiscoverEpisodes !== 'all') {
             if (trendType === 'trending') {
-                fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+                fetchUrl = `${API_URL}?sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
             } else if (trendType === 'airing') {
-                fetchUrl = `${API_URL}?filter[status]=current&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+                fetchUrl = `${API_URL}?filter[status]=current&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
             } else if (trendType === 'highest-rated') {
-                fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+                fetchUrl = `${API_URL}?sort=-averageRating&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
             } else if (trendType === 'anticipated') {
-                fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`;
+                fetchUrl = `${API_URL}?filter[status]=upcoming&sort=-userCount&page[limit]=12&page[offset]=${trendPageOffset}${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`;
             }
         } else {
             if (trendType === 'trending') {
@@ -2564,7 +2593,7 @@ function initScheduleScreen() {
     }
 
     function loadUpcomingSeasonal(forceLive = false, isLoadMore = false) {
-        const cacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}`;
+        const cacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
         const loadMoreBtn = document.getElementById('load-more-upcoming-btn');
 
         if (!isLoadMore) {
@@ -2592,7 +2621,12 @@ function initScheduleScreen() {
             formatFilterQuery = `&filter[subtype]=${encodeURIComponent(activeDiscoverFormat.toLowerCase())}`;
         }
 
-        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&page[offset]=${upcomingPageOffset}&sort=-userCount${genreFilterQuery}${formatFilterQuery}&include=genres,categories,animeProductions.producer`, {
+        let episodeFilterQuery = '';
+        if (activeDiscoverEpisodes !== 'all' && DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]) {
+            episodeFilterQuery = `&filter[episodeCount]=${DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]}`;
+        }
+
+        fetch(`${API_URL}?filter[status]=upcoming&page[limit]=12&page[offset]=${upcomingPageOffset}&sort=-userCount${genreFilterQuery}${formatFilterQuery}${episodeFilterQuery}&include=genres,categories,animeProductions.producer`, {
             headers: {
                 'Accept': 'application/vnd.api+json',
                 'Content-Type': 'application/vnd.api+json'
@@ -2650,14 +2684,22 @@ function initScheduleScreen() {
                 genreMatch = anime.genres && anime.genres.some(g => g.name.toLowerCase().replace(/[^a-z0-9]/g, '') === cleanGenre);
             }
 
-            return titleMatch && formatMatch && genreMatch;
+            // Episode-count match - backup client filter, same ranges as the API query
+            let episodeMatch = true;
+            if (activeDiscoverEpisodes !== 'all' && DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes]) {
+                const [minEp, maxEp] = DISCOVER_EPISODE_RANGES[activeDiscoverEpisodes].split('..').map(Number);
+                const eps = anime.episodes || 0;
+                episodeMatch = eps >= minEp && eps <= maxEp;
+            }
+
+            return titleMatch && formatMatch && genreMatch && episodeMatch;
         };
 
         // 1. Filter and render active trend
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
         if (activeTrendBtn) {
             const trendType = activeTrendBtn.dataset.trend;
-            const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}`;
+            const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
             if (trendDataCache[cacheKey]) {
                 const rawList = trendDataCache[cacheKey] || [];
                 const filteredList = rawList.filter(matchesFilters);
@@ -2666,7 +2708,7 @@ function initScheduleScreen() {
         }
 
         // 2. Filter and render upcoming seasonal showcases
-        const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}`;
+        const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
         if (upcomingDataCache[upcomingCacheKey]) {
             const filteredList = upcomingDataCache[upcomingCacheKey].filter(matchesFilters);
             renderScheduleGrid('upcoming-grid', filteredList);
@@ -2716,7 +2758,7 @@ function initScheduleScreen() {
     }, 300);
 
     // Initial triggers or cache usage
-    const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}`;
+    const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
     if (upcomingDataCache && upcomingDataCache[upcomingCacheKey]) {
         renderScheduleGrid('upcoming-grid', upcomingDataCache[upcomingCacheKey]);
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
