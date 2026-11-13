@@ -972,6 +972,78 @@ function promptForRating(title) {
     }
 }
 
+// Builds a manual (user-typed) anime entry in the same shape the rest of
+// the app already renders and stores: day cards and the backlog list both
+// have dedicated isManual rendering, and genre/studio stats skip manual
+// entries. Used when the API doesn't know a title.
+function createManualAnimeEntry(title, episodes) {
+    const cleanTitle = (title || '').trim();
+    return {
+        mal_id: null,
+        title: cleanTitle,
+        titles: [
+            { type: 'Default', title: cleanTitle },
+            { type: 'English', title: cleanTitle }
+        ],
+        genres: [],
+        studios: [],
+        type: 'TV',
+        score: null,
+        year: null,
+        images: { jpg: { image_url: '', small_image_url: '' } },
+        episodes: episodes || null,
+        watched_episodes: 0,
+        synopsis: '',
+        isManual: true,
+        date_added: new Date().toISOString()
+    };
+}
+
+// Applies a personal score to every stored copy of an anime (challenge
+// days + backlog), since the backlog list shows one merged entry per anime
+// while the score physically lives on each stored copy.
+function setUserScoreEverywhere(anime, rating) {
+    const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
+    const matches = item => (item.isManual ? item.title.toLowerCase().trim() : item.mal_id) === key;
+    Object.values(challengeData.days).forEach(day => {
+        (day.watched || []).forEach(item => { if (matches(item)) item.user_score = rating; });
+    });
+    (challengeData.backlog || []).forEach(item => { if (matches(item)) item.user_score = rating; });
+}
+
+// Moves a backlog-only anime into today's challenge log.
+function moveBacklogItemToToday(anime) {
+    const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
+    const matches = item => (item.isManual ? item.title.toLowerCase().trim() : item.mal_id) === key;
+    const index = (challengeData.backlog || []).findIndex(matches);
+    if (index === -1) return;
+    const [stored] = challengeData.backlog.splice(index, 1);
+    const todayKey = getLocalDateString(new Date());
+    challengeData.days[todayKey] = challengeData.days[todayKey] || { watched: [] };
+    challengeData.days[todayKey].watched.push(stored);
+}
+
+// Moves a challenge-log anime into the backlog (removes it from all days,
+// keeping one stored copy).
+function moveChallengeItemToBacklog(anime) {
+    const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
+    const matches = item => (item.isManual ? item.title.toLowerCase().trim() : item.mal_id) === key;
+    let stored = null;
+    Object.values(challengeData.days).forEach(day => {
+        if (!day.watched) return;
+        for (let i = day.watched.length - 1; i >= 0; i--) {
+            if (matches(day.watched[i])) {
+                if (!stored) stored = day.watched[i];
+                day.watched.splice(i, 1);
+            }
+        }
+    });
+    if (stored) {
+        challengeData.backlog = challengeData.backlog || [];
+        challengeData.backlog.push(stored);
+    }
+}
+
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -1421,6 +1493,15 @@ function createOrUpdateChart(dataType = 'genres') {
     const labels = Object.keys(dataMap);
     const data = Object.values(dataMap);
 
+    // The collection can have anime but no data for this view (e.g. no
+    // studios stored): show a message instead of a blank chart area.
+    if (labels.length === 0) {
+        chartCanvas.classList.add('hidden');
+        emptyState.textContent = `No ${dataType} data yet — anime added from online search fills this in!`;
+        emptyState.classList.remove('hidden');
+        return;
+    }
+
     const chartColors = ['#f1c40f', '#e67e22', '#e74c3c', '#3498db', '#9b59b6', '#2ecc71', '#1abc9c', '#f39c12', '#d35400', '#c0392b'];
 
     analyticsChartInstance = new Chart(chartCanvas, {
@@ -1588,6 +1669,62 @@ function renderAllAnimeList() {
                 };
                 itemDiv.appendChild(removeBtn);
             }
+
+            // Per-item controls: rate from here, and move the anime between
+            // the backlog and today's challenge log, matching where it
+            // currently lives. (Items in both places need no move.)
+            const controlsDiv = document.createElement('div');
+            controlsDiv.className = 'backlog-item-controls';
+            controlsDiv.style.cssText = 'display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;';
+
+            const rateBtn = document.createElement('button');
+            rateBtn.className = 'add-btn manual-add-btn';
+            rateBtn.style.cssText = 'padding: 4px 10px; font-size: 11px; height: auto; margin: 0;';
+            rateBtn.textContent = anime.user_score ? `⭐ My Score: ${anime.user_score} — Change` : '⭐ Rate';
+            rateBtn.onclick = () => {
+                const rating = promptForRating(getEnglishTitle(anime));
+                if (rating === null) return;
+                setUserScoreEverywhere(anime, rating);
+                saveData();
+                renderAllAnimeList();
+                updateAllDisplays();
+                processAchievements();
+                showNotification(`Saved your score for ${getEnglishTitle(anime)}.`, 'success');
+            };
+            controlsDiv.appendChild(rateBtn);
+
+            if (isBacklogSource && !isDailySource) {
+                const moveBtn = document.createElement('button');
+                moveBtn.className = 'add-btn manual-add-btn';
+                moveBtn.style.cssText = 'padding: 4px 10px; font-size: 11px; height: auto; margin: 0;';
+                moveBtn.textContent = '✔ Log as Watched Today';
+                moveBtn.onclick = () => {
+                    moveBacklogItemToToday(anime);
+                    saveData();
+                    renderAllAnimeList();
+                    updateAllDisplays();
+                    processAchievements();
+                    showNotification(`Logged ${getEnglishTitle(anime)} to today's watch list!`);
+                };
+                controlsDiv.appendChild(moveBtn);
+            } else if (isDailySource && !isBacklogSource) {
+                const moveBtn = document.createElement('button');
+                moveBtn.className = 'add-btn manual-add-btn';
+                moveBtn.style.cssText = 'padding: 4px 10px; font-size: 11px; height: auto; margin: 0;';
+                moveBtn.textContent = '📚 Move to Backlog';
+                moveBtn.onclick = () => {
+                    moveChallengeItemToBacklog(anime);
+                    saveData();
+                    renderAllAnimeList();
+                    updateAllDisplays();
+                    processAchievements();
+                    showNotification(`Moved ${getEnglishTitle(anime)} to your backlog.`);
+                };
+                controlsDiv.appendChild(moveBtn);
+            }
+
+            const infoEl = itemDiv.querySelector('.backlog-info');
+            (infoEl || itemDiv).appendChild(controlsDiv);
             listContainer.appendChild(itemDiv);
         });
     }
@@ -1643,10 +1780,11 @@ function createDayEntry(date) {
 
     const dateDisplay = date.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
     
-    div.innerHTML = `<h3>${dateDisplay}<span class="daily-total"></span></h3><div class="anime-list-container"></div><div class="add-controls entry-controls-group"><input type="text" placeholder="Type anime name to search and add..."><button class="add-btn">Add Anime</button></div>`;
+    div.innerHTML = `<h3>${dateDisplay}<span class="daily-total"></span></h3><div class="anime-list-container"></div><div class="add-controls entry-controls-group"><input type="text" placeholder="Type anime name to search and add..."><button class="add-btn">Add Anime</button><button class="add-btn manual-entry-btn" title="Add a title the search can't find, with your own name and episode count">+ Manual</button></div>`;
     const animeListContainer = div.querySelector('.anime-list-container');
     const animeInput = div.querySelector('input');
     const addOnlineBtn = div.querySelector('.add-btn');
+    const addManualBtn = div.querySelector('.manual-entry-btn');
     const dailyTotalEl = div.querySelector('.daily-total');
 
     function renderWatchedList() {
@@ -1707,6 +1845,33 @@ function createDayEntry(date) {
         });
         dailyTotalEl.textContent = `Total Today: ${(savedDayData.watched || []).length}`;
     }
+
+    addManualBtn.onclick = () => {
+        let title = animeInput.value.trim();
+        if (!title) {
+            const entered = prompt('Enter the anime title:');
+            if (!entered || !entered.trim()) return;
+            title = entered.trim();
+        }
+        const entry = createManualAnimeEntry(title, null);
+        if (isDuplicateAnime(entry)) {
+            showNotification("This anime is already in your backlog or challenge watch list!", "error");
+            return;
+        }
+        const epInput = prompt(`How many episodes does "${title}" have? (Leave blank if unknown)`);
+        const epCount = parseInt(epInput);
+        if (!isNaN(epCount) && epCount > 0) entry.episodes = epCount;
+        const rating = promptForRating(title);
+        if (rating !== null) entry.user_score = rating;
+
+        savedDayData.watched.push(entry);
+        animeInput.value = '';
+        saveData();
+        renderWatchedList();
+        updateAllDisplays();
+        processAchievements();
+        showNotification(`Added ${title} as a manual entry.`);
+    };
 
     addOnlineBtn.onclick = async () => { 
         const title = animeInput.value.trim(); 
@@ -2182,16 +2347,18 @@ function initScheduleScreen() {
         .then(res => res.json())
         .then(resData => {
             if (resData && resData.data) {
-                // Kitsu groups place/time categories (Japan, Earth, Present,
-                // Asia, Fantasy World...) under a "Setting" parent. Those
-                // are not genres, so keep them out of the genre filter.
+                // Kitsu groups place/time categories under a "Setting"
+                // parent, and that tree nests (Setting → Earth → Asia →
+                // Japan), so categories whose parent is any of those are
+                // not genres either — keep them all out of the genre filter.
+                const nonGenreParentSlugs = new Set(['setting', 'earth', 'asia']);
                 const parentSlugById = {};
                 (resData.included || []).forEach(p => { parentSlugById[p.id] = p.attributes?.slug; });
                 const fetched = resData.data
                     .filter(item => item.attributes && !item.attributes.nsfw)
                     .filter(item => {
                         const parentId = item.relationships?.parent?.data?.id;
-                        return !parentId || parentSlugById[parentId] !== 'setting';
+                        return !parentId || !nonGenreParentSlugs.has(parentSlugById[parentId]);
                     })
                     .map(item => ({
                         title: item.attributes.title,
@@ -2944,6 +3111,35 @@ function initializeApp() {
 
     const backlogInput = document.getElementById('backlog-anime-input');
     const addBacklogOnlineBtn = document.getElementById('add-backlog-online-btn');
+
+    const addBacklogManualBtn = document.getElementById('add-backlog-manual-btn');
+    if (addBacklogManualBtn) {
+        addBacklogManualBtn.onclick = () => {
+            const titleInput = document.getElementById('backlog-manual-title-input');
+            const episodesInput = document.getElementById('backlog-manual-episodes-input');
+            const title = titleInput.value.trim();
+            if (!title) {
+                showNotification('Type a title first, then tap Add Manually.', 'error');
+                return;
+            }
+            const entry = createManualAnimeEntry(title, parseInt(episodesInput.value) || null);
+            if (isDuplicateAnime(entry)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
+            const rating = promptForRating(title);
+            if (rating !== null) entry.user_score = rating;
+            challengeData.backlog = challengeData.backlog || [];
+            challengeData.backlog.push(entry);
+            titleInput.value = '';
+            episodesInput.value = '';
+            saveData();
+            renderAllAnimeList();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Added ${title} to your backlog as a manual entry.`);
+        };
+    }
 
     addBacklogOnlineBtn.onclick = async () => {
         const title = backlogInput.value.trim(); 
@@ -4456,7 +4652,7 @@ function initSmartBingePlanner() {
                     totalEpisodes += actualEps;
                     selectedShows.push({
                         title: item.title,
-                        type: 'TV Series',
+                        type: item.type || 'TV Series',
                         details: `${actualEps} episode(s)`
                     });
                 }
