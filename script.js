@@ -553,7 +553,9 @@ function getAchievementProgress(ach, data) {
     }
 
     const percent = Math.min(100, (current / target) * 100);
-    return { current, target, percent, text: text || `${current}/${target}` };
+    // Display current capped at target so an over-completed achievement
+    // never shows impossible progress like "49/3".
+    return { current, target, percent, text: text || `${Math.min(current, target)}/${target}` };
 }
 const ranks = [ 
     { min: 0, title: 'Newbie' }, 
@@ -956,12 +958,17 @@ function debounce(func, wait) {
 
 function processAchievements() {
     const achievementData = { allAnime: getUniqueAnime(), days: challengeData.days }; 
+    let newlyUnlocked = false;
     achievements.forEach(ach => {
         if (!challengeData.unlockedAchievements.includes(ach.id) && ach.check(achievementData)) {
             challengeData.unlockedAchievements.push(ach.id);
+            newlyUnlocked = true;
             showNotification(`Achievement Unlocked: ${ach.title}`, 'achievement');
         }
     });
+    // Refresh the header stats (counter, XP, rank badge) right away, so a
+    // new unlock shows immediately instead of waiting for the next render.
+    if (newlyUnlocked) updateAllDisplays();
     saveData(); 
 }
 
@@ -1137,7 +1144,7 @@ function calculateDailyPace(challengeAnimeCount) {
 
     const desc = document.createElement('p');
     desc.className = 'pace-description';
-    desc.innerHTML = `Anime per day. <br>Proj. Comp: **${formattedProjection}**`;
+    desc.innerHTML = `Anime per day. <br>Proj. Comp: <strong>${formattedProjection}</strong>`;
     dailyPaceCard.appendChild(desc);
 
     const totalChallengeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -1208,7 +1215,11 @@ function updateAllDisplays() {
 
     document.getElementById('backlog-count-value').textContent = allUniqueAnime.length; 
 
-    const backlogGenres = backlogAnime.flatMap(a => a.isManual ? [] : (a.genres || []).map(g => g.name));
+    // The Backlog header stats describe the same collection the Backlog
+    // view lists (all unique anime — the count above uses allUniqueAnime),
+    // so Top Genre uses that set too. Using only challengeData.backlog
+    // made it show "None" whenever every anime came from the challenge log.
+    const backlogGenres = allUniqueAnime.flatMap(a => a.isManual ? [] : (a.genres || []).map(g => g.name));
     if (backlogGenres.length > 0) {
         const genreCounts = backlogGenres.reduce((counts, genre) => ({ ...counts, [genre]: (counts[genre] || 0) + 1 }), {});
         document.getElementById('backlog-top-genre-value').textContent = Object.keys(genreCounts).reduce((a, b) => genreCounts[a] > genreCounts[b] ? a : b, "None");
@@ -2946,7 +2957,7 @@ function initializeApp() {
         saveAniPaceData();
         updateAllDisplays();
         form.reset();
-        showNotification(`Logged ${episodes} episodes of ${animeName} in AniPace.`);
+        showNotification(`Logged ${episodes} episode${episodes === 1 ? '' : 's'} of ${animeName} in AniPace.`);
     };
 
     document.getElementById('speed-input').onchange = (e) => {
