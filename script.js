@@ -1688,6 +1688,7 @@ function renderAllAnimeList() {
                 saveData();
                 renderAllAnimeList();
                 updateAllDisplays();
+                initializeChallengeLayout();
                 processAchievements();
                 showNotification(`Saved your score for ${getEnglishTitle(anime)}.`, 'success');
             };
@@ -1703,6 +1704,7 @@ function renderAllAnimeList() {
                     saveData();
                     renderAllAnimeList();
                     updateAllDisplays();
+                    initializeChallengeLayout();
                     processAchievements();
                     showNotification(`Logged ${getEnglishTitle(anime)} to today's watch list!`);
                 };
@@ -1717,6 +1719,7 @@ function renderAllAnimeList() {
                     saveData();
                     renderAllAnimeList();
                     updateAllDisplays();
+                    initializeChallengeLayout();
                     processAchievements();
                     showNotification(`Moved ${getEnglishTitle(anime)} to your backlog.`);
                 };
@@ -2353,6 +2356,12 @@ function initScheduleScreen() {
                 // not genres either — keep them all out of the genre filter.
                 const nonGenreParentSlugs = new Set(['setting', 'earth', 'asia']);
                 const parentSlugById = {};
+                // Look slugs up in the main list as well as "included":
+                // Kitsu does not repeat a category in "included" when it
+                // already appears in the main list, and the Setting tree's
+                // middle links (Earth, Asia) are exactly such categories —
+                // checking "included" only let Japan and Asia slip through.
+                (resData.data || []).forEach(p => { parentSlugById[p.id] = p.attributes?.slug; });
                 (resData.included || []).forEach(p => { parentSlugById[p.id] = p.attributes?.slug; });
                 const fetched = resData.data
                     .filter(item => item.attributes && !item.attributes.nsfw)
