@@ -168,6 +168,33 @@ function normalizeKitsuResponse(searchData) {
     });
 }
 
+// The Kitsu trending endpoint returns anime WITHOUT genre/category data
+// (its relationships carry links only and there is no "included" array),
+// so cards built from it showed "Genres: N/A". This takes normalized
+// trending results, fetches the same anime from the main endpoint — which
+// does return genres, categories and studios — and swaps in the full
+// copies while keeping the trending order. On any failure it returns the
+// list unchanged, so trending still renders, just without genres.
+async function enrichWithFullAnimeData(normalizedList) {
+    try {
+        const ids = normalizedList.map(a => a.mal_id).filter(Boolean);
+        if (!ids.length) return normalizedList;
+        const res = await fetch(`${API_URL}?filter[id]=${ids.join(',')}&include=genres,categories,animeProductions.producer&page[limit]=${ids.length}`, {
+            headers: {
+                'Accept': 'application/vnd.api+json',
+                'Content-Type': 'application/vnd.api+json'
+            }
+        });
+        const fullData = await res.json();
+        const byId = {};
+        normalizeKitsuResponse(fullData).forEach(a => { byId[a.mal_id] = a; });
+        return normalizedList.map(a => byId[a.mal_id] || a);
+    } catch (e) {
+        console.error('Failed to enrich trending anime data:', e);
+        return normalizedList;
+    }
+}
+
 // Parses a single line for bulk imports, extracting optional rating at the end
 function parseBulkLine(line) {
     const separatorMatch = line.match(/^(.*?)(?:\s*[-:[({]\s*([0-9]+(?:\.[0-9]+)?)\s*[)\]}]?)$/);
@@ -447,7 +474,7 @@ const achievements = [
     { id: 'movie_buff', title: 'Movie Buff', description: 'Watch 10 anime movies.', category: 'special', icon: '🎬', color: '#F472B6', xp: 500, rank: 'Novice', target: 10, check: (data) => data.allAnime.filter(a => !a.isManual && a.type === 'Movie').length >= 10 },
     { id: 'ova_collector', title: 'OVA Collector', description: 'Watch 5 OVAs.', category: 'special', icon: '📀', color: '#A78BFA', xp: 250, rank: 'Novice', target: 5, check: (data) => data.allAnime.filter(a => !a.isManual && a.type === 'OVA').length >= 5 },
     { id: 'seasonal_watcher', title: 'Seasonal Watcher', description: 'Watch anime from 5 different seasons.', category: 'special', icon: '🍂', color: '#FB923C', xp: 250, rank: 'Novice', target: 5, check: (data) => new Set(data.allAnime.filter(a => !a.isManual && a.season).map(a => `${a.season} ${a.year}`)).size >= 5 },
-    { id: 'diverse_tastes', title: 'Diverse Tastes', description: 'Watch anime from 10 different genres.', category: 'special', icon: '🌈', color: '#F472B6', xp: 250, rank: 'Novice', target: 10, check: (data) => new Set(data.allAnime.flatMap(a => !a.isManual ? (a.genres || []).map(g => g.name) : [])).size >= 10 },
+    { id: 'diverse_tastes', title: 'Diverse Tastes', description: 'Watch anime from 10 different genres.', category: 'special', icon: '🌈', color: '#F472B6', xp: 250, rank: 'Novice', target: 10, check: (data) => new Set(data.allAnime.map(a => !a.isManual ? (a.genres || [])[0]?.name : null).filter(Boolean)).size >= 10 },
     { id: 'high_scorer', title: 'High Scorer', description: 'Rate 10 anime with 9 or higher.', category: 'special', icon: '⭐', color: '#FACC15', xp: 500, rank: 'Veteran', target: 10, check: (data) => data.allAnime.filter(a => a.user_score >= 9).length >= 10 },
     { id: 'consistent_rater', title: 'Consistent Rater', description: 'Rate 20 different anime.', category: 'special', icon: '📝', color: '#60A5FA', xp: 500, rank: 'Expert', target: 20, check: (data) => data.allAnime.filter(a => a.user_score && a.user_score > 0).length >= 20 },
     { id: 'marathon_runner', title: 'Marathon Runner', description: 'Log 10+ episodes in a single day with AniPace.', category: 'special', icon: '🏅', color: '#F97316', xp: 250, rank: 'Apprentice', target: 10, check: (data) => anipaceData.history.some(h => h.episodes >= 10) },
@@ -512,7 +539,10 @@ function getAchievementProgress(ach, data) {
     } else if (ach.id === 'seasonal_watcher') {
         current = new Set(allAnime.filter(a => !a.isManual && a.season).map(a => `${a.season} ${a.year}`)).size;
     } else if (ach.id === 'diverse_tastes') {
-        current = new Set(allAnime.flatMap(a => !a.isManual ? (a.genres || []).map(g => g.name) : [])).size;
+        // Each anime counts once, by its primary (first) genre only — the
+        // same rule as the achievement check — so a single anime carrying
+        // many genre tags can't nearly complete this on its own.
+        current = new Set(allAnime.map(a => !a.isManual ? (a.genres || [])[0]?.name : null).filter(Boolean)).size;
     } else if (ach.id === 'high_scorer') {
         current = allAnime.filter(a => a.user_score >= 9).length;
     } else if (ach.id === 'consistent_rater') {
@@ -2133,7 +2163,7 @@ function initScheduleScreen() {
         };
 
         // Try fetching from Kitsu API
-        fetch('https://kitsu.io/api/edge/categories?page[limit]=40&sort=-totalMediaCount', {
+        fetch('https://kitsu.io/api/edge/categories?page[limit]=40&sort=-totalMediaCount&include=parent', {
             headers: {
                 'Accept': 'application/vnd.api+json',
                 'Content-Type': 'application/vnd.api+json'
@@ -2142,8 +2172,17 @@ function initScheduleScreen() {
         .then(res => res.json())
         .then(resData => {
             if (resData && resData.data) {
+                // Kitsu groups place/time categories (Japan, Earth, Present,
+                // Asia, Fantasy World...) under a "Setting" parent. Those
+                // are not genres, so keep them out of the genre filter.
+                const parentSlugById = {};
+                (resData.included || []).forEach(p => { parentSlugById[p.id] = p.attributes?.slug; });
                 const fetched = resData.data
                     .filter(item => item.attributes && !item.attributes.nsfw)
+                    .filter(item => {
+                        const parentId = item.relationships?.parent?.data?.id;
+                        return !parentId || parentSlugById[parentId] !== 'setting';
+                    })
                     .map(item => ({
                         title: item.attributes.title,
                         slug: item.attributes.slug
@@ -2301,8 +2340,13 @@ function initScheduleScreen() {
             }
         })
             .then(res => res.json())
-            .then(resData => {
-                const normalized = normalizeKitsuResponse(resData);
+            .then(async resData => {
+                let normalized = normalizeKitsuResponse(resData);
+                // Only the dedicated trending endpoint lacks genre data;
+                // enrich that page of results before caching/rendering.
+                if (fetchUrl.includes('/trending/anime')) {
+                    normalized = await enrichWithFullAnimeData(normalized);
+                }
                 if (isLoadMore) {
                     trendDataCache[cacheKey] = (trendDataCache[cacheKey] || []).concat(normalized);
                 } else {
