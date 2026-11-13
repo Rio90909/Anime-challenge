@@ -1133,6 +1133,67 @@ function setUserScoreEverywhere(anime, rating) {
     (challengeData.backlog || []).forEach(item => { if (matches(item)) item.user_score = rating; });
 }
 
+// Canonical AniList genre titles by lowercase name, used to clean the
+// genre lists of anime stored in the Kitsu era: Kitsu merged its whole
+// category tree — including place/setting words like Earth, Japan and
+// Asia — into each anime's genres.
+const ANILIST_GENRE_BY_LOWER = {};
+ANILIST_GENRES.forEach(g => { ANILIST_GENRE_BY_LOWER[g.title.toLowerCase()] = g.title; });
+
+function cleanedGenreList(genres) {
+    if (!Array.isArray(genres)) return genres;
+    const seen = new Set();
+    const cleaned = [];
+    genres.forEach(g => {
+        const canonical = g && g.name ? ANILIST_GENRE_BY_LOWER[String(g.name).toLowerCase().trim()] : undefined;
+        if (canonical && !seen.has(canonical)) {
+            seen.add(canonical);
+            cleaned.push({ name: canonical });
+        }
+    });
+    return cleaned;
+}
+
+// One-time cleanup for anime stored before the AniList switch: keeps
+// only real AniList genres on every stored card. ONLY the genres field
+// changes — titles, scores, episodes, dates and ids are never touched.
+// A safety copy of the current data is saved first, like the restore
+// flow does, under the *_pre_genre_cleanup storage key.
+function cleanupStoredGenres() {
+    const plan = [];
+    const planEntry = item => {
+        if (!item || !Array.isArray(item.genres)) return;
+        const cleaned = cleanedGenreList(item.genres);
+        const isChanged = cleaned.length !== item.genres.length
+            || cleaned.some((g, i) => !item.genres[i] || item.genres[i].name !== g.name);
+        if (isChanged) plan.push({ item, cleaned });
+    };
+    Object.values(challengeData.days || {}).forEach(day => (day.watched || []).forEach(planEntry));
+    (challengeData.backlog || []).forEach(planEntry);
+
+    if (plan.length === 0) {
+        showNotification('Your saved anime genres are already clean — nothing to change.', 'success');
+        return;
+    }
+    const removedCount = plan.reduce((sum, p) => sum + (p.item.genres.length - p.cleaned.length), 0);
+    const message = `Clean up genres on ${plan.length} saved anime?\n\n`
+        + `This removes ${removedCount} place/setting tag${removedCount === 1 ? '' : 's'} (like Earth, Japan, Asia) `
+        + `and keeps only real genres — the same clean list new anime get from AniList.\n\n`
+        + `Nothing else changes: your titles, scores, episodes and dates stay exactly as they are. `
+        + `A safety copy of your current data is saved first.`;
+    if (!confirm(message)) return;
+
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) localStorage.setItem(STORAGE_KEY + '_pre_genre_cleanup', raw);
+    } catch (e) { /* the safety copy is best-effort; the cleanup itself is genre-only */ }
+
+    plan.forEach(p => { p.item.genres = p.cleaned; });
+    saveData();
+    alert(`Done! Cleaned ${plan.length} saved anime and removed ${removedCount} place/setting tag${removedCount === 1 ? '' : 's'}. Your lists will now reload with the clean genres.`);
+    location.reload();
+}
+
 // Moves a backlog-only anime into today's challenge log.
 function moveBacklogItemToToday(anime) {
     const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
@@ -3116,6 +3177,8 @@ function initializeApp() {
         importBackupBtn.onclick = () => importBackupInput.click();
         importBackupInput.onchange = handleBackupFileSelect;
     }
+    const cleanupGenresBtn = document.getElementById('cleanup-genres-btn');
+    if (cleanupGenresBtn) cleanupGenresBtn.onclick = cleanupStoredGenres;
     document.getElementById('open-planner-btn').onclick = () => { 
         document.getElementById('planner-playback-speed').value = anipaceData.playbackSpeed; 
         document.getElementById('planner-results').classList.add('hidden');
