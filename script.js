@@ -1382,13 +1382,23 @@ function populateYearFilter(animeList) {
 // --- CHART & MODAL FUNCTIONS ---
 
 function createOrUpdateChart(dataType = 'genres') {
-    if (analyticsChartInstance) { analyticsChartInstance.destroy(); }
+    if (analyticsChartInstance) { analyticsChartInstance.destroy(); analyticsChartInstance = null; }
     const uniqueAnime = getUniqueAnime().filter(a => !a.isManual); 
     const chartCanvas = document.getElementById('analytics-chart');
     const emptyState = document.getElementById('chart-empty-state');
 
+    // If the Chart.js library failed to load (e.g. its CDN was unreachable),
+    // say so instead of opening an empty chart area.
+    if (typeof Chart === 'undefined') {
+        chartCanvas.classList.add('hidden');
+        emptyState.textContent = 'Analytics could not load — the chart library is unavailable. Check your connection and try again.';
+        emptyState.classList.remove('hidden');
+        return;
+    }
+
     if (uniqueAnime.length === 0) {
         chartCanvas.classList.add('hidden');
+        emptyState.textContent = 'Log some anime from online search to see your analytics!';
         emptyState.classList.remove('hidden');
         return;
     }
@@ -2908,8 +2918,11 @@ function initializeApp() {
     
     ['total-watched-card', 'avg-score-card', 'top-genre-card', 'backlog-top-genre-card', 'daily-pace-card'].forEach(id => {
         document.getElementById(id).onclick = () => {
-            createOrUpdateChart('genres'); 
+            // Show the modal BEFORE creating the chart: Chart.js measures
+            // the canvas when the chart is created, and a still-hidden
+            // modal gives it zero size, which left the chart area blank.
             document.getElementById('chart-modal').classList.remove('hidden');
+            createOrUpdateChart('genres');
         };
     });
     
@@ -4300,6 +4313,7 @@ function embedAnimeMessage(title, imageUrl, type, score) {
 
 // --- LEADERBOARD ---
 let leaderboardListenerRef = null;
+let leaderboardLoadTimeout = null;
 function loadLeaderboard() {
     const tbody = document.getElementById('leaderboard-table-body');
     if (!tbody) return;
@@ -4307,8 +4321,16 @@ function loadLeaderboard() {
     tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-secondary);">Loading rankings...</td></tr>`;
 
     if (leaderboardListenerRef) leaderboardListenerRef.off();
+    if (leaderboardLoadTimeout) { clearTimeout(leaderboardLoadTimeout); leaderboardLoadTimeout = null; }
+    // If no data ever arrives (e.g. local-only mode, where cloud sync is
+    // off), land on a clear message instead of "Loading rankings..." forever.
+    leaderboardLoadTimeout = setTimeout(() => {
+        leaderboardLoadTimeout = null;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-secondary);">Could not load the leaderboard. It needs cloud sync and an internet connection — in local-only mode rankings are unavailable.</td></tr>`;
+    }, 10000);
     leaderboardListenerRef = firebase.database().ref('leaderboard');
     leaderboardListenerRef.on('value', snapshot => {
+        if (leaderboardLoadTimeout) { clearTimeout(leaderboardLoadTimeout); leaderboardLoadTimeout = null; }
         const records = snapshot.val() || {};
         tbody.innerHTML = '';
 
@@ -4369,6 +4391,10 @@ function loadLeaderboard() {
             `;
             tbody.appendChild(tr);
         });
+    }, error => {
+        console.error('Leaderboard load error:', error);
+        if (leaderboardLoadTimeout) { clearTimeout(leaderboardLoadTimeout); leaderboardLoadTimeout = null; }
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-secondary);">Could not load the leaderboard. It needs cloud sync and an internet connection — in local-only mode rankings are unavailable.</td></tr>`;
     });
 }
 
@@ -4388,19 +4414,14 @@ function initSmartBingePlanner() {
             return;
         }
 
-        const storageKey = 'animeDashboard_v6_combined';
-        const rawLocal = localStorage.getItem(storageKey);
-        let backlogArray = [];
-
-        if (rawLocal) {
-            try {
-                const parsed = JSON.parse(rawLocal);
-                backlogArray = parsed.backlog || [];
-            } catch(e) {}
-        }
+        // Use the same collection the Backlog view lists (challenge log +
+        // backlog combined). Reading only the stored "backlog" array here
+        // made the planner claim the list was empty while the Backlog view
+        // was showing anime.
+        const backlogArray = getUniqueAnime();
 
         if (backlogArray.length === 0) {
-            showToast("Your Backlog list is empty! Add anime to Backlog first.", "error");
+            showToast("Your anime list is empty! Add some anime first.", "error");
             return;
         }
 
