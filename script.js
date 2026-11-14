@@ -123,9 +123,9 @@ const ANILIST_MEDIA_FIELDS = `
 `;
 
 const ANILIST_PAGE_QUERY = `
-query ($page: Int, $perPage: Int, $sort: [MediaSort], $status: MediaStatus, $genre: String, $formatIn: [MediaFormat], $epGreater: Int, $epLesser: Int, $search: String) {
+query ($page: Int, $perPage: Int, $sort: [MediaSort], $status: MediaStatus, $genre: String, $tag: String, $formatIn: [MediaFormat], $epGreater: Int, $epLesser: Int, $search: String) {
     Page(page: $page, perPage: $perPage) {
-        media(type: ANIME, sort: $sort, status: $status, genre: $genre, format_in: $formatIn, episodes_greater: $epGreater, episodes_lesser: $epLesser, search: $search, isAdult: false) {
+        media(type: ANIME, sort: $sort, status: $status, genre: $genre, tag: $tag, format_in: $formatIn, episodes_greater: $epGreater, episodes_lesser: $epLesser, search: $search, isAdult: false) {
             ${ANILIST_MEDIA_FIELDS}
         }
     }
@@ -235,6 +235,9 @@ function buildDiscoverVariables(page) {
     if (activeDiscoverGenre !== 'all') {
         const genre = ANILIST_GENRES.find(g => g.slug === activeDiscoverGenre);
         if (genre) vars.genre = genre.title;
+    }
+    if (activeDiscoverTag !== 'all') {
+        vars.tag = activeDiscoverTag;
     }
     if (activeDiscoverFormat !== 'all') {
         const formatMap = { 'TV': ['TV', 'TV_SHORT'], 'Movie': ['MOVIE'], 'OVA': ['OVA'], 'special': ['SPECIAL'] };
@@ -989,6 +992,28 @@ function getEnglishTitle(anime) {
     return englishTitle ? englishTitle.title : anime.title || 'Unknown Title'; 
 }
 
+// Forgiving title search: punctuation is ignored and the typed words
+// can appear in any order, so "girlfriend" or "girlfriend girlfriend"
+// both find "Girlfriend, Girlfriend" (whose comma used to break a
+// strict letter-by-letter match). All title variants (English and
+// romaji) are searched.
+function normalizeSearchText(text) {
+    return (text || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function animeSearchText(anime) {
+    const parts = [anime.title || '', getEnglishTitle(anime)];
+    (anime.titles || []).forEach(t => { if (t && t.title) parts.push(t.title); });
+    return normalizeSearchText(parts.join(' '));
+}
+
+function titleMatchesSearch(anime, rawSearch) {
+    const words = normalizeSearchText(rawSearch).split(' ').filter(Boolean);
+    if (words.length === 0) return true;
+    const haystack = animeSearchText(anime);
+    return words.every(w => haystack.includes(w));
+}
+
 function countGenre(allAnime, genre) { 
     return allAnime.filter(a => !a.isManual && (a.genres || []).some(g => g.name === genre)).length; 
 }
@@ -1683,8 +1708,7 @@ function renderAllAnimeList() {
     const filterGenre = document.getElementById('backlog-genre-filter').value; 
 
     uniqueAnime = uniqueAnime.filter(anime => {
-        const title = getEnglishTitle(anime).toLowerCase();
-        if (!title.includes(searchTerm)) { return false; }
+        if (!titleMatchesSearch(anime, searchTerm)) { return false; }
         if (filterYear !== 'all' && anime.year !== parseInt(filterYear)) { return false; }
         if (filterGenre !== 'all' && !anime.isManual) {
             const matchesGenre = (anime.genres || []).some(g => g.name === filterGenre);
@@ -2206,6 +2230,7 @@ let trendDataCache = {};
 let activeDiscoverFormat = 'all';
 let activeDiscoverGenre = 'all';
 let activeDiscoverEpisodes = 'all';
+let activeDiscoverTag = 'all';
 // Episode-count ranges for the Discover length filter (Kitsu range syntax).
 const DISCOVER_EPISODE_RANGES = { 'short': '1..12', 'medium': '13..24', 'long': '25..50', 'very-long': '50..9999' };
 let discoverCacheTimestamp = null;
@@ -2540,6 +2565,27 @@ function initScheduleScreen() {
         };
     });
 
+    // Tag Selector Tabs Wiring (AniList tags, e.g. Harem / Isekai / School)
+    const tagButtons = document.querySelectorAll('.tag-tab-btn');
+    tagButtons.forEach(btn => {
+        btn.onclick = () => {
+            tagButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            activeDiscoverTag = btn.dataset.tag;
+            trendPageOffset = 0;
+            upcomingPageOffset = 0;
+            const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
+            if (loadMoreTrendsBtn) loadMoreTrendsBtn.classList.add('hidden');
+            const loadMoreUpcomingBtn = document.getElementById('load-more-upcoming-btn');
+            if (loadMoreUpcomingBtn) loadMoreUpcomingBtn.classList.add('hidden');
+
+            const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
+            const trendType = activeTrendBtn ? activeTrendBtn.dataset.trend : 'trending';
+            loadTrend(trendType);
+            loadUpcomingSeasonal();
+        };
+    });
+
     // Load More Buttons Wiring
     const loadMoreTrendsBtn = document.getElementById('load-more-trends-btn');
     if (loadMoreTrendsBtn) {
@@ -2584,7 +2630,7 @@ function initScheduleScreen() {
         const trendGrid = document.getElementById('trend-grid');
         const loadMoreBtn = document.getElementById('load-more-trends-btn');
 
-        const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
+        const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}_${activeDiscoverTag}`;
 
         if (!isLoadMore) {
             trendPageOffset = 0;
@@ -2650,7 +2696,7 @@ function initScheduleScreen() {
     }
 
     function loadUpcomingSeasonal(forceLive = false, isLoadMore = false) {
-        const cacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
+        const cacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}_${activeDiscoverTag}`;
         const loadMoreBtn = document.getElementById('load-more-upcoming-btn');
 
         if (!isLoadMore) {
@@ -2709,7 +2755,7 @@ function initScheduleScreen() {
         const filterText = document.getElementById('schedule-search-input').value.toLowerCase().trim();
 
         const matchesFilters = (anime) => {
-            const titleMatch = getEnglishTitle(anime).toLowerCase().includes(filterText);
+            const titleMatch = titleMatchesSearch(anime, filterText);
 
             // Format match
             let formatMatch = true;
@@ -2732,14 +2778,20 @@ function initScheduleScreen() {
                 episodeMatch = eps >= minEp && eps <= maxEp;
             }
 
-            return titleMatch && formatMatch && genreMatch && episodeMatch;
+            // Tag match - backup client filter, mirrors the API query
+            let tagMatch = true;
+            if (activeDiscoverTag !== 'all') {
+                tagMatch = (anime.tags || []).some(t => t.name && t.name.toLowerCase() === activeDiscoverTag.toLowerCase());
+            }
+
+            return titleMatch && formatMatch && genreMatch && episodeMatch && tagMatch;
         };
 
         // 1. Filter and render active trend
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');
         if (activeTrendBtn) {
             const trendType = activeTrendBtn.dataset.trend;
-            const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
+            const cacheKey = `${trendType}_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}_${activeDiscoverTag}`;
             if (trendDataCache[cacheKey]) {
                 const rawList = trendDataCache[cacheKey] || [];
                 const filteredList = rawList.filter(matchesFilters);
@@ -2748,7 +2800,7 @@ function initScheduleScreen() {
         }
 
         // 2. Filter and render upcoming seasonal showcases
-        const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
+        const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}_${activeDiscoverTag}`;
         if (upcomingDataCache[upcomingCacheKey]) {
             const filteredList = upcomingDataCache[upcomingCacheKey].filter(matchesFilters);
             renderScheduleGrid('upcoming-grid', filteredList);
@@ -2791,7 +2843,7 @@ function initScheduleScreen() {
     }, 300);
 
     // Initial triggers or cache usage
-    const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}`;
+    const upcomingCacheKey = `upcoming_${activeDiscoverGenre}_${activeDiscoverFormat}_${activeDiscoverEpisodes}_${activeDiscoverTag}`;
     if (upcomingDataCache && upcomingDataCache[upcomingCacheKey]) {
         renderScheduleGrid('upcoming-grid', upcomingDataCache[upcomingCacheKey]);
         const activeTrendBtn = document.querySelector('.trend-tab-btn.active');

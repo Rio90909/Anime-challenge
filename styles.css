@@ -1175,7 +1175,7 @@ header h1 {
 }
 
 /* NEW DISCOVER PAGE ADDITIONS STYLING */
-.format-tab-btn, .genre-tab-btn, .episode-tab-btn {
+.format-tab-btn, .genre-tab-btn, .episode-tab-btn, .tag-tab-btn {
     background-color: var(--surface-color);
     color: var(--text-color);
     border: 1px solid var(--border-light);
@@ -1188,11 +1188,11 @@ header h1 {
     white-space: nowrap;
     flex-shrink: 0;
 }
-.format-tab-btn:hover, .genre-tab-btn:hover, .episode-tab-btn:hover {
+.format-tab-btn:hover, .genre-tab-btn:hover, .episode-tab-btn:hover, .tag-tab-btn:hover {
     border-color: var(--primary-color);
     color: var(--primary-color);
 }
-.format-tab-btn.active, .genre-tab-btn.active, .episode-tab-btn.active {
+.format-tab-btn.active, .genre-tab-btn.active, .episode-tab-btn.active, .tag-tab-btn.active {
     background: #FFFFFF !important;
     color: #000000 !important;
     border-color: var(--primary-color);
