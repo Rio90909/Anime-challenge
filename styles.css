@@ -1147,9 +1147,11 @@ header h1 {
 }
 
 .manual-tag {
-    background-color: rgba(167, 139, 250, 0.15);
-    color: #C4B5FD;
-    border: 1px solid rgba(167, 139, 250, 0.3);
+    /* Design v2 step 3: was a violet tint; now the app's neutral
+       silver values (same as .my-score-tag) */
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+    border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .source-tag {
@@ -1817,3 +1819,735 @@ input[type="date"]::-webkit-outer-spin-button {
     cursor: pointer;
 }
 .friend-menu button:hover { background: rgba(255,255,255,0.05); }
+
+/* ============================================================
+   DESIGN V2 FOUNDATION — Step 1 (design-v2 branch)
+   Additive only. Existing palette only:
+   bg #0A0E17 · surface #151C2C · primary #FFFFFF · text #F3F4F6
+   muted #9CA3AF · progress blue #3B82F6 · success #10B981 · error #EF4444
+   Existing containers below get COSMETIC unification only
+   (border-radius / border / box-shadow) — no layout changes.
+   All new components use the dv2- prefix to avoid collisions.
+   ============================================================ */
+.stat-card,
+.anipace-card,
+.ach-next-up-card,
+.modal-content {
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Room for the fixed bottom navigation bar */
+body { padding-bottom: 78px; }
+
+/* --- Shared dv2 pieces --- */
+.dv2-card {
+    background: var(--surface-color);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--card-shadow);
+}
+.dv2-badge-blue {
+    background: var(--progress-bar-color);
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 3px 9px;
+    white-space: nowrap;
+}
+.dv2-prog {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 99px;
+    overflow: hidden;
+}
+.dv2-prog > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--progress-bar-color);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+.dv2-btn-blue {
+    background: var(--progress-bar-color);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 12px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 11px 18px;
+    cursor: pointer;
+    min-height: 44px;
+}
+
+/* --- Planner: Today's Challenge hero --- */
+.dv2-hero { margin-top: 16px; margin-bottom: 16px; }
+.dv2-hero-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.dv2-hero-title { font-size: 17px; font-weight: 900; color: var(--text-color); }
+.dv2-hero-head .dv2-badge-blue { margin-left: auto; }
+.dv2-hero-sub {
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    margin: 8px 0 0 0;
+}
+.dv2-hero-stats {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+}
+.dv2-hero-stats > div {
+    flex: 1;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+    padding: 9px 0;
+}
+.dv2-hero-num { font-size: 18px; font-weight: 900; color: var(--text-color); }
+.dv2-hero-lbl { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.dv2-hero .dv2-prog { margin-top: 14px; }
+.dv2-hero .dv2-btn-blue { width: 100%; margin-top: 14px; }
+
+/* --- Menu screen --- */
+.dv2-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.dv2-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    flex: none;
+}
+.dv2-profile-name { font-size: 16px; font-weight: 800; color: var(--text-color); }
+.dv2-profile-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.dv2-menu-list { display: flex; flex-direction: column; gap: 10px; }
+.dv2-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: var(--surface-color);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 14px 16px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-family: inherit;
+    min-height: 56px;
+}
+.dv2-menu-row svg {
+    width: 22px;
+    height: 22px;
+    stroke: var(--text-color);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: none;
+}
+.dv2-row-title { font-size: 15px; font-weight: 800; display: block; }
+.dv2-row-sub { font-size: 11px; color: var(--text-secondary); display: block; margin-top: 1px; }
+.dv2-chev { margin-left: auto; color: var(--text-secondary); font-size: 18px; }
+
+/* --- Fixed bottom navigation --- */
+.dv2-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900; /* below .modal (1001), above page content */
+    display: flex;
+    background: rgba(21, 28, 44, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.dv2-nav-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 6px 2px;
+    border-radius: 12px;
+    min-height: 48px;
+}
+.dv2-nav-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.dv2-nav-btn.dv2-active { color: var(--text-color); }
+.dv2-nav-btn.dv2-active svg { stroke: var(--progress-bar-color); }
+
+
+/* ============================================================
+   DESIGN V2 — STEP 2: CORE SCREENS RESTYLE (design-v2 branch)
+   CSS-only. Scoped to the three D2 screen containers so nothing
+   leaks into Details / Achievements / Analytics / Lounge /
+   Leaderboard / Settings or into modals.
+   Cosmetic properties only: border-radius, border, box-shadow,
+   padding, gap, font-size/weight, palette colours.
+   Sample reference (Tidy Classic): cards radius 16, 1px borders
+   rgba(255,255,255,.06), thin blue progress bars, silver primary
+   buttons, pill chips (radius 999), poster cards radius 14.
+   ============================================================ */
+
+/* ---------- Shared: section headers on the D2 screens ---------- */
+#backlog-manager-screen h2,
+#schedule-screen h2 {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+
+/* ============================================================
+   1) PLANNER — challenge screen + AniPace screen
+   ============================================================ */
+
+/* Stat cards: tidier spacing, sample type scale */
+#challenge-screen .stats-bar { gap: 14px; padding: 20px; }
+#challenge-screen .stat-card { padding: 16px; }
+#challenge-screen .stat-card .stat-value { font-size: 30px; }
+
+/* Challenge progress: thinner pill bar (was 28px tall) */
+#challenge-screen #progress-bar {
+    height: 16px;
+    border-radius: 999px;
+}
+#challenge-screen #progress-fill {
+    font-size: 11px;
+    padding-right: 10px;
+    border-radius: 999px;
+}
+
+/* Step 1 hero: slight refinement of its own card only */
+#dv2-challenge-hero { padding: 18px; }
+#dv2-challenge-hero .dv2-hero-title { font-size: 18px; }
+
+/* Day cards */
+#challenge-screen .day-entry { padding: 20px; }
+#challenge-screen .day-entry h3 { font-size: 17px; font-weight: 700; }
+#challenge-screen .daily-total { font-size: 12px; }
+
+/* Anime rows inside day cards: sample row shape */
+#challenge-screen .anime-info-item {
+    border-radius: 14px;
+    padding: 14px;
+}
+#challenge-screen .anime-info-img { border-radius: 10px; }
+#challenge-screen .anime-info-badge {
+    border-radius: 999px;
+    padding: 3px 9px;
+}
+
+/* Add-controls on day cards: sample input/button radii */
+#challenge-screen .entry-controls-group input { border-radius: 12px; }
+#challenge-screen .entry-controls-group .add-btn { border-radius: 12px; }
+
+/* AniPace screen: normalize leftover amber glows to the palette's
+   white glow (the screen's own vars are already monochrome white) */
+#anipace-log-screen .anipace-card { padding: 22px; }
+#anipace-log-screen .anipace-stat-block .anipace-stat-value {
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.15);
+}
+#anipace-log-screen .anipace-btn {
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.12);
+}
+#anipace-log-screen .anipace-log-form input:focus {
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+#anipace-log-screen .anipace-history-item {
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+
+/* ============================================================
+   2) BACKLOG
+   NOTE: this screen intentionally keeps its existing light-mode
+   adapter (body.backlog-active). Step 2 applies the kit's shapes
+   (radius / padding / pill tags & buttons) inside BOTH themes;
+   where a colour is set for the dark base, the light adapter's
+   own colours are re-asserted right below it at higher
+   specificity so the light theme renders exactly as before.
+   ============================================================ */
+
+/* Stat cards */
+#backlog-manager-screen .stat-card { padding: 16px; }
+
+/* List rows: sample card shape (poster-left layout unchanged) */
+#backlog-manager-screen .backlog-anime-list-item {
+    border-radius: 16px;
+    padding: 16px;
+}
+#backlog-manager-screen .backlog-anime-list-item img { border-radius: 10px; }
+#backlog-manager-screen .backlog-title { font-size: 16px !important; }
+
+/* Tags become pills (shape only — tag colours untouched,
+   including the light adapter's !important tag palette) */
+#backlog-manager-screen .backlog-tag {
+    border-radius: 999px;
+    padding: 4px 9px;
+}
+
+/* Meta lines: sample type scale */
+#backlog-manager-screen .backlog-text-meta p { font-size: 12.5px; }
+
+/* Per-item action buttons become pills */
+#backlog-manager-screen .backlog-item-controls .add-btn { border-radius: 999px; }
+
+/* Add-to-backlog inputs: sample radius */
+#backlog-manager-screen .entry-controls-group input { border-radius: 12px; }
+#backlog-manager-screen .entry-controls-group .add-btn { border-radius: 12px; }
+
+/* Filter / sort / search controls: sample field styling.
+   (Container layout/display intentionally untouched.) */
+#backlog-manager-screen #backlog-filter-controls { gap: 10px; }
+#backlog-manager-screen #backlog-filter-controls input,
+#backlog-manager-screen #backlog-filter-controls select {
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 11px 12px;
+    font-size: 13px;
+    color: var(--text-color);
+}
+/* Light adapter colours re-asserted (its own values) so the
+   backlog light theme is unchanged by the rule above */
+body.backlog-active #backlog-manager-screen #backlog-filter-controls input,
+body.backlog-active #backlog-manager-screen #backlog-filter-controls select {
+    background-color: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    color: #111827;
+}
+
+/* ============================================================
+   3) DISCOVER — schedule / trends screen
+   ============================================================ */
+
+/* Search box: pill, per the sample */
+#schedule-screen .entry-controls-group input {
+    border-radius: 999px;
+    padding: 12px 18px;
+}
+
+/* Feed tabs + all filter rows: pill chips per the sample */
+#schedule-screen .trend-tab-btn {
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13px;
+}
+#schedule-screen .format-tab-btn,
+#schedule-screen .genre-tab-btn,
+#schedule-screen .episode-tab-btn,
+#schedule-screen .tag-tab-btn {
+    border-radius: 999px;
+    padding: 7px 13px;
+}
+
+/* Poster grid: sample gap */
+#schedule-screen .schedule-grid { gap: 14px; }
+@media (max-width: 480px) {
+    #schedule-screen .schedule-grid { gap: 10px; }
+}
+
+/* Poster cards: radius 14 on surface, per the sample */
+#schedule-screen .search-result-item {
+    background-color: var(--surface-color);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 14px;
+}
+#schedule-screen .search-result-item:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+/* Poster image radius (the trend template sets 6px inline;
+   this cosmetic override unifies it with the sample) */
+#schedule-screen .trend-card img { border-radius: 10px !important; }
+
+/* Rank badge: pill treatment (rank colours untouched) */
+#schedule-screen .trend-rank-badge {
+    border-radius: 999px;
+    padding: 4px 9px;
+}
+
+/* Airing status: pill treatment */
+#schedule-screen .status-pill {
+    border-radius: 999px;
+    padding: 3px 9px;
+}
+
+/* Quick-add buttons on trend cards: unified radius
+   (template sets 8px inline; cosmetic override only) */
+#schedule-screen .add-to-challenge-quick-btn,
+#schedule-screen .add-to-backlog-quick-btn {
+    border-radius: 10px !important;
+}
+
+/* ============================================================
+   DESIGN V2 — STEP 2.5: BACKLOG DARK (user decision 2026-11-14)
+   The user chose to flip the Backlog screen from its light-mode
+   adapter (body.backlog-active, top of this file) to DARK,
+   matching the approved sample and the rest of the app.
+   CSS-only: the adapter and the body.backlog-active toggling are
+   left in place; this section re-declares every property the
+   adapter themes, at the end of the file, with the app's dark
+   palette, using !important wherever the adapter did (and on the
+   Step 2 light re-assertion for the filter controls).
+   Dark values mirror the app's own base (non-adapter) styles.
+   Modals need no rules here: the adapter's modal block is
+   already a dark safeguard and stays exactly as is.
+   ============================================================ */
+
+/* --- Page chrome while backlog is active: body + primary var --- */
+body.backlog-active {
+    --primary-color: #FFFFFF !important; /* undo the adapter's amber */
+    background-color: #0A0E17 !important;
+    background-image:
+        radial-gradient(at 0% 0%, rgba(255, 193, 7, 0.03) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.03) 0px, transparent 50%) !important;
+    color: #F3F4F6 !important;
+}
+
+/* --- Headings while backlog is active --- */
+body.backlog-active header h1,
+body.backlog-active h2 {
+    color: #F3F4F6 !important;
+}
+body.backlog-active .stat-card h3 {
+    color: #9CA3AF !important; /* base .stat-card h3 uses --text-secondary */
+}
+
+/* --- Header chrome: top bar + rank badge --- */
+body.backlog-active .top-bar button {
+    background-color: #151C2C;
+    color: #FFFFFF !important;
+    border-color: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+body.backlog-active .top-bar button:hover {
+    background-color: #151C2C;
+    border-color: #FFFFFF;
+    color: #FFFFFF !important;
+}
+body.backlog-active .rank-badge {
+    background: linear-gradient(135deg, #FFFFFF, #B0B3B8);
+    color: #000000 !important; /* base badge: black on silver gradient */
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
+}
+
+/* --- Stat cards + gradient values --- */
+body.backlog-active .stat-card {
+    background-color: #151C2C;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+body.backlog-active .stat-card .stat-value {
+    background: linear-gradient(120deg, #FFFFFF, #E5E7EB) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: #F3F4F6 !important;
+}
+body.backlog-active #total-watched-value {
+    background: linear-gradient(120deg, var(--primary-color), #FFE082) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: #F3F4F6 !important;
+}
+
+/* --- Backlog list rows (adapter sets these twice: global + screen-scoped) --- */
+body.backlog-active .backlog-anime-list-item,
+body.backlog-active #backlog-manager-screen .backlog-anime-list-item {
+    background-color: #151C2C;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #F3F4F6;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+body.backlog-active .backlog-anime-list-item:hover,
+body.backlog-active #backlog-manager-screen .backlog-anime-list-item:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+body.backlog-active .backlog-info h4,
+body.backlog-active #backlog-manager-screen .backlog-info h4 {
+    color: #F3F4F6;
+}
+body.backlog-active .backlog-info p {
+    color: #9CA3AF;
+}
+
+/* --- Inputs: entry textarea + filter controls ---
+   The second rule supersedes Step 2's light re-assertion for the
+   filter controls (same selectors, !important, later in file). */
+body.backlog-active #backlog-entry-controls textarea,
+body.backlog-active #backlog-filter-controls input[type="text"],
+body.backlog-active #backlog-filter-controls select,
+body.backlog-active #backlog-filter-controls input {
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #F3F4F6;
+}
+body.backlog-active #backlog-manager-screen #backlog-filter-controls input,
+body.backlog-active #backlog-manager-screen #backlog-filter-controls select {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    color: #F3F4F6 !important;
+}
+body.backlog-active #backlog-filter-controls input::placeholder,
+body.backlog-active #backlog-entry-controls textarea::placeholder {
+    color: #9CA3AF !important;
+    opacity: 1;
+}
+
+/* --- Buttons (silver primary + ghost manual, as elsewhere in the app) --- */
+body.backlog-active .add-btn {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    border: 1px solid #E5E7EB !important;
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1) !important;
+}
+body.backlog-active .add-btn:hover:not(:disabled) {
+    background: #F3F4F6 !important;
+    color: #000000 !important;
+}
+body.backlog-active .manual-add-btn {
+    background: transparent !important;
+    color: #FFFFFF !important;
+    border: 1px solid #FFFFFF !important;
+    box-shadow: none !important;
+}
+body.backlog-active .manual-add-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #FFFFFF !important;
+}
+/* (.remove-btn needs no rule: the adapter already sets it to
+   var(--error-color), identical to the dark base.) */
+
+/* --- Tags: restore the app's own base dark tag palette
+   (values copied from the global .type-tag/.year-tag/etc. rules;
+   the adapter's light !important versions are overridden by the
+   same selectors + !important, later in the file) --- */
+body.backlog-active .backlog-tag.type-tag {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    color: #93C5FD !important;
+    border: 1px solid rgba(59, 130, 246, 0.3) !important;
+}
+body.backlog-active .backlog-tag.year-tag {
+    background-color: rgba(16, 185, 129, 0.15) !important;
+    color: #6EE7B7 !important;
+    border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+body.backlog-active .backlog-tag.mal-score-tag {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    color: #E5E7EB !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+body.backlog-active .backlog-tag.my-score-tag {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    color: #FFFFFF !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.05) !important;
+}
+body.backlog-active .backlog-tag.manual-tag {
+    /* Design v2 step 3: violet replaced by the neutral silver values */
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    color: #FFFFFF !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+body.backlog-active .backlog-tag.source-tag {
+    background-color: rgba(156, 163, 175, 0.15) !important;
+    color: #D1D5DB !important;
+    border: 1px solid rgba(156, 163, 175, 0.3) !important;
+}
+
+/* --- Card meta + synopsis --- */
+body.backlog-active .backlog-text-meta {
+    border-top-color: rgba(255, 255, 255, 0.06) !important;
+}
+body.backlog-active .backlog-text-meta p {
+    color: #9CA3AF;
+}
+body.backlog-active .backlog-text-meta strong {
+    color: #F3F4F6;
+}
+body.backlog-active .backlog-synopsis-text {
+    color: #9CA3AF !important;
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    border-left: 3px solid #FFFFFF !important;
+}
+body.backlog-active .backlog-synopsis-toggle-btn {
+    color: #FFFFFF !important;
+}
+body.backlog-active .backlog-synopsis-toggle-btn:hover {
+    color: #FFFFFF !important;
+}
+/* End DESIGN V2 — STEP 2.5 */
+
+/* ============================================================
+   DESIGN V2 — STEP 3: DETAILS, LOUNGE, ACHIEVEMENTS, ANALYTICS,
+   SETTINGS RESTYLE (design-v2 branch)
+   Same rules as Steps 1–2.5: existing palette only, cosmetic
+   only (radius / border / shadow / padding / gap / typography /
+   palette colours), scoped to each surface so nothing leaks.
+   No layout, display or position changes. script.js/index.html
+   untouched. Two leftover non-palette tints found on these
+   surfaces are normalized to palette neutrals, same as Step 2
+   did for AniPace: the amber glow on unlocked achievement
+   cards and the amber hover on the DM scrollbar thumb.
+   ============================================================ */
+
+/* --- 1. DETAILS / READ STORY ---
+   The details panel is .anime-info-item wherever it expands
+   (planner rows keep Step 2's ID-scoped 14px row radius; the
+   rules below only refine details-only inner elements plus the
+   shared badge/chip shapes). Streaming badges and character
+   cards are inline-styled by script.js, so their radius fixes
+   carry !important (stylesheet !important beats inline styles;
+   colours/positions from the inline styles are left alone). */
+.anime-info-badge { border-radius: 999px; padding: 3px 9px; }
+.anime-info-title { font-size: 17px !important; }
+.anime-info-img { border-radius: 10px; }
+.anime-synopsis-text { border-radius: 12px; padding: 14px; }
+.anime-info-item .anime-tags-row strong { color: var(--text-color); }
+.anime-info-item .streaming-link-badge {
+    border-radius: 999px !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    padding: 5px 10px !important;
+}
+.anime-info-item [id^="characters-"] > div > div { border-radius: 12px !important; }
+.anime-info-item [id^="characters-"] > div > div img { border-radius: 8px !important; }
+.trailer-iframe-wrapper { border-radius: 14px !important; }
+
+/* --- 2. SOCIAL LOUNGE --- */
+#anime-social-lounge .lounge-header h2 { font-size: 20px; font-weight: 800; }
+#anime-social-lounge .lounge-tab-btn { border-radius: 999px; padding: 9px 16px; font-size: 13px; }
+#anime-social-lounge .friends-subtab-btn { border-radius: 999px; }
+#anime-social-lounge .friend-menu { border-radius: 12px; }
+/* Identity / add-friend / chat inputs: sample radius (inline
+   styles set 6–8px, hence !important; colours untouched) */
+#anime-social-lounge #user-share-code,
+#anime-social-lounge #my-username-input,
+#anime-social-lounge #user-full-id,
+#anime-social-lounge #friend-search-input,
+#anime-social-lounge #dm-message-input { border-radius: 10px !important; }
+/* Friend / request rows and the search-result card are rendered
+   by script.js with inline radii — shape only, via !important */
+#anime-social-lounge #my-friends-list > div,
+#anime-social-lounge #incoming-requests-list > div,
+#anime-social-lounge #sent-requests-list > div,
+#anime-social-lounge #friend-search-result > div { border-radius: 14px !important; }
+#anime-social-lounge #dm-messages-container { border-radius: 14px !important; }
+#anime-social-lounge #dm-messages-container::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+#anime-social-lounge #emoji-picker-popup { border-radius: 12px !important; }
+#anime-social-lounge #lounge-planner-output { border-radius: 16px !important; }
+/* Leaderboard tab: airier rows with hairline dividers */
+#lounge-leaderboard-tab th,
+#lounge-leaderboard-tab td { padding: 10px 8px; }
+#leaderboard-table-body td { border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+
+/* --- 3. ACHIEVEMENTS MODAL ---
+   Rank tabs are already silver pills in the base styles and the
+   Next Up / rank-progress cards already carry the foundation's
+   radius, so this is refinement: sample radii, a card treatment
+   for the achievement items themselves (they had radius but no
+   unified surface inside the modal), thinner-feeling progress
+   bars, and the unlocked amber glow normalized to neutrals.
+   The per-achievement accent stays on the left border via
+   --ach-color (border-left-color re-asserted after the
+   shorthand below, exactly as the base rules intend). */
+#achievements-modal .modal-content h2 { font-size: 20px; font-weight: 800; }
+#achievements-modal .ach-next-up { border-radius: 16px; padding: 16px; }
+#achievements-modal .ach-next-up-card { border-radius: 14px; }
+#achievements-modal .ach-rank-progress { border-radius: 16px; padding: 14px 16px; }
+#achievements-modal .achievement-item { border-radius: 14px; }
+#achievements-modal .achievement-item.unlocked {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+    border-left-color: var(--ach-color, var(--primary-color));
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+}
+#achievements-modal .ach-progress-bar { height: 5px; border-radius: 999px; }
+#achievements-modal .ach-progress-fill { border-radius: 999px; }
+
+/* --- 4. ANALYTICS (chart modal) ---
+   The Genres/Studios/Format toggle buttons had no CSS at all
+   (browser-default buttons); they get the app's pill treatment.
+   Chart container becomes a surface card; the canvas itself is
+   Chart.js-drawn and is not recoloured from CSS. */
+#chart-modal .chart-controls { display: flex; gap: 6px; flex-wrap: wrap; }
+#chart-modal .chart-toggle-btn {
+    background: var(--surface-color);
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+#chart-modal .chart-toggle-btn.active {
+    background: var(--primary-color);
+    color: #000;
+    border-color: var(--primary-color);
+}
+#chart-modal #analytics-chart-container {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 14px;
+}
+
+/* --- 5. SETTINGS MODAL ---
+   Sections become cards (they were divider-separated blocks);
+   the divider is removed only inside this modal, where the
+   card borders replace it. Inner panels/inputs are inline-
+   styled with #444 borders and 6–10px radii, so the palette
+   border + sample radii carry !important. The sync-status row
+   and signed-in panel get the status-card radius; the danger
+   button gets the sample radius (its red is the palette error
+   colour, untouched). */
+#settings-modal .settings-section {
+    background: var(--surface-color);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
+}
+#settings-modal .settings-section h4 { font-size: 13px; margin-bottom: 14px; }
+#settings-modal .settings-section > div {
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    border-radius: 12px !important;
+}
+#settings-modal input { border-radius: 10px !important; }
+#settings-modal #reset-btn { border-radius: 12px !important; }
+/* End DESIGN V2 — STEP 3 */
