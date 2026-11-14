@@ -1817,3 +1817,192 @@ input[type="date"]::-webkit-outer-spin-button {
     cursor: pointer;
 }
 .friend-menu button:hover { background: rgba(255,255,255,0.05); }
+
+/* ============================================================
+   DESIGN V2 FOUNDATION — Step 1 (design-v2 branch)
+   Additive only. Existing palette only:
+   bg #0A0E17 · surface #151C2C · primary #FFFFFF · text #F3F4F6
+   muted #9CA3AF · progress blue #3B82F6 · success #10B981 · error #EF4444
+   Existing containers below get COSMETIC unification only
+   (border-radius / border / box-shadow) — no layout changes.
+   All new components use the dv2- prefix to avoid collisions.
+   ============================================================ */
+.stat-card,
+.anipace-card,
+.ach-next-up-card,
+.modal-content {
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Room for the fixed bottom navigation bar */
+body { padding-bottom: 78px; }
+
+/* --- Shared dv2 pieces --- */
+.dv2-card {
+    background: var(--surface-color);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: var(--card-shadow);
+}
+.dv2-badge-blue {
+    background: var(--progress-bar-color);
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 3px 9px;
+    white-space: nowrap;
+}
+.dv2-prog {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 99px;
+    overflow: hidden;
+}
+.dv2-prog > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--progress-bar-color);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+}
+.dv2-btn-blue {
+    background: var(--progress-bar-color);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 12px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 11px 18px;
+    cursor: pointer;
+    min-height: 44px;
+}
+
+/* --- Planner: Today's Challenge hero --- */
+.dv2-hero { margin-top: 16px; margin-bottom: 16px; }
+.dv2-hero-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.dv2-hero-title { font-size: 17px; font-weight: 900; color: var(--text-color); }
+.dv2-hero-head .dv2-badge-blue { margin-left: auto; }
+.dv2-hero-sub {
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    margin: 8px 0 0 0;
+}
+.dv2-hero-stats {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+}
+.dv2-hero-stats > div {
+    flex: 1;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+    padding: 9px 0;
+}
+.dv2-hero-num { font-size: 18px; font-weight: 900; color: var(--text-color); }
+.dv2-hero-lbl { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.dv2-hero .dv2-prog { margin-top: 14px; }
+.dv2-hero .dv2-btn-blue { width: 100%; margin-top: 14px; }
+
+/* --- Menu screen --- */
+.dv2-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.dv2-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    flex: none;
+}
+.dv2-profile-name { font-size: 16px; font-weight: 800; color: var(--text-color); }
+.dv2-profile-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.dv2-menu-list { display: flex; flex-direction: column; gap: 10px; }
+.dv2-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: var(--surface-color);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 14px 16px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-family: inherit;
+    min-height: 56px;
+}
+.dv2-menu-row svg {
+    width: 22px;
+    height: 22px;
+    stroke: var(--text-color);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: none;
+}
+.dv2-row-title { font-size: 15px; font-weight: 800; display: block; }
+.dv2-row-sub { font-size: 11px; color: var(--text-secondary); display: block; margin-top: 1px; }
+.dv2-chev { margin-left: auto; color: var(--text-secondary); font-size: 18px; }
+
+/* --- Fixed bottom navigation --- */
+.dv2-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900; /* below .modal (1001), above page content */
+    display: flex;
+    background: rgba(21, 28, 44, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.dv2-nav-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 6px 2px;
+    border-radius: 12px;
+    min-height: 48px;
+}
+.dv2-nav-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.dv2-nav-btn.dv2-active { color: var(--text-color); }
+.dv2-nav-btn.dv2-active svg { stroke: var(--progress-bar-color); }

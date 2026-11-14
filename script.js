@@ -5700,3 +5700,163 @@ function initLoungeComponents() {
     }
     initFriendsSubtabs();
 }
+// ============================================================
+// DESIGN V2 — Step 1 (design-v2 branch): bottom nav, Menu screen,
+// Today's Challenge hero. ADDITIVE ONLY.
+// Navigation reuses the existing switchToScreen() and the existing
+// click handlers on #achievements-card / #avg-score-card /
+// #settings-btn / .lounge-tab-btn — nothing here changes how any
+// existing feature works, and no data is read for writing or stored.
+// ============================================================
+function dv2SetNav(key) {
+    document.querySelectorAll('.dv2-nav-btn').forEach(btn => {
+        btn.classList.toggle('dv2-active', btn.dataset.dv2Nav === key);
+    });
+}
+
+function dv2HideMenu() {
+    const menu = document.getElementById('dv2-menu-screen');
+    if (menu) menu.classList.add('hidden');
+}
+
+function dv2Go(screen) {
+    dv2HideMenu();
+    switchToScreen(screen);
+    dv2SetNav(screen);
+    if (screen === 'challenge') dv2RefreshHero();
+}
+
+function dv2ShowMenu() {
+    // Mirror what switchToScreen() does when leaving the lounge.
+    const loungeScreen = document.getElementById('anime-social-lounge');
+    if (loungeScreen && !loungeScreen.classList.contains('hidden') && typeof stopLoungeListeners === 'function') {
+        stopLoungeListeners();
+    }
+    ['challenge-screen', 'backlog-manager-screen', 'anipace-log-screen', 'schedule-screen', 'anime-social-lounge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    const menu = document.getElementById('dv2-menu-screen');
+    if (menu) menu.classList.remove('hidden');
+    const headerTitle = document.getElementById('header-title');
+    if (headerTitle) headerTitle.textContent = 'Menu';
+    dv2FillMenuProfile();
+    dv2SetNav('menu');
+    window.scrollTo(0, 0);
+}
+
+// Profile strip: rank text is copied from the existing #rank-badge;
+// name/avatar come from the existing getProfileData() helper.
+function dv2FillMenuProfile() {
+    const rankEl = document.getElementById('rank-badge');
+    const rankTarget = document.getElementById('dv2-menu-rank');
+    if (rankEl && rankTarget && rankEl.textContent.trim()) {
+        rankTarget.textContent = rankEl.textContent.trim();
+    }
+    try {
+        const user = (window.firebase && firebase.auth) ? firebase.auth().currentUser : null;
+        if (user && typeof getProfileData === 'function') {
+            getProfileData(user.uid, profile => {
+                if (!profile) return;
+                const nameEl = document.getElementById('dv2-menu-name');
+                const avatarEl = document.getElementById('dv2-menu-avatar');
+                if (nameEl && profile.displayName) nameEl.textContent = profile.displayName;
+                if (avatarEl && profile.avatarUrl) avatarEl.src = profile.avatarUrl;
+            });
+        }
+    } catch (e) { /* profile strip keeps its defaults */ }
+}
+
+// Hero values come only from existing app state/DOM:
+// anipaceData.episodesToday, challengeData.days[today].watched,
+// the existing #daily-pace-value and #progress-fill displays.
+function dv2RefreshHero() {
+    try {
+        const epEl = document.getElementById('dv2-hero-episodes');
+        if (epEl && typeof anipaceData !== 'undefined' && anipaceData) {
+            epEl.textContent = anipaceData.episodesToday || 0;
+        }
+        const anEl = document.getElementById('dv2-hero-anime');
+        if (anEl && typeof challengeData !== 'undefined' && challengeData && typeof getLocalDateString === 'function') {
+            const today = challengeData.days ? challengeData.days[getLocalDateString(new Date())] : null;
+            anEl.textContent = (today && today.watched) ? today.watched.length : 0;
+        }
+        const paceEl = document.getElementById('dv2-hero-pace');
+        const paceVal = document.getElementById('daily-pace-value');
+        if (paceEl && paceVal && paceVal.textContent.trim()) {
+            paceEl.textContent = 'Daily pace: ' + paceVal.textContent.trim();
+        }
+        const fill = document.getElementById('progress-fill');
+        if (fill) {
+            const pct = (fill.textContent || '0%').trim();
+            const bar = document.getElementById('dv2-hero-bar');
+            const pctEl = document.getElementById('dv2-hero-progress');
+            if (bar) bar.style.width = pct;
+            if (pctEl) pctEl.textContent = pct;
+        }
+    } catch (e) { /* hero keeps its defaults until app data is ready */ }
+}
+
+function dv2ClickById(id) {
+    const el = document.getElementById(id);
+    if (el) el.click();
+}
+
+// --- DESIGN V2 wiring (script.js loads at the end of <body>, so the DOM exists) ---
+document.querySelectorAll('.dv2-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const target = btn.dataset.dv2Nav;
+        if (target === 'menu') dv2ShowMenu();
+        else dv2Go(target);
+    });
+});
+
+document.querySelectorAll('[data-dv2-go]').forEach(row => {
+    row.addEventListener('click', () => dv2Go(row.dataset.dv2Go));
+});
+
+document.querySelectorAll('[data-dv2-open]').forEach(row => {
+    row.addEventListener('click', () => {
+        const target = row.dataset.dv2Open;
+        if (target === 'achievements') {
+            // Reuses the achievements card's own handler (always opens on the Newbie tab).
+            dv2HideMenu();
+            dv2ClickById('achievements-card');
+        } else if (target === 'analytics') {
+            // Analytics lives in the existing chart modal; the stat cards open it.
+            dv2HideMenu();
+            dv2ClickById('avg-score-card');
+        } else if (target === 'settings') {
+            dv2HideMenu();
+            dv2ClickById('settings-btn');
+        } else if (target === 'leaderboard') {
+            // The leaderboard is a tab inside the Social Lounge.
+            dv2Go('lounge');
+            const tab = document.querySelector('.lounge-tab-btn[data-tab="leaderboard"]');
+            if (tab) tab.click();
+        }
+    });
+});
+
+const dv2HeroLogBtn = document.getElementById('dv2-hero-log-btn');
+if (dv2HeroLogBtn) dv2HeroLogBtn.addEventListener('click', () => dv2Go('anipace'));
+
+// Keep the bottom nav highlight in sync when the existing top bar is used,
+// and never leave the Menu screen open over another screen.
+[['switch-to-challenge-btn', 'challenge'], ['switch-to-backlog-btn', 'backlog'], ['switch-to-anipace-btn', 'anipace'], ['switch-to-schedule-btn', 'schedule'], ['switch-to-lounge-btn', 'lounge']].forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', () => {
+        dv2HideMenu();
+        dv2SetNav(key);
+        if (key === 'challenge') dv2RefreshHero();
+    });
+});
+const dv2SettingsBtn = document.getElementById('settings-btn');
+if (dv2SettingsBtn) dv2SettingsBtn.addEventListener('click', () => dv2HideMenu());
+const dv2JumpBtn = document.getElementById('jump-to-today-btn');
+if (dv2JumpBtn) dv2JumpBtn.addEventListener('click', () => dv2Go('challenge'));
+
+document.addEventListener('DOMContentLoaded', () => {
+    dv2SetNav('challenge');
+    dv2RefreshHero();
+});
