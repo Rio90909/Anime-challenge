@@ -114,6 +114,7 @@ const ANILIST_MEDIA_FIELDS = `
     format
     status
     genres
+    tags { name rank isGeneralSpoiler isMediaSpoiler }
     description
     isAdult
     trailer { id site }
@@ -127,6 +128,13 @@ query ($page: Int, $perPage: Int, $sort: [MediaSort], $status: MediaStatus, $gen
         media(type: ANIME, sort: $sort, status: $status, genre: $genre, format_in: $formatIn, episodes_greater: $epGreater, episodes_lesser: $epLesser, search: $search, isAdult: false) {
             ${ANILIST_MEDIA_FIELDS}
         }
+    }
+}`;
+
+const ANILIST_MEDIA_BY_ID_QUERY = `
+query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        ${ANILIST_MEDIA_FIELDS}
     }
 }`;
 
@@ -163,11 +171,21 @@ function normalizeAniListResponse(pageData) {
         const rated = (m.rankings || []).find(r => r.type === 'RATED' && r.allTime);
         const popular = (m.rankings || []).find(r => r.type === 'POPULAR' && r.allTime);
 
+        // AniList keeps detailed labels (Harem, Isekai, School...) as
+        // tags, separate from its 18 genres. Pull every non-spoiler tag
+        // the anime has, strongest first, so nothing AniList knows
+        // about the anime is left behind.
+        const tags = (m.tags || [])
+            .filter(t => t && t.name && !t.isGeneralSpoiler && !t.isMediaSpoiler)
+            .sort((a, b) => (b.rank || 0) - (a.rank || 0))
+            .map(t => ({ name: t.name, rank: t.rank || 0 }));
+
         const anime = {
             mal_id: m.id,
             title: title,
             titles: titles,
             genres: (m.genres || []).map(name => ({ name: name })),
+            tags: tags,
             studios: studios,
             type: formatMap[m.format] || 'TV',
             score: (m.averageScore !== null && m.averageScore !== undefined) ? parseFloat((m.averageScore / 10).toFixed(2)) : null,
@@ -198,6 +216,15 @@ function normalizeAniListResponse(pageData) {
     });
 }
 
+// Display labels for a card: the AniList genres first (so the first
+// label is always a real genre), then the anime's strongest AniList
+// tags — that is where labels like Harem and Isekai live on AniList.
+function animeLabelLine(anime, tagLimit) {
+    const genreNames = (anime.genres || []).map(g => g.name);
+    const tagNames = (anime.tags || []).slice(0, tagLimit === undefined ? 10 : tagLimit).map(t => t.name);
+    return genreNames.concat(tagNames).join(', ') || 'N/A';
+}
+
 async function searchAniList(text, perPage) {
     const data = await anilistGraphQL(ANILIST_PAGE_QUERY, {
         page: 1,
@@ -206,6 +233,13 @@ async function searchAniList(text, perPage) {
         sort: ['SEARCH_MATCH']
     });
     return normalizeAniListResponse(data.Page);
+}
+
+async function fetchAniListById(id) {
+    const data = await anilistGraphQL(ANILIST_MEDIA_BY_ID_QUERY, { id: id });
+    if (!data || !data.Media) return null;
+    const normalized = normalizeAniListResponse({ media: [data.Media] });
+    return normalized[0] || null;
 }
 
 // Shared Discover filter variables (genre / format / episode length)
@@ -368,6 +402,21 @@ window.lazyLoadDetails = function(animeId, animeSource) {
     const charsContainer = document.getElementById(`characters-${animeId}`);
     const anime = resolveAnimeForDetails(animeId, animeSource);
     const source = animeSource || (anime && anime.source) || 'kitsu';
+
+    // Full AniList tag list: the tags ride along on the anime object,
+    // so showing them needs no extra request. Inserted once, above
+    // the streaming links.
+    const tagsAnchor = linksContainer || charsContainer;
+    if (tagsAnchor && anime && Array.isArray(anime.tags) && anime.tags.length > 0) {
+        const parent = tagsAnchor.parentElement;
+        if (parent && !parent.querySelector('.anime-tags-row')) {
+            const tagsDiv = document.createElement('div');
+            tagsDiv.className = 'anime-tags-row';
+            tagsDiv.style.cssText = 'margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-light); font-size: 10.5px; color: var(--text-secondary); line-height: 1.7;';
+            tagsDiv.innerHTML = '<strong>🏷️ Tags:</strong> ' + anime.tags.map(t => t.name).join(', ');
+            parent.insertBefore(tagsDiv, tagsAnchor);
+        }
+    }
 
     if (linksContainer && !linksContainer.dataset.loaded) {
         linksContainer.dataset.loaded = 'true';
@@ -1194,6 +1243,86 @@ function cleanupStoredGenres() {
     location.reload();
 }
 
+// Refreshes the genre + tag labels of saved anime from AniList, so
+// anime stored in the Kitsu era (or before tags were pulled) get the
+// full AniList label set — genres plus every non-spoiler tag, which
+// is where labels like Harem live. AniList-sourced entries are
+// fetched directly by id; Kitsu-era entries are matched by title and
+// only updated on a confident title match. ONLY the genres and tags
+// fields change. Requests are spaced out to stay within AniList's
+// rate limits, entries that already have tags are skipped (so the
+// pass can simply be run again to resume), and a safety copy of the
+// current data is saved first.
+let labelRefreshRunning = false;
+async function refreshStoredLabels(btn) {
+    if (labelRefreshRunning) return;
+    const unique = getUniqueAnime().filter(a => a && !a.isManual);
+    const pending = unique.filter(a => !Array.isArray(a.tags));
+    if (pending.length === 0) {
+        showNotification('All your saved anime already have their AniList labels.', 'success');
+        return;
+    }
+    const message = `Refresh labels for ${pending.length} saved anime from AniList?\n\n`
+        + `Each anime gets its full AniList genres + tags (including labels like Harem and Isekai). `
+        + `This can take a few minutes for a big library — keep the app open while it runs.\n\n`
+        + `Only genre and tag labels change: your titles, scores, episodes and dates stay exactly as they are. `
+        + `A safety copy of your current data is saved first.`;
+    if (!confirm(message)) return;
+
+    labelRefreshRunning = true;
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) localStorage.setItem(STORAGE_KEY + '_pre_label_refresh', raw);
+    } catch (e) { /* the safety copy is best-effort; the refresh itself is label-only */ }
+
+    const keyOf = item => (item && !item.isManual) ? `${item.source || 'kitsu'}:${item.mal_id}` : null;
+    const applyLabels = (target, fresh) => {
+        const key = keyOf(target);
+        if (!key) return;
+        const apply = item => {
+            if (keyOf(item) === key) {
+                item.genres = fresh.genres;
+                item.tags = fresh.tags;
+            }
+        };
+        Object.values(challengeData.days || {}).forEach(day => (day.watched || []).forEach(apply));
+        (challengeData.backlog || []).forEach(apply);
+    };
+
+    let updated = 0;
+    let notFound = 0;
+    let failed = 0;
+    for (let i = 0; i < pending.length; i++) {
+        const entry = pending[i];
+        if (btn) btn.textContent = `🔄 Refreshing ${i + 1}/${pending.length}...`;
+        try {
+            let fresh = null;
+            if ((entry.source || 'kitsu') === 'anilist') {
+                fresh = await fetchAniListById(parseInt(entry.mal_id));
+                if (!fresh) notFound++;
+            } else {
+                const results = await searchAniList(getEnglishTitle(entry), 3);
+                const entryKeys = animeTitleKeys(entry);
+                fresh = (results || []).find(r => [...animeTitleKeys(r)].some(k => entryKeys.has(k))) || null;
+                if (!fresh) notFound++;
+            }
+            if (fresh) {
+                applyLabels(entry, fresh);
+                updated++;
+            }
+        } catch (e) {
+            failed++;
+        }
+        if (i < pending.length - 1) await new Promise(r => setTimeout(r, 700));
+    }
+
+    saveData();
+    labelRefreshRunning = false;
+    if (btn) btn.textContent = '🔄 Refresh Labels from AniList';
+    alert(`Label refresh finished.\n\n✅ Updated: ${updated} anime\n❓ Not found on AniList: ${notFound}\n⚠️ Failed (connection): ${failed}\n\nOnly genre and tag labels changed. The app will now reload.`);
+    location.reload();
+}
+
 // Moves a backlog-only anime into today's challenge log.
 function moveBacklogItemToToday(anime) {
     const key = anime.isManual ? anime.title.toLowerCase().trim() : anime.mal_id;
@@ -1772,7 +1901,7 @@ function renderAllAnimeList() {
                 `;
             } else {
                 const studioName = (anime.studios || []).map(s => s.name)[0] || '';
-                const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
+                const genres = animeLabelLine(anime);
                 const imageUrl = anime.images?.jpg?.small_image_url || 'https://via.placeholder.com/80x110?text=N/A';
                 const synopsis = anime.synopsis || '';
                 itemDiv.innerHTML = `
@@ -1991,7 +2120,7 @@ function createDayEntry(date) {
             } else {
                 const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/60x85?text=N/A';
                 const studioName = (anime.studios || []).map(s => s.name)[0] || '';
-                const genres = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
+                const genres = animeLabelLine(anime);
                 const synopsis = anime.synopsis || '';
 
                 animeDiv.innerHTML = `
@@ -2277,7 +2406,7 @@ function renderSurpriseModal(anime) {
 
     const title = getEnglishTitle(anime);
     const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/150x210?text=No+Image';
-    const genresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
+    const genresStr = animeLabelLine(anime);
 
     let actionButtonsHtml = `
         <div style="display: flex; gap: 10px; width: 100%; margin-top: 20px;">
@@ -2845,7 +2974,7 @@ function renderScheduleGrid(gridId, animeList) {
         item.className = 'search-result-item';
         const title = getEnglishTitle(anime);
         const imageUrl = anime.images?.jpg?.image_url || 'https://via.placeholder.com/105x145?text=No+Image';
-        const genresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
+        const genresStr = animeLabelLine(anime);
 
         let actionButtonsHtml = `
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
@@ -2996,7 +3125,7 @@ function renderTrendGrid(gridId, animeList) {
         const formattedMembers = anime.userCount ? (anime.userCount >= 1000000 ? `${(anime.userCount / 1000000).toFixed(1)}M` : (anime.userCount >= 1000 ? `${(anime.userCount / 1000).toFixed(0)}K` : anime.userCount)) : 'N/A';
         const formattedRating = anime.averageRating ? `⭐ ${parseFloat(anime.averageRating).toFixed(0)}%` : '⭐ N/A';
 
-        const allGenresStr = (anime.genres || []).map(g => g.name).join(', ') || 'N/A';
+        const allGenresStr = animeLabelLine(anime);
 
         let actionButtonsHtml = `
             <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: auto;">
@@ -3179,6 +3308,8 @@ function initializeApp() {
     }
     const cleanupGenresBtn = document.getElementById('cleanup-genres-btn');
     if (cleanupGenresBtn) cleanupGenresBtn.onclick = cleanupStoredGenres;
+    const refreshLabelsBtn = document.getElementById('refresh-labels-btn');
+    if (refreshLabelsBtn) refreshLabelsBtn.onclick = () => refreshStoredLabels(refreshLabelsBtn);
     document.getElementById('open-planner-btn').onclick = () => { 
         document.getElementById('planner-playback-speed').value = anipaceData.playbackSpeed; 
         document.getElementById('planner-results').classList.add('hidden');
