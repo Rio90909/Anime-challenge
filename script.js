@@ -131,13 +131,6 @@ query ($page: Int, $perPage: Int, $sort: [MediaSort], $status: MediaStatus, $gen
     }
 }`;
 
-const ANILIST_MEDIA_BY_ID_QUERY = `
-query ($id: Int) {
-    Media(id: $id, type: ANIME) {
-        ${ANILIST_MEDIA_FIELDS}
-    }
-}`;
-
 const ANILIST_CHARACTERS_QUERY = `
 query ($id: Int) {
     Media(id: $id, type: ANIME) {
@@ -233,13 +226,6 @@ async function searchAniList(text, perPage) {
         sort: ['SEARCH_MATCH']
     });
     return normalizeAniListResponse(data.Page);
-}
-
-async function fetchAniListById(id) {
-    const data = await anilistGraphQL(ANILIST_MEDIA_BY_ID_QUERY, { id: id });
-    if (!data || !data.Media) return null;
-    const normalized = normalizeAniListResponse({ media: [data.Media] });
-    return normalized[0] || null;
 }
 
 // Shared Discover filter variables (genre / format / episode length)
@@ -1180,147 +1166,6 @@ function setUserScoreEverywhere(anime, rating) {
         (day.watched || []).forEach(item => { if (matches(item)) item.user_score = rating; });
     });
     (challengeData.backlog || []).forEach(item => { if (matches(item)) item.user_score = rating; });
-}
-
-// Canonical AniList genre titles by lowercase name, used to clean the
-// genre lists of anime stored in the Kitsu era: Kitsu merged its whole
-// category tree — including place/setting words like Earth, Japan and
-// Asia — into each anime's genres.
-const ANILIST_GENRE_BY_LOWER = {};
-ANILIST_GENRES.forEach(g => { ANILIST_GENRE_BY_LOWER[g.title.toLowerCase()] = g.title; });
-
-function cleanedGenreList(genres) {
-    if (!Array.isArray(genres)) return genres;
-    const seen = new Set();
-    const cleaned = [];
-    genres.forEach(g => {
-        const canonical = g && g.name ? ANILIST_GENRE_BY_LOWER[String(g.name).toLowerCase().trim()] : undefined;
-        if (canonical && !seen.has(canonical)) {
-            seen.add(canonical);
-            cleaned.push({ name: canonical });
-        }
-    });
-    return cleaned;
-}
-
-// One-time cleanup for anime stored before the AniList switch: keeps
-// only real AniList genres on every stored card. ONLY the genres field
-// changes — titles, scores, episodes, dates and ids are never touched.
-// A safety copy of the current data is saved first, like the restore
-// flow does, under the *_pre_genre_cleanup storage key.
-function cleanupStoredGenres() {
-    const plan = [];
-    const planEntry = item => {
-        if (!item || !Array.isArray(item.genres)) return;
-        const cleaned = cleanedGenreList(item.genres);
-        const isChanged = cleaned.length !== item.genres.length
-            || cleaned.some((g, i) => !item.genres[i] || item.genres[i].name !== g.name);
-        if (isChanged) plan.push({ item, cleaned });
-    };
-    Object.values(challengeData.days || {}).forEach(day => (day.watched || []).forEach(planEntry));
-    (challengeData.backlog || []).forEach(planEntry);
-
-    if (plan.length === 0) {
-        showNotification('Your saved anime genres are already clean — nothing to change.', 'success');
-        return;
-    }
-    const removedCount = plan.reduce((sum, p) => sum + (p.item.genres.length - p.cleaned.length), 0);
-    const message = `Clean up genres on ${plan.length} saved anime?\n\n`
-        + `This removes ${removedCount} place/setting tag${removedCount === 1 ? '' : 's'} (like Earth, Japan, Asia) `
-        + `and keeps only real genres — the same clean list new anime get from AniList.\n\n`
-        + `Nothing else changes: your titles, scores, episodes and dates stay exactly as they are. `
-        + `A safety copy of your current data is saved first.`;
-    if (!confirm(message)) return;
-
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) localStorage.setItem(STORAGE_KEY + '_pre_genre_cleanup', raw);
-    } catch (e) { /* the safety copy is best-effort; the cleanup itself is genre-only */ }
-
-    plan.forEach(p => { p.item.genres = p.cleaned; });
-    saveData();
-    alert(`Done! Cleaned ${plan.length} saved anime and removed ${removedCount} place/setting tag${removedCount === 1 ? '' : 's'}. Your lists will now reload with the clean genres.`);
-    location.reload();
-}
-
-// Refreshes the genre + tag labels of saved anime from AniList, so
-// anime stored in the Kitsu era (or before tags were pulled) get the
-// full AniList label set — genres plus every non-spoiler tag, which
-// is where labels like Harem live. AniList-sourced entries are
-// fetched directly by id; Kitsu-era entries are matched by title and
-// only updated on a confident title match. ONLY the genres and tags
-// fields change. Requests are spaced out to stay within AniList's
-// rate limits, entries that already have tags are skipped (so the
-// pass can simply be run again to resume), and a safety copy of the
-// current data is saved first.
-let labelRefreshRunning = false;
-async function refreshStoredLabels(btn) {
-    if (labelRefreshRunning) return;
-    const unique = getUniqueAnime().filter(a => a && !a.isManual);
-    const pending = unique.filter(a => !Array.isArray(a.tags));
-    if (pending.length === 0) {
-        showNotification('All your saved anime already have their AniList labels.', 'success');
-        return;
-    }
-    const message = `Refresh labels for ${pending.length} saved anime from AniList?\n\n`
-        + `Each anime gets its full AniList genres + tags (including labels like Harem and Isekai). `
-        + `This can take a few minutes for a big library — keep the app open while it runs.\n\n`
-        + `Only genre and tag labels change: your titles, scores, episodes and dates stay exactly as they are. `
-        + `A safety copy of your current data is saved first.`;
-    if (!confirm(message)) return;
-
-    labelRefreshRunning = true;
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) localStorage.setItem(STORAGE_KEY + '_pre_label_refresh', raw);
-    } catch (e) { /* the safety copy is best-effort; the refresh itself is label-only */ }
-
-    const keyOf = item => (item && !item.isManual) ? `${item.source || 'kitsu'}:${item.mal_id}` : null;
-    const applyLabels = (target, fresh) => {
-        const key = keyOf(target);
-        if (!key) return;
-        const apply = item => {
-            if (keyOf(item) === key) {
-                item.genres = fresh.genres;
-                item.tags = fresh.tags;
-            }
-        };
-        Object.values(challengeData.days || {}).forEach(day => (day.watched || []).forEach(apply));
-        (challengeData.backlog || []).forEach(apply);
-    };
-
-    let updated = 0;
-    let notFound = 0;
-    let failed = 0;
-    for (let i = 0; i < pending.length; i++) {
-        const entry = pending[i];
-        if (btn) btn.textContent = `🔄 Refreshing ${i + 1}/${pending.length}...`;
-        try {
-            let fresh = null;
-            if ((entry.source || 'kitsu') === 'anilist') {
-                fresh = await fetchAniListById(parseInt(entry.mal_id));
-                if (!fresh) notFound++;
-            } else {
-                const results = await searchAniList(getEnglishTitle(entry), 3);
-                const entryKeys = animeTitleKeys(entry);
-                fresh = (results || []).find(r => [...animeTitleKeys(r)].some(k => entryKeys.has(k))) || null;
-                if (!fresh) notFound++;
-            }
-            if (fresh) {
-                applyLabels(entry, fresh);
-                updated++;
-            }
-        } catch (e) {
-            failed++;
-        }
-        if (i < pending.length - 1) await new Promise(r => setTimeout(r, 700));
-    }
-
-    saveData();
-    labelRefreshRunning = false;
-    if (btn) btn.textContent = '🔄 Refresh Labels from AniList';
-    alert(`Label refresh finished.\n\n✅ Updated: ${updated} anime\n❓ Not found on AniList: ${notFound}\n⚠️ Failed (connection): ${failed}\n\nOnly genre and tag labels changed. The app will now reload.`);
-    location.reload();
 }
 
 // Moves a backlog-only anime into today's challenge log.
@@ -3306,10 +3151,6 @@ function initializeApp() {
         importBackupBtn.onclick = () => importBackupInput.click();
         importBackupInput.onchange = handleBackupFileSelect;
     }
-    const cleanupGenresBtn = document.getElementById('cleanup-genres-btn');
-    if (cleanupGenresBtn) cleanupGenresBtn.onclick = cleanupStoredGenres;
-    const refreshLabelsBtn = document.getElementById('refresh-labels-btn');
-    if (refreshLabelsBtn) refreshLabelsBtn.onclick = () => refreshStoredLabels(refreshLabelsBtn);
     document.getElementById('open-planner-btn').onclick = () => { 
         document.getElementById('planner-playback-speed').value = anipaceData.playbackSpeed; 
         document.getElementById('planner-results').classList.add('hidden');
