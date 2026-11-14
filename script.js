@@ -14,6 +14,8 @@ let chatListenerRef = null;
 let friendsListenerRef = null;
 let presenceListenerRef = null;
 let requestsListenerRef = null;
+let sentRequestsListenerRef = null;
+let myLoungeProfile = { username: null, friendCode: null };
 let otherUsersProfiles = {}; // Cache of user profiles
 
 const AVATAR_PRESETS = [
@@ -3798,6 +3800,9 @@ function getProfileData(uid, callback) {
                 displayName: data.displayName || `User#${uid.substring(0, 4)}`,
                 avatarUrl: data.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`,
                 title: data.title || "Newbie Tracker",
+                username: data.username || null,
+                friendCode: data.friendCode || null,
+                level: data.level || 1,
                 completedCount: data.completedCount || 0,
                 xp: data.xp || 0
             };
@@ -3898,9 +3903,10 @@ function initLoungeListeners() {
 
     const uid = currentUser.uid;
 
-    // Load/Display User Share Code
-    const shareCodeInput = document.getElementById('user-share-code');
-    if (shareCodeInput) shareCodeInput.value = uid;
+    // Load/Display identity: full ID, friend code and username
+    const fullIdInput = document.getElementById('user-full-id');
+    if (fullIdInput) fullIdInput.value = uid;
+    setupLoungeIdentity(uid);
 
     // Update mobile sub-views
     updateMobileLoungeView();
@@ -3919,6 +3925,13 @@ function initLoungeListeners() {
         renderIncomingRequests(snapshot.val() || {});
     });
 
+    // 2b. Sent Requests Listener
+    if (sentRequestsListenerRef) sentRequestsListenerRef.off();
+    sentRequestsListenerRef = firebase.database().ref(`sentRequests/${uid}`);
+    sentRequestsListenerRef.on('value', snapshot => {
+        renderSentRequests(snapshot.val() || {});
+    });
+
     // 3. Presence Listener
     if (presenceListenerRef) presenceListenerRef.off();
     presenceListenerRef = firebase.database().ref(`status`);
@@ -3933,12 +3946,14 @@ function initLoungeListeners() {
 function stopLoungeListeners() {
     if (friendsListenerRef) friendsListenerRef.off();
     if (requestsListenerRef) requestsListenerRef.off();
+    if (sentRequestsListenerRef) sentRequestsListenerRef.off();
     if (presenceListenerRef) presenceListenerRef.off();
     if (chatListenerRef) chatListenerRef.off();
     if (leaderboardListenerRef) leaderboardListenerRef.off();
 
     friendsListenerRef = null;
     requestsListenerRef = null;
+    sentRequestsListenerRef = null;
     presenceListenerRef = null;
     chatListenerRef = null;
     leaderboardListenerRef = null;
@@ -4231,14 +4246,19 @@ function renderFriendsList() {
                     </div>
                     <div>
                         <h4 style="margin: 0; font-size: 13px; color: var(--text-color);">${escapeHTML(profile.displayName)} <span style="font-size: 10px; font-weight:800; color:var(--success-color); margin-left:4px;">Lv.${profile.level || 1}</span></h4>
-                        <p style="margin: 0; font-size: 10px; color: var(--text-secondary);">${escapeHTML(profile.title)}</p>
+                        <p style="margin: 0; font-size: 10px; color: var(--text-secondary);">${escapeHTML(profile.title)}${profile.username ? ' &middot; @' + escapeHTML(profile.username) : ''}</p>
                         <span class="presence-watching-${escapeHTML(friendUid)}" style="font-size: 9px; color: var(--success-color); display: block; margin-top: 1px;"></span>
                     </div>
                 </div>
                 <div style="display: flex; gap: 4px; align-items:center;">
                     <button class="add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0; background: var(--primary-color); color: #000;" onclick="window.startLoungeChat('${escapeHTML(friendUid)}')">Chat</button>
                     <button class="add-btn manual-add-btn" style="padding: 4px 10px; font-size: 11px; height: auto; margin: 0;" onclick="window.openLoungeComparison('${escapeHTML(friendUid)}')">Compare</button>
-                    <button class="remove-btn" style="padding: 0 5px; font-size: 16px;" onclick="window.removeLoungeFriend('${escapeHTML(friendUid)}')">&times;</button>
+                    <div class="friend-menu-wrap">
+                        <button class="remove-btn" style="padding: 0 5px; font-size: 16px;" onclick="window.toggleFriendMenu('${escapeHTML(friendUid)}', event)">&#8942;</button>
+                        <div class="friend-menu hidden" id="friend-menu-${escapeHTML(friendUid)}">
+                            <button onclick="window.removeLoungeFriend('${escapeHTML(friendUid)}')">Remove friend</button>
+                        </div>
+                    </div>
                 </div>
             `;
             // Trigger update of online dots
@@ -4264,9 +4284,10 @@ function renderIncomingRequests(requestsObj) {
     if (!listContainer) return;
 
     const uids = Object.keys(requestsObj).filter(key => requestsObj[key] === true);
+    updateRequestsBadge(uids.length);
 
     if (uids.length === 0) {
-        listContainer.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">No incoming requests.</p>`;
+        listContainer.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">No incoming requests. When someone adds you, their request will show here.</p>`;
         return;
     }
 
@@ -4291,7 +4312,7 @@ function renderIncomingRequests(requestsObj) {
                     <img src="${escapeHTML(profile.avatarUrl)}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
                     <div>
                         <h4 style="margin: 0; font-size: 12px; color: var(--text-color);">${escapeHTML(profile.displayName)}</h4>
-                        <p style="margin: 0; font-size: 9px; color: var(--text-secondary);">${escapeHTML(profile.title)}</p>
+                        <p style="margin: 0; font-size: 9px; color: var(--text-secondary);">${escapeHTML(profile.title)} &middot; Lv.${profile.level || 1}${profile.username ? ' &middot; @' + escapeHTML(profile.username) : ''}</p>
                     </div>
                 </div>
                 <div style="display: flex; gap: 6px;">
@@ -4819,37 +4840,369 @@ function initSmartBingePlanner() {
     };
 }
 
+// --- FRIEND IDENTITY: USERNAME + SHORT FRIEND CODE + SEARCH ---
+let lastFriendSearchUid = null;
+
+function generateFriendCode() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+    return 'AC-' + code;
+}
+
+function assignFriendCode(uid, attempts) {
+    attempts = attempts || 0;
+    if (attempts > 6) return;
+    const code = generateFriendCode();
+    const db = firebase.database();
+    db.ref(`friendCodes/${code}`).once('value').then(snap => {
+        if (snap.exists()) { assignFriendCode(uid, attempts + 1); return; }
+        const updates = {};
+        updates[`friendCodes/${code}`] = uid;
+        updates[`users/${uid}/profile/friendCode`] = code;
+        return db.ref().update(updates).then(() => {
+            myLoungeProfile.friendCode = code;
+            const codeInput = document.getElementById('user-share-code');
+            if (codeInput) codeInput.value = code;
+        });
+    }).catch(() => {});
+}
+
+function setupLoungeIdentity(uid) {
+    const db = firebase.database();
+    db.ref(`users/${uid}/profile`).once('value').then(snap => {
+        const p = snap.val() || {};
+        myLoungeProfile.username = p.username || null;
+        myLoungeProfile.friendCode = p.friendCode || null;
+
+        const avatarEl = document.getElementById('my-lounge-avatar');
+        if (avatarEl) avatarEl.src = p.avatarUrl || `https://api.dicebear.com/7.x/adventurer/svg?seed=${uid}`;
+        const nameEl = document.getElementById('my-lounge-name');
+        if (nameEl) nameEl.textContent = p.displayName || 'You';
+        const userLabel = document.getElementById('my-lounge-username');
+        if (userLabel) userLabel.textContent = p.username ? '@' + p.username : 'No username yet — set one so friends can find you';
+        const usernameInput = document.getElementById('my-username-input');
+        if (usernameInput && p.username) usernameInput.value = p.username;
+
+        const codeInput = document.getElementById('user-share-code');
+        if (p.friendCode) {
+            if (codeInput) codeInput.value = p.friendCode;
+        } else {
+            assignFriendCode(uid);
+        }
+    }).catch(() => {});
+
+    const saveBtn = document.getElementById('save-username-btn');
+    if (saveBtn && !saveBtn.dataset.wired) {
+        saveBtn.dataset.wired = '1';
+        saveBtn.onclick = () => window.saveMyUsername();
+    }
+    const usernameInput = document.getElementById('my-username-input');
+    if (usernameInput && !usernameInput.dataset.wired) {
+        usernameInput.dataset.wired = '1';
+        usernameInput.onkeydown = (e) => { if (e.key === 'Enter') window.saveMyUsername(); };
+    }
+}
+
+window.saveMyUsername = function() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const input = document.getElementById('my-username-input');
+    const name = (input ? input.value : '').trim().replace(/^@+/, '').toLowerCase();
+    if (!/^[a-z0-9_]{3,20}$/.test(name)) {
+        showToast("Username needs 3-20 characters: lowercase letters, numbers or _ only.", "error");
+        return;
+    }
+    if (myLoungeProfile.username === name) {
+        showToast("That's already your username.");
+        return;
+    }
+    const db = firebase.database();
+    // Claim the name atomically: only succeeds if it is free or already mine.
+    db.ref(`usernames/${name}`).transaction(current => {
+        if (current === null || current === user.uid) return user.uid;
+        return; // abort — taken by someone else
+    }).then(result => {
+        if (!result.committed) {
+            showToast("That username is taken — try another one.", "error");
+            return;
+        }
+        const updates = {};
+        updates[`users/${user.uid}/profile/username`] = name;
+        if (myLoungeProfile.username && myLoungeProfile.username !== name) {
+            updates[`usernames/${myLoungeProfile.username}`] = null;
+        }
+        return db.ref().update(updates).then(() => {
+            myLoungeProfile.username = name;
+            const label = document.getElementById('my-lounge-username');
+            if (label) label.textContent = '@' + name;
+            showToast("Username saved: @" + name);
+        });
+    }).catch(err => showToast(loungeErrorMessage(err, "Couldn't save the username. Please try again."), "error"));
+};
+
+// Accepts an @username, a short friend code (AC-XXXXXX), or a full user ID.
+async function resolveFriendIdentifier(rawInput) {
+    const db = firebase.database();
+    const raw = (rawInput || '').trim();
+    if (!raw) return null;
+
+    const asUsername = raw.replace(/^@+/, '').toLowerCase();
+    if (/^[a-z0-9_]{3,20}$/.test(asUsername)) {
+        const snap = await db.ref(`usernames/${asUsername}`).once('value');
+        if (snap.exists()) return snap.val();
+    }
+
+    const norm = raw.toUpperCase().replace(/[\s-]/g, '');
+    if (/^[A-Z0-9]{6}$/.test(norm) || /^AC[A-Z0-9]{6}$/.test(norm)) {
+        const code = norm.length === 8 ? 'AC-' + norm.slice(2) : 'AC-' + norm;
+        const snap = await db.ref(`friendCodes/${code}`).once('value');
+        if (snap.exists()) return snap.val();
+    }
+
+    if (raw.length >= 20) {
+        const snap = await db.ref(`users/${raw}/profile`).once('value');
+        if (snap.exists()) return raw;
+    }
+    return null;
+}
+
+window.searchLoungeFriend = function() {
+    const user = firebase.auth().currentUser;
+    const box = document.getElementById('friend-search-result');
+    if (!box) return;
+    if (!user) { showToast("You must log in to add friends.", "error"); return; }
+    const input = document.getElementById('friend-search-input');
+    const raw = input ? input.value.trim() : '';
+    if (!raw) {
+        box.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">Type a friend's @username, friend code, or full ID, then tap Search.</p>`;
+        return;
+    }
+    box.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">Searching...</p>`;
+    resolveFriendIdentifier(raw).then(foundUid => {
+        if (!foundUid) {
+            box.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">No user found for "${escapeHTML(raw)}". Check the spelling and try again.</p>`;
+            return;
+        }
+        if (foundUid === user.uid) {
+            box.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">That's you! Share your @username or friend code with a friend instead.</p>`;
+            return;
+        }
+        lastFriendSearchUid = foundUid;
+        renderFriendSearchResult(foundUid);
+    }).catch(() => {
+        box.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">Search failed — check your connection and try again.</p>`;
+    });
+};
+
+window.refreshFriendSearchResult = function() {
+    if (lastFriendSearchUid) renderFriendSearchResult(lastFriendSearchUid);
+};
+
+function renderFriendSearchResult(foundUid) {
+    const user = firebase.auth().currentUser;
+    const box = document.getElementById('friend-search-result');
+    if (!user || !box) return;
+    const db = firebase.database();
+    Promise.all([
+        db.ref(`friends/${user.uid}/${foundUid}`).once('value'),
+        db.ref(`sentRequests/${user.uid}/${foundUid}`).once('value'),
+        db.ref(`friendRequests/${user.uid}/${foundUid}`).once('value')
+    ]).then(([friendSnap, sentSnap, incomingSnap]) => {
+        getProfileData(foundUid, profile => {
+            const uidArg = escapeHTML(foundUid);
+            let action;
+            if (friendSnap.exists()) {
+                action = `<button class="add-btn manual-add-btn" disabled style="padding: 6px 12px; font-size: 12px; height: auto; margin: 0; opacity: 0.7;">✓ Friends</button>`;
+            } else if (incomingSnap.exists()) {
+                action = `<button class="add-btn" style="padding: 6px 12px; font-size: 12px; height: auto; margin: 0; background: var(--success-color); color: #FFF;" onclick="window.acceptLoungeRequest('${uidArg}'); setTimeout(window.refreshFriendSearchResult, 700);">Accept Request</button>`;
+            } else if (sentSnap.exists()) {
+                action = `<button class="add-btn manual-add-btn" disabled style="padding: 6px 12px; font-size: 12px; height: auto; margin: 0; opacity: 0.7;">Request Sent</button>
+                          <button class="add-btn manual-add-btn" style="padding: 6px 12px; font-size: 12px; height: auto; margin: 0; border-color: var(--error-color); color: var(--error-color);" onclick="window.cancelLoungeRequest('${uidArg}'); setTimeout(window.refreshFriendSearchResult, 700);">Cancel</button>`;
+            } else {
+                action = `<button class="add-btn" style="padding: 6px 12px; font-size: 12px; height: auto; margin: 0;" onclick="window.sendLoungeRequest('${uidArg}').then(() => setTimeout(window.refreshFriendSearchResult, 300));">Add Friend</button>`;
+            }
+            box.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; background-color: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <img src="${escapeHTML(profile.avatarUrl)}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover;">
+                        <div>
+                            <h4 style="margin: 0; font-size: 13px; color: var(--text-color);">${escapeHTML(profile.displayName)} <span style="font-size: 10px; font-weight: 800; color: var(--success-color); margin-left: 4px;">Lv.${profile.level || 1}</span></h4>
+                            <p style="margin: 0; font-size: 10px; color: var(--text-secondary);">${escapeHTML(profile.title)}${profile.username ? ' · @' + escapeHTML(profile.username) : ''}</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 6px; flex-shrink: 0;">${action}</div>
+                </div>
+            `;
+        });
+    }).catch(() => {
+        box.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">Couldn't load that profile — try again.</p>`;
+    });
+}
+
+function renderSentRequests(requestsObj) {
+    const listContainer = document.getElementById('sent-requests-list');
+    if (!listContainer) return;
+
+    const uids = Object.keys(requestsObj).filter(key => requestsObj[key] === true);
+
+    if (uids.length === 0) {
+        listContainer.innerHTML = `<p class="empty-state-message" style="padding: 10px; font-size: 12px;">No sent requests waiting.</p>`;
+        return;
+    }
+
+    listContainer.innerHTML = '';
+    uids.forEach(recipientUid => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'anipace-history-item';
+        itemDiv.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background-color: rgba(255,255,255,0.02);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            margin-bottom: 8px;
+        `;
+
+        getProfileData(recipientUid, profile => {
+            itemDiv.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <img src="${escapeHTML(profile.avatarUrl)}" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 12px; color: var(--text-color);">${escapeHTML(profile.displayName)}</h4>
+                        <p style="margin: 0; font-size: 9px; color: var(--text-secondary);">${escapeHTML(profile.title)} · Waiting for them to accept</p>
+                    </div>
+                </div>
+                <button class="add-btn manual-add-btn" style="padding: 3px 8px; font-size: 11px; height: auto; margin: 0; border-color: var(--error-color); color: var(--error-color);" onclick="window.cancelLoungeRequest('${escapeHTML(recipientUid)}')">Cancel</button>
+            `;
+        });
+
+        listContainer.appendChild(itemDiv);
+    });
+}
+
+function updateRequestsBadge(count) {
+    const badge = document.getElementById('requests-count-badge');
+    if (!badge) return;
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+function initFriendsSubtabs() {
+    const btns = document.querySelectorAll('.friends-subtab-btn');
+    if (!btns.length) return;
+    btns.forEach(btn => {
+        btn.onclick = () => {
+            btns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            ['friends', 'requests', 'add'].forEach(key => {
+                const panel = document.getElementById('ftab-' + key);
+                if (panel) panel.classList.toggle('hidden', key !== btn.dataset.ftab);
+            });
+        };
+    });
+    if (!document.body.dataset.friendMenuCloser) {
+        document.body.dataset.friendMenuCloser = '1';
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.friend-menu').forEach(m => m.classList.add('hidden'));
+        });
+    }
+}
+
+window.toggleFriendMenu = function(friendUid, event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('friend-menu-' + friendUid);
+    if (!menu) return;
+    const wasHidden = menu.classList.contains('hidden');
+    document.querySelectorAll('.friend-menu').forEach(m => m.classList.add('hidden'));
+    if (wasHidden) menu.classList.remove('hidden');
+};
+
+
 // --- GLOBAL ATTACHMENTS TO WINDOW (FOR INLINE ACTIONS) ---
+// Turn raw Firebase errors into friendly, honest messages for the Lounge.
+function loungeErrorMessage(err, fallback) {
+    const code = (err && err.code) || '';
+    const msg = (err && err.message) || '';
+    if (code.indexOf('PERMISSION_DENIED') !== -1 || /permission/i.test(msg)) {
+        return "Blocked by the database rules — the friend-system rules update is still needed in Firebase.";
+    }
+    if (/network|unavailable|disconnected/i.test(msg)) {
+        return "Network problem — check your connection and try again.";
+    }
+    return fallback;
+}
+
 window.sendLoungeRequest = function(recipientUid) {
     const user = firebase.auth().currentUser;
     if (!user) {
         showToast("You must log in to add friends.", "error");
-        return;
+        return Promise.resolve();
     }
     if (user.uid === recipientUid) {
-        showToast("You cannot send a friend request to yourself!", "error");
-        return;
+        showToast("You can't add yourself.", "error");
+        return Promise.resolve();
     }
+    const db = firebase.database();
+    return Promise.all([
+        db.ref(`friends/${user.uid}/${recipientUid}`).once('value'),
+        db.ref(`sentRequests/${user.uid}/${recipientUid}`).once('value'),
+        db.ref(`friendRequests/${user.uid}/${recipientUid}`).once('value')
+    ]).then(([friendSnap, sentSnap, incomingSnap]) => {
+        if (friendSnap.exists()) {
+            showToast("You're already friends with this user.", "error");
+            return;
+        }
+        if (sentSnap.exists()) {
+            showToast("Request already sent — waiting for them to accept.", "error");
+            return;
+        }
+        if (incomingSnap.exists()) {
+            showToast("They already sent you a request — accept it under Requests.", "error");
+            return;
+        }
+        const updates = {};
+        updates[`friendRequests/${recipientUid}/${user.uid}`] = true;
+        updates[`sentRequests/${user.uid}/${recipientUid}`] = true;
+        return db.ref().update(updates)
+            .then(() => showToast("Friend request sent!"));
+    }).catch(err => showToast(loungeErrorMessage(err, "Couldn't send the request. Please try again."), "error"));
+};
 
-    firebase.database().ref(`friendRequests/${recipientUid}/${user.uid}`).set(true)
-        .then(() => showToast("Friend request sent successfully!"))
-        .catch(err => showToast(err.message, "error"));
+window.cancelLoungeRequest = function(recipientUid) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const updates = {};
+    updates[`friendRequests/${recipientUid}/${user.uid}`] = null;
+    updates[`sentRequests/${user.uid}/${recipientUid}`] = null;
+
+    firebase.database().ref().update(updates)
+        .then(() => showToast("Request cancelled."))
+        .catch(err => showToast(loungeErrorMessage(err, "Couldn't cancel the request. Please try again."), "error"));
 };
 
 window.acceptLoungeRequest = function(senderUid) {
     const user = firebase.auth().currentUser;
     if (!user) return;
 
-    // Only write to nodes we have write permissions for (our own friends list and our incoming requests)
+    const db = firebase.database();
+    // Write BOTH sides of the friendship (the old code wrote only one side,
+    // so accepted friends never showed up as mutual friends).
     const updates = {};
     updates[`friends/${user.uid}/${senderUid}`] = true;
+    updates[`friends/${senderUid}/${user.uid}`] = true;
     updates[`friendRequests/${user.uid}/${senderUid}`] = null;
 
-    firebase.database().ref().update(updates)
+    db.ref().update(updates)
         .then(() => {
-            showToast("Friend request accepted!");
+            showToast("Friend added!");
+            // Best-effort: clear their "sent" entry too (ignore failure)
+            db.ref(`sentRequests/${senderUid}/${user.uid}`).remove().catch(() => {});
         })
-        .catch(err => showToast(err.message, "error"));
+        .catch(err => showToast(loungeErrorMessage(err, "Couldn't accept the request. Please try again."), "error"));
 };
 
 window.rejectLoungeRequest = function(senderUid) {
@@ -4857,8 +5210,12 @@ window.rejectLoungeRequest = function(senderUid) {
     if (!user) return;
 
     firebase.database().ref(`friendRequests/${user.uid}/${senderUid}`).remove()
-        .then(() => showToast("Friend request rejected."))
-        .catch(err => showToast(err.message, "error"));
+        .then(() => {
+            showToast("Friend request declined.");
+            // Best-effort: clear their "sent" entry too (ignore failure)
+            firebase.database().ref(`sentRequests/${senderUid}/${user.uid}`).remove().catch(() => {});
+        })
+        .catch(err => showToast(loungeErrorMessage(err, "Couldn't decline the request. Please try again."), "error"));
 };
 
 window.removeLoungeFriend = function(friendUid) {
@@ -4866,20 +5223,21 @@ window.removeLoungeFriend = function(friendUid) {
     if (!user) return;
 
     if (confirm("Are you sure you want to remove this friend?")) {
-        // Only write to friends node we have permission for (our own friends list)
         const updates = {};
         updates[`friends/${user.uid}/${friendUid}`] = null;
 
         firebase.database().ref().update(updates)
             .then(() => {
                 showToast("Friend removed.");
+                // Best-effort: clear the other side too (ignore failure)
+                firebase.database().ref(`friends/${friendUid}/${user.uid}`).remove().catch(() => {});
                 if (activeChatId && activeChatId.includes(friendUid)) {
                     document.getElementById('dm-input-area')?.classList.add('hidden');
                     document.getElementById('dm-friend-name').textContent = 'No Active Chat';
                     document.getElementById('dm-messages-container').innerHTML = `<p class="empty-state-message" style="margin: auto; font-size: 12px;">No active chat session selected.</p>`;
                 }
             })
-            .catch(err => showToast(err.message, "error"));
+            .catch(err => showToast(loungeErrorMessage(err, "Couldn't remove this friend. Please try again."), "error"));
     }
 };
 
@@ -5327,22 +5685,18 @@ function initLoungeComponents() {
         copyBtn.onclick = () => {
             shareInput.select();
             document.execCommand('copy');
-            showToast("Share Code copied to clipboard!");
+            showToast("Friend Code copied to clipboard!");
         };
     }
 
-    // Add friend click handler
-    const addFriendBtn = document.getElementById('send-friend-request-btn');
-    const searchInput = document.getElementById('friend-search-input');
-    if (addFriendBtn && searchInput) {
-        addFriendBtn.onclick = () => {
-            const val = searchInput.value.trim();
-            if (val) {
-                window.sendLoungeRequest(val);
-                searchInput.value = '';
-            } else {
-                showToast("Please paste a friend's Share Code.", "error");
-            }
+    // Add friend: search by @username, friend code, or full ID
+    const friendSearchBtn = document.getElementById('search-friend-btn');
+    const friendSearchInput = document.getElementById('friend-search-input');
+    if (friendSearchBtn) friendSearchBtn.onclick = () => window.searchLoungeFriend();
+    if (friendSearchInput) {
+        friendSearchInput.onkeydown = (e) => {
+            if (e.key === 'Enter') window.searchLoungeFriend();
         };
     }
+    initFriendsSubtabs();
 }
