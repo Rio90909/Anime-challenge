@@ -8100,14 +8100,20 @@ if (typeof window.switchToScreen === 'function') {
 // End FULL ANIME PAGE
 
 // ============================================================
-// MUSIC PLAYER — a "🎵 Music" screen (song search + this
-// season's songs) feeding ONE shared audio player for the
-// whole app, plus 🎧 audio buttons on the anime page's
-// Theme Songs rows. Appended at end of file like the other
-// ports; no existing code is modified except the themes
-// query/render (audio field) above and the two wrappers at
-// the bottom of this block. Styling: styles.css "MUSIC
-// PLAYER" section, OG variables only.
+// MUSIC PLAYER — a "🎵 Anime Music" screen (song search +
+// this season's songs) feeding ONE shared audio player for
+// the whole app, plus 🎧 audio buttons on the anime page's
+// Theme Songs rows. The screen is a full-screen takeover
+// (a separate little music app inside the app): all app
+// chrome hides while it is open, its fixed ✕ Close button
+// is the only app control, and song rows + the player bar
+// carry the anime's poster art (one batched art query per
+// rendered set, cached inside the music cache entry).
+// Appended at end of file like the other ports; no
+// existing code is modified except the themes query/render
+// (audio field) above and the wrappers at the bottom of
+// this block. Styling: styles.css "MUSIC PLAYER" section,
+// OG variables only.
 //
 // Song data comes from a community song database with a
 // public, keyless API (POST /api/search_request and
@@ -8149,6 +8155,20 @@ const MUSIC_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MUSIC_DB_BASE = 'https://anisongdb.com/api';
 const MUSIC_FILE_BASE = 'https://files.catbox.moe/';
 const MUSIC_SEASON_CAP = 100;
+// Poster art for song rows and the player bar comes from
+// the anime database the app already uses: ONE batched
+// Page query per rendered set (at most this many distinct
+// anime per set), cached inside the music cache entry.
+const MUSIC_POSTER_CAP = 24;
+const MUSIC_POSTERS_QUERY = `
+query ($ids: [Int]) {
+    Page(page: 1, perPage: 50) {
+        media(id_in: $ids, type: ANIME) {
+            id
+            coverImage { extraLarge large }
+        }
+    }
+}`;
 
 // ---------- cache (same pattern as the themes cache) ----------
 
@@ -8186,8 +8206,100 @@ function musicCacheGet(key) {
 
 function musicCacheSet(key, tracks) {
     const cache = musicLoadCache();
-    cache[key] = { t: Date.now(), tracks: tracks };
+    const entry = { t: Date.now(), tracks: tracks };
+    // A refetch replaces the tracks, not the poster art
+    // already gathered for them.
+    const prev = cache[key];
+    if (prev && prev.posters && typeof prev.posters === 'object') entry.posters = prev.posters;
+    cache[key] = entry;
     musicSaveCache(cache);
+}
+
+// The id→poster map stored inside a cache entry (same key,
+// same 7-day freshness as the tracks it belongs to).
+function musicCachePostersGet(key) {
+    if (!key) return {};
+    const entry = musicLoadCache()[key];
+    if (!entry || typeof entry.t !== 'number') return {};
+    if (Date.now() - entry.t >= MUSIC_CACHE_TTL_MS) return {};
+    return (entry.posters && typeof entry.posters === 'object') ? entry.posters : {};
+}
+
+function musicCachePostersSet(key, map) {
+    if (!key || !map || !Object.keys(map).length) return;
+    const cache = musicLoadCache();
+    const entry = cache[key];
+    if (!entry) return;
+    entry.posters = Object.assign({}, entry.posters, map);
+    musicSaveCache(cache);
+}
+
+// ---------- poster art ----------
+
+// Session-level poster knowledge: id → URL, or '' when the
+// anime is known to have no usable image (or its lookup
+// failed) — so a rendered set never refetches within the
+// session, and later renders paint instantly.
+const musicPosterMemory = {};
+const musicPosterFetching = new Set();
+
+function musicPosterFor(track, postersMap) {
+    if (!track) return '';
+    if (track.poster) return track.poster;
+    if (!track.anilistId) return '';
+    return musicPosterMemory[track.anilistId] || (postersMap && postersMap[track.anilistId]) || '';
+}
+
+function musicPaintPosters(found) {
+    Object.keys(found).forEach(id => {
+        document.querySelectorAll('.music-thumb[data-poster-id="' + id + '"]').forEach(slot => {
+            slot.innerHTML = '<img class="music-thumb-img" src="' + themesEscapeHtml(found[id]) + '" alt="" loading="lazy">';
+        });
+    });
+}
+
+// Fill in poster art for a rendered set of tracks: collect
+// the distinct linked anime ids nobody knows art for yet
+// (capped per set), fetch them in ONE batched query, then
+// remember them (session memory + the set's cache entry),
+// stamp them onto this render's track objects, paint the
+// waiting thumbnails, and refresh the player bar when the
+// playing track's art just arrived.
+function musicFetchPosters(tracks, cacheKey) {
+    const postersMap = musicCachePostersGet(cacheKey);
+    const wanted = [];
+    const seen = new Set();
+    (tracks || []).forEach(t => {
+        if (!t || !t.anilistId || seen.has(t.anilistId)) return;
+        seen.add(t.anilistId);
+        const id = t.anilistId;
+        if (t.poster) { musicPosterMemory[id] = t.poster; return; }
+        if (musicPosterMemory[id] !== undefined) return;
+        if (postersMap[id]) { musicPosterMemory[id] = postersMap[id]; return; }
+        if (musicPosterFetching.has(id)) return;
+        if (wanted.length < MUSIC_POSTER_CAP) wanted.push(id);
+    });
+    if (!wanted.length) return;
+    wanted.forEach(id => musicPosterFetching.add(id));
+    anilistGraphQL(MUSIC_POSTERS_QUERY, { ids: wanted }).then(data => {
+        const media = (data && data.Page && data.Page.media) || [];
+        const found = {};
+        media.forEach(m => {
+            if (!m || !m.id) return;
+            const url = (m.coverImage && (m.coverImage.extraLarge || m.coverImage.large)) || '';
+            if (url) found[m.id] = url;
+        });
+        wanted.forEach(id => { musicPosterMemory[id] = found[id] || ''; });
+        if (Object.keys(found).length) musicCachePostersSet(cacheKey, found);
+        (tracks || []).forEach(t => { if (t && t.anilistId && found[t.anilistId]) t.poster = found[t.anilistId]; });
+        musicPaintPosters(found);
+        const cur = (typeof musicCurrentTrack === 'function') ? musicCurrentTrack() : null;
+        if (cur && cur.anilistId && found[cur.anilistId]) { musicUpdateBar(); musicUpdateMediaSession(); }
+    }).catch(() => {
+        wanted.forEach(id => { if (musicPosterMemory[id] === undefined) musicPosterMemory[id] = ''; });
+    }).finally(() => {
+        wanted.forEach(id => musicPosterFetching.delete(id));
+    });
 }
 
 // ---------- seasons ----------
@@ -8336,6 +8448,22 @@ function musicUpdateBar() {
     if (titleEl) titleEl.textContent = track ? track.title : '—';
     if (subEl) subEl.textContent = track ? [track.anime, track.artist].filter(Boolean).join(' · ') : '';
     if (pp) pp.textContent = musicPlaying ? '⏸' : '▶';
+    // Now-playing art: the current anime's poster when one
+    // is known, the 🎵 placeholder tile otherwise.
+    const thumb = document.getElementById('music-player-thumb');
+    const thumbPh = document.getElementById('music-player-thumb-ph');
+    if (thumb && thumbPh) {
+        const poster = musicPosterFor(track, null);
+        if (poster) {
+            if (thumb.getAttribute('src') !== poster) thumb.src = poster;
+            thumb.hidden = false;
+            thumbPh.hidden = true;
+        } else {
+            thumb.hidden = true;
+            thumb.removeAttribute('src');
+            thumbPh.hidden = false;
+        }
+    }
 }
 
 // A new track starts at 0:00; its total shows the song
@@ -8377,11 +8505,14 @@ function musicUpdateMediaSession() {
         if (!('mediaSession' in navigator) || typeof window.MediaMetadata !== 'function') return;
         const track = musicCurrentTrack();
         if (!track) { navigator.mediaSession.metadata = null; return; }
-        navigator.mediaSession.metadata = new window.MediaMetadata({
+        const metadata = {
             title: track.title || '',
             artist: track.artist || '',
             album: track.anime || ''
-        });
+        };
+        const poster = musicPosterFor(track, null);
+        if (poster) metadata.artwork = [{ src: poster, sizes: '512x512', type: 'image/jpeg' }];
+        navigator.mediaSession.metadata = new window.MediaMetadata(metadata);
         navigator.mediaSession.setActionHandler('play', () => { const a = musicAudioEl(); if (a) { const p = a.play(); if (p && p.catch) p.catch(() => {}); } });
         navigator.mediaSession.setActionHandler('pause', () => { const a = musicAudioEl(); if (a) a.pause(); });
         navigator.mediaSession.setActionHandler('previoustrack', () => musicPrev());
@@ -8597,6 +8728,7 @@ function musicClose() {
     musicErrorStreak = 0;
     musicFailNotified = false;
     musicSetBarVisible(false);
+    musicUpdateBar(); // no current track: title/art reset to the placeholder state
     musicHighlight();
     musicClearMediaSession();
 }
@@ -8623,13 +8755,23 @@ function musicPauseVideos() {
 
 let musicRenderSeq = 0;
 
-function musicRowHtml(track, qidx, renderId) {
+function musicThumbHtml(track, postersMap) {
+    const url = musicPosterFor(track, postersMap);
+    const idAttr = track.anilistId ? ` data-poster-id="${track.anilistId}"` : '';
+    if (url) {
+        return `<span class="music-thumb"${idAttr}><img class="music-thumb-img" src="${themesEscapeHtml(url)}" alt="" loading="lazy"></span>`;
+    }
+    return `<span class="music-thumb"${idAttr}><span class="music-thumb-ph">🎵</span></span>`;
+}
+
+function musicRowHtml(track, qidx, renderId, postersMap) {
     const sub = [track.anime, track.artist].filter(Boolean).join(' · ');
     const action = track.src
         ? `<button class="music-play-btn" type="button" data-qidx="${qidx}" data-base-label="▶ Play">▶ Play</button>`
         : `<span class="music-unavailable">No audio</span>`;
     return `
     <div class="music-row" data-render="${renderId}"${track.src ? ` data-qidx="${qidx}"` : ''}>
+        ${musicThumbHtml(track, postersMap)}
         <span class="music-badge${track.kind === 'OP' ? ' music-badge-op' : ''}">${themesEscapeHtml(track.badge)}</span>
         <div class="music-meta">
             <div class="music-title">${themesEscapeHtml(track.title)}</div>
@@ -8645,8 +8787,9 @@ function musicRowHtml(track, qidx, renderId) {
 // that queue. Grouped mode adds Openings/Endings/Insert
 // Songs headings (the queue order matches the grouping,
 // since tracks arrive pre-sorted OP → ED → IN).
-function musicRenderList(container, tracks, grouped) {
+function musicRenderList(container, tracks, grouped, cacheKey) {
     const renderId = ++musicRenderSeq;
+    const postersMap = musicCachePostersGet(cacheKey);
     const playable = tracks.filter(t => t.src);
     const qidxOf = new Map();
     playable.forEach((t, i) => qidxOf.set(t, i));
@@ -8656,10 +8799,10 @@ function musicRenderList(container, tracks, grouped) {
             const rows = tracks.filter(t => t.kind === kind);
             if (!rows.length) return;
             html += `<div class="music-group-head">${label}</div>`;
-            rows.forEach(t => { html += musicRowHtml(t, t.src ? qidxOf.get(t) : -1, renderId); });
+            rows.forEach(t => { html += musicRowHtml(t, t.src ? qidxOf.get(t) : -1, renderId, postersMap); });
         });
     } else {
-        tracks.forEach(t => { html += musicRowHtml(t, t.src ? qidxOf.get(t) : -1, renderId); });
+        tracks.forEach(t => { html += musicRowHtml(t, t.src ? qidxOf.get(t) : -1, renderId, postersMap); });
     }
     container.innerHTML = html;
     container.querySelectorAll('.music-play-btn').forEach(btn => {
@@ -8672,6 +8815,9 @@ function musicRenderList(container, tracks, grouped) {
             }
         });
     });
+    // Poster art fills in behind the rendered rows (one
+    // batched query per set, cached with the set).
+    musicFetchPosters(tracks, cacheKey);
     return renderId;
 }
 
@@ -8695,7 +8841,7 @@ function musicDoSearch() {
     const cached = musicCacheGet(cacheKey);
     if (cached) {
         if (status) status.textContent = cached.length ? '' : 'No songs found for that title.';
-        musicRenderList(results, cached, true);
+        musicRenderList(results, cached, true, cacheKey);
         return;
     }
     if (status) status.textContent = 'Searching…';
@@ -8708,7 +8854,7 @@ function musicDoSearch() {
         const tracks = musicProcessEntries(Array.isArray(list) ? list : []);
         musicCacheSet(cacheKey, tracks);
         if (status) status.textContent = tracks.length ? '' : 'No songs found for that title.';
-        musicRenderList(results, tracks, true);
+        musicRenderList(results, tracks, true, cacheKey);
     }).catch(() => {
         if (seq !== musicSearchSeq) return;
         if (status) status.textContent = 'Could not load songs right now. Please try again.';
@@ -8736,7 +8882,7 @@ function musicLoadSeason() {
         if (nameEl) nameEl.textContent = '— ' + musicSeasonKey(season);
         if (status) status.textContent = tracks.length ? '' : 'No songs found for this season yet.';
         const shown = tracks.slice(0, MUSIC_SEASON_CAP);
-        musicRenderList(list, shown, false);
+        musicRenderList(list, shown, false, 'season:' + musicSeasonKey(season));
         if (tracks.length > shown.length) {
             const note = document.createElement('div');
             note.className = 'music-note';
@@ -8780,6 +8926,17 @@ function musicLoadSeason() {
 // is already current toggles pause instead of restarting.
 function musicPlayThemesQueue(block, idx) {
     const themes = (block && block._themesList) || [];
+    // The queue's poster is the anime page's own poster —
+    // the best art already on screen for this anime. (The
+    // page paints a generic placeholder when it has no real
+    // poster; that one doesn't count.)
+    let pagePoster = '';
+    if (block && block.closest) {
+        const pageScreen = block.closest('#anime-page-screen');
+        const posterImg = pageScreen ? pageScreen.querySelector('#anime-page-poster') : null;
+        const src = posterImg ? (posterImg.getAttribute('src') || '') : '';
+        if (src && src.indexOf('via.placeholder.com') === -1) pagePoster = src;
+    }
     const playable = [];
     const idxMap = [];
     themes.forEach((t, i) => {
@@ -8788,7 +8945,8 @@ function musicPlayThemesQueue(block, idx) {
                 title: t.title || (t.type === 'OP' ? 'Opening theme' : 'Ending theme'),
                 anime: block._themesAnimeTitle || '',
                 artist: (t.artists || []).join(', '),
-                src: t.audio
+                src: t.audio,
+                poster: pagePoster || undefined
             });
             idxMap.push(i);
         }
@@ -8804,13 +8962,59 @@ function musicPlayThemesQueue(block, idx) {
 
 // ---------- navigation ----------
 
+// The Music screen is a full-screen takeover, mirroring
+// the anime page: while it is open, ALL app chrome hides
+// (the music-open body class) and the only app control is
+// its fixed ✕ Close button, top-left. It presents as a
+// separate little music app inside the app — search, this
+// season and the player all live in that world — and
+// closing it returns to the exact screen the user came
+// from, with the music still playing.
+let musicOrigin = 'challenge';
+
+function musicDetectOrigin() {
+    const map = {
+        'challenge-screen': 'challenge',
+        'backlog-manager-screen': 'backlog',
+        'anipace-log-screen': 'anipace',
+        'schedule-screen': 'schedule',
+        'anime-social-lounge': 'lounge'
+    };
+    const ids = Object.keys(map);
+    for (let i = 0; i < ids.length; i++) {
+        const el = document.getElementById(ids[i]);
+        if (el && !el.classList.contains('hidden')) return map[ids[i]];
+    }
+    return 'challenge';
+}
+
+// The single funnel for leaving the Music takeover:
+// restore the chrome, put the screen away, restore its
+// nav entry. Every exit path (✕ Close, any programmatic
+// screen switch, the anime page opening) goes through
+// here, so no path can leave the chrome hidden or the
+// screen stuck open. All operations are idempotent, so
+// running it when Music is already closed is near-free.
+function musicHideScreen() {
+    document.body.classList.remove('music-open');
+    const screen = document.getElementById('music-screen');
+    if (screen) screen.classList.add('hidden');
+    const musicBtn = document.getElementById('switch-to-music-btn');
+    if (musicBtn) musicBtn.classList.remove('hidden');
+}
+
 // Mirror of the base switcher's chrome management for the
 // one screen it doesn't know about: hide every screen,
 // restore every nav button except Music's own, hide the
 // Jump-to-Today shortcut, drop the Backlog theme, retitle
 // the header. Leaving the anime page goes through the
-// page's own hide (pauses its videos, restores chrome).
+// page's own hide (pauses its videos, restores chrome) —
+// only one takeover is ever active at a time.
 function musicShowScreen() {
+    const screen = document.getElementById('music-screen');
+    // Remember where the user came from (if the screen is
+    // somehow already showing, keep the earlier origin).
+    if (screen && screen.classList.contains('hidden')) musicOrigin = musicDetectOrigin();
     try { if (typeof stopLoungeListeners === 'function') stopLoungeListeners(); } catch (e) { /* silent */ }
     try { animePageHide(); } catch (e) { /* page may not be open */ }
     ['challenge-screen', 'backlog-manager-screen', 'anipace-log-screen', 'schedule-screen', 'anime-social-lounge'].forEach(id => {
@@ -8829,24 +9033,48 @@ function musicShowScreen() {
     document.body.classList.remove('backlog-active');
     const headerTitle = document.getElementById('header-title');
     if (headerTitle) headerTitle.textContent = 'Music';
-    const screen = document.getElementById('music-screen');
     if (screen) screen.classList.remove('hidden');
+    document.body.classList.add('music-open');
     window.scrollTo(0, 0);
     musicOnShow();
 }
 
+// ✕ Close: leave the takeover and return to the screen
+// the user came from. The music itself keeps playing —
+// the player bar waits on the screen underneath.
+window.closeMusicScreen = function() {
+    musicHideScreen();
+    window.switchToScreen(musicOrigin || 'challenge');
+};
+
 // Chain onto the (already wrapped) screen switcher: the
 // Music screen is ours to show/hide; every other target
-// delegates untouched after the Music screen is put away.
+// delegates untouched after the Music takeover is left.
 if (typeof window.switchToScreen === 'function') {
     const musicPrevSwitchToScreen = window.switchToScreen;
     window.switchToScreen = function(screenId) {
         if (screenId === 'music') { musicShowScreen(); return; }
-        const screen = document.getElementById('music-screen');
-        if (screen) screen.classList.add('hidden');
-        const musicBtn = document.getElementById('switch-to-music-btn');
-        if (musicBtn) musicBtn.classList.remove('hidden');
+        try { musicHideScreen(); } catch (e) { /* never break navigation */ }
         return musicPrevSwitchToScreen.apply(this, arguments);
+    };
+}
+
+// The other takeover wins cleanly too: opening the anime
+// page while Music is open leaves the Music takeover
+// first (screen away, chrome restored), then the page's
+// own takeover applies — never both at once, never stuck.
+if (typeof window.openAnimePage === 'function') {
+    const musicPrevOpenAnimePage = window.openAnimePage;
+    window.openAnimePage = function() {
+        try { musicHideScreen(); } catch (e) { /* never break the page */ }
+        return musicPrevOpenAnimePage.apply(this, arguments);
+    };
+}
+if (typeof window.openAnimePageEntry === 'function') {
+    const musicPrevOpenAnimePageEntry = window.openAnimePageEntry;
+    window.openAnimePageEntry = function() {
+        try { musicHideScreen(); } catch (e) { /* never break the page */ }
+        return musicPrevOpenAnimePageEntry.apply(this, arguments);
     };
 }
 
@@ -8874,6 +9102,8 @@ if (typeof window.playTrailer === 'function') {
 (function musicInit() {
     const navBtn = document.getElementById('switch-to-music-btn');
     if (navBtn) navBtn.onclick = () => window.switchToScreen('music');
+    const closeBtn = document.getElementById('music-back-btn');
+    if (closeBtn) closeBtn.addEventListener('click', () => { window.closeMusicScreen(); });
     const searchBtn = document.getElementById('music-search-btn');
     if (searchBtn) searchBtn.addEventListener('click', () => musicDoSearch());
     const input = document.getElementById('music-search-input');

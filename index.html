@@ -426,15 +426,16 @@
         </div>
 
         <div id="music-screen" class="hidden container">
-            <h2>🎵 Music</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Search any anime to play its opening, ending and insert songs — or browse this season's songs below. Music keeps playing while you use the rest of the app.</p>
+            <button id="music-back-btn" class="add-btn" type="button" style="width: auto; height: 36px; padding: 0 16px; font-size: 13px; margin-bottom: 12px;">✕ Close</button>
+            <h2>🎵 Anime Music</h2>
+            <p class="music-subtitle">Openings, endings and insert songs — search any anime, or browse this season's songs below. Music keeps playing while you use the rest of the app.</p>
             <div class="entry-controls-group" style="margin-bottom: 20px;">
                 <input type="text" id="music-search-input" placeholder="Type anime title to search songs...">
                 <button id="music-search-btn" class="add-btn">Search Songs</button>
             </div>
             <div id="music-search-status" class="music-status"></div>
             <div id="music-search-results"></div>
-            <h3 style="margin-top: 30px;">🔥 This Season <span id="music-season-name" style="color: var(--text-secondary); font-size: 14px; font-weight: normal;"></span></h3>
+            <h3 class="music-section-head" style="margin-top: 30px;">🔥 This Season <span id="music-season-name" style="color: var(--text-secondary); font-size: 14px; font-weight: normal;"></span></h3>
             <div id="music-season-status" class="music-status"></div>
             <div id="music-season-list"></div>
         </div>
@@ -672,6 +673,8 @@
     </div>
 
     <div id="music-player-bar" class="music-player-bar" hidden>
+        <img id="music-player-thumb" class="music-player-thumb" alt="" hidden>
+        <span id="music-player-thumb-ph" class="music-player-thumb music-thumb-ph" aria-hidden="true">🎵</span>
         <div class="music-player-info">
             <div id="music-player-title" class="music-player-title">—</div>
             <div id="music-player-sub" class="music-player-sub"></div>

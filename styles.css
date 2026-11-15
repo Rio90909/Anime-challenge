@@ -2467,6 +2467,37 @@ body.theme-instant {
    like every other OG block).
    ============================================================ */
 
+/* --- Full-screen takeover (mirrors the anime page): while
+   the Music screen is open, ALL app chrome (header, rank
+   badge, top navigation bar) is hidden. The screen is its
+   own little music app; its fixed ✕ Close button — top-left
+   — is the only app control, and the player bar stays
+   visible inside this world. --- */
+body.music-open header,
+body.music-open .top-bar,
+body.music-open #rank-badge {
+    display: none !important;
+}
+#music-screen {
+    padding-top: 56px; /* room for the fixed Close button */
+}
+#music-back-btn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1400;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.music-subtitle {
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+.music-section-head {
+    font-size: 17px;
+    color: var(--text-color);
+}
+
 /* --- Song lists (Music screen) --- */
 .music-status {
     font-size: 12.5px;
@@ -2475,21 +2506,44 @@ body.theme-instant {
     min-height: 16px;
 }
 .music-group-head {
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 700;
     color: var(--primary-color);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin: 16px 0 4px;
+    margin: 20px 0 4px;
 }
 .music-row {
     display: flex;
     align-items: center;
     gap: 10px;
     margin-top: 8px;
-    padding: 8px 10px;
+    padding: 10px 12px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-light);
-    border-radius: 8px;
+    border-radius: 10px;
+}
+.music-thumb {
+    width: 46px;
+    height: 64px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.music-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.music-thumb-ph {
+    font-size: 19px;
+    line-height: 1;
 }
 .music-row-playing {
     border-color: var(--primary-color);
@@ -2601,6 +2655,21 @@ body.music-bar-open #main-content { padding-bottom: 92px; }
    out of its way (the music itself keeps playing, and a
    theme video pauses it — see script.js). */
 body.anime-page-open .music-player-bar { display: none !important; }
+.music-player-thumb {
+    width: 46px;
+    height: 60px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--border-light);
+    background: rgba(255, 255, 255, 0.05);
+}
+span.music-player-thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.music-player-thumb[hidden] { display: none !important; }
 .music-player-info { flex: 1; min-width: 0; }
 .music-player-title {
     font-size: 13px;
