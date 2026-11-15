@@ -5730,11 +5730,13 @@ function initLoungeComponents() {
 // preloaded: the <video> element (and its src) is only
 // created when the user taps Play.
 //
-// OG ADAPTATION: this build has no anilist_id / repair
-// system, so the AniList id comes from the entry itself —
-// source 'anilist' means mal_id IS the AniList id. Legacy
-// (Kitsu-era) and manual entries render no block at all:
-// a non-AniList id is never sent to AnimeThemes.
+// OG ADAPTATION: the AniList id comes from the entry
+// itself — source 'anilist' means mal_id IS the AniList id,
+// and legacy (Kitsu-era) entries repaired by the Settings
+// "Fix Old Shows" tool (end of this file) carry it in a
+// separate anilist_id field. Unrepaired legacy and manual
+// entries render no block at all: a non-AniList id is never
+// sent to AnimeThemes.
 // ============================================================
 
 const THEMES_CACHE_KEY = 'aniclipse_themes_cache_v1';
@@ -5956,15 +5958,21 @@ function themesRenderBlock(animeId, themes) {
     });
 }
 
-// The entry's AniList id, OG rules: AniList-sourced entries
-// carry it in mal_id. Anything else (legacy Kitsu-era,
-// manual) has no AniList id here and gets no lookup — never
-// send a foreign id space to AnimeThemes.
+// The entry's AniList id, OG rules: (a) AniList-sourced
+// entries carry it in mal_id; (b) legacy Kitsu-era entries
+// repaired by the Settings "Fix Old Shows" tool carry it in
+// the anilist_id field that tool adds. Anything else
+// (unrepaired legacy, manual) has no AniList id here and
+// gets no lookup — never send a foreign id space to
+// AnimeThemes.
 function themesAniListId(anime) {
     if (!anime || anime.isManual) return null;
-    if ((anime.source || 'kitsu') !== 'anilist') return null;
-    const n = parseInt(anime.mal_id, 10);
-    return (!isNaN(n) && n > 0) ? n : null;
+    if ((anime.source || '') === 'anilist') {
+        const n = parseInt(anime.mal_id, 10);
+        return (!isNaN(n) && n > 0) ? n : null;
+    }
+    const repaired = parseInt(anime.anilist_id, 10);
+    return (!isNaN(repaired) && repaired > 0) ? repaired : null;
 }
 
 function themesMaybeLoad(animeId, animeSource) {
@@ -6294,3 +6302,172 @@ if (typeof window.lazyLoadDetails === 'function') {
     };
 }
 // End EPISODE GRID
+
+// ============================================================
+// ID REPAIR TOOL (Settings → "🔧 Fix Old Shows for Songs &
+// Extras") — ported into the OG app from the design-v2 build
+// (user-requested 2026-11-15). Legacy entries added in the
+// Kitsu era carry a Kitsu id in mal_id, so AniList-powered
+// extras (theme songs, and anything else that resolves an
+// AniList id via themesAniListId above) skip them. Kitsu's
+// own API publishes the translation: GET
+// /anime/{kitsuId}/mappings returns JSON:API data[] whose
+// attributes include externalSite "anilist/anime" with the
+// AniList id in externalId (verified live from the build
+// sandbox: Kitsu 7442 → AniList 16498, over both kitsu.app
+// and kitsu.io). For each candidate this tool stores that
+// id as a NEW field, anilist_id, on every stored copy of
+// the entry — mirroring setUserScoreEverywhere's walk over
+// challenge days + backlog. mal_id, source and every other
+// existing field are never touched, and the only save is
+// the app's own saveData(). The run is resumable: entries
+// that already have anilist_id are skipped, so re-tapping
+// the button continues where the last run stopped. Manual
+// entries (mal_id null) have no id to translate and are
+// always skipped.
+// ============================================================
+const IDREPAIR_KITSU_BASES = ['https://kitsu.app/api/edge', 'https://kitsu.io/api/edge'];
+const IDREPAIR_DELAY_MS = 350;
+let idRepairRunning = false;
+
+// Pure parser (unit-tested in node): pull the AniList id
+// out of a Kitsu JSON:API mappings response, or null when
+// Kitsu has no AniList mapping for the title. Kitsu spells
+// the site "anilist/anime"; bare "anilist" is accepted too.
+function idRepairParseMappings(json) {
+    const list = (json && Array.isArray(json.data)) ? json.data : [];
+    for (const item of list) {
+        const attrs = (item && item.attributes) || {};
+        if (attrs.externalSite === 'anilist/anime' || attrs.externalSite === 'anilist') {
+            const id = parseInt(attrs.externalId, 10);
+            return (id && !isNaN(id)) ? id : null;
+        }
+    }
+    return null;
+}
+
+// One mappings lookup, trying kitsu.app first and the
+// kitsu.io domain as fallback. A parsed answer (including
+// "no AniList mapping") is final; only transport/HTTP
+// failures fall through, and if every base fails the lookup
+// throws so the run counts it as failed and a later tap can
+// retry it.
+async function idRepairFetchAniListId(kitsuId) {
+    for (const base of IDREPAIR_KITSU_BASES) {
+        try {
+            const res = await fetch(`${base}/anime/${kitsuId}/mappings`, { headers: { 'Accept': 'application/vnd.api+json' } });
+            if (!res || !res.ok) continue;
+            const json = await res.json();
+            return idRepairParseMappings(json);
+        } catch (e) { /* fall through to the next base */ }
+    }
+    throw new Error('Kitsu mappings unreachable');
+}
+
+// Unique legacy shows still missing an AniList id, keyed by
+// their Kitsu mal_id. Scanned from the raw stored copies
+// (challenge days + backlog), not the deduped unique view,
+// so a show stays a candidate until all its copies are
+// fixed.
+function idRepairCollectCandidates() {
+    const byKitsuId = new Map();
+    const visit = (item) => {
+        if (!item || item.isManual) return;
+        if ((item.source || 'kitsu') === 'anilist') return;
+        const kitsuId = parseInt(item.mal_id, 10);
+        if (!kitsuId || isNaN(kitsuId)) return;
+        if (themesAniListId(item)) return; // already repaired
+        if (!byKitsuId.has(kitsuId)) byKitsuId.set(kitsuId, item.title || 'Unknown title');
+    };
+    Object.values(challengeData.days || {}).forEach(day => (day.watched || []).forEach(visit));
+    (challengeData.backlog || []).forEach(visit);
+    return Array.from(byKitsuId.entries()).map(([kitsuId, title]) => ({ kitsuId: kitsuId, title: title }));
+}
+
+// Distinct legacy shows that already carry an anilist_id
+// (repaired by an earlier run) — for the summary line.
+function idRepairCountAlreadyRepaired() {
+    const seen = new Set();
+    const visit = (item) => {
+        if (!item || item.isManual) return;
+        if ((item.source || 'kitsu') === 'anilist') return;
+        const kitsuId = parseInt(item.mal_id, 10);
+        if (!kitsuId || isNaN(kitsuId)) return;
+        const repaired = parseInt(item.anilist_id, 10);
+        if (repaired && !isNaN(repaired)) seen.add(kitsuId);
+    };
+    Object.values(challengeData.days || {}).forEach(day => (day.watched || []).forEach(visit));
+    (challengeData.backlog || []).forEach(visit);
+    return seen.size;
+}
+
+// Mirrors setUserScoreEverywhere: same key (mal_id for
+// non-manual entries), same walk over every stored copy.
+// The only write is the NEW anilist_id field, and only on
+// non-AniList copies of the legacy entry.
+function idRepairApplyToAllCopies(kitsuId, anilistId) {
+    const matches = item => !!item && !item.isManual
+        && (item.source || 'kitsu') !== 'anilist'
+        && parseInt(item.mal_id, 10) === kitsuId;
+    let touched = 0;
+    Object.values(challengeData.days || {}).forEach(day => {
+        (day.watched || []).forEach(item => { if (matches(item)) { item.anilist_id = anilistId; touched++; } });
+    });
+    (challengeData.backlog || []).forEach(item => { if (matches(item)) { item.anilist_id = anilistId; touched++; } });
+    return touched;
+}
+
+async function idRepairRun(btn) {
+    if (idRepairRunning) return;
+    const candidates = idRepairCollectCandidates();
+    if (candidates.length === 0) {
+        showNotification('All your old shows already have AniList ids — nothing to fix.');
+        return;
+    }
+    const ok = confirm(`Fix ${candidates.length} old show${candidates.length === 1 ? '' : 's'}?\n\nEach show added before the AniList switch is looked up in Kitsu's official id mappings, and its AniList id is added — nothing you already have is changed. This unlocks theme songs and other extras for them.\n\nIt runs one show at a time and is safe to interrupt: tap the button again later to continue where it left off.`);
+    if (!ok) return;
+    idRepairRunning = true;
+    const originalText = btn ? btn.textContent : '';
+    if (btn) btn.disabled = true;
+    let fixed = 0;
+    let noMatch = 0;
+    let failed = 0;
+    try {
+        for (let i = 0; i < candidates.length; i++) {
+            if (btn) btn.textContent = `Fixing ${i + 1}/${candidates.length}…`;
+            try {
+                const anilistId = await idRepairFetchAniListId(candidates[i].kitsuId);
+                if (anilistId) {
+                    idRepairApplyToAllCopies(candidates[i].kitsuId, anilistId);
+                    fixed++;
+                } else {
+                    noMatch++;
+                }
+            } catch (e) {
+                failed++; // never fatal: count it and keep going
+            }
+            if (i < candidates.length - 1) await new Promise(resolve => setTimeout(resolve, IDREPAIR_DELAY_MS));
+        }
+        if (fixed > 0) saveData();
+        const alreadyFine = idRepairCountAlreadyRepaired() - fixed;
+        const parts = [`Fixed ${fixed} show${fixed === 1 ? '' : 's'}`];
+        if (alreadyFine > 0) parts.push(`${alreadyFine} already fine`);
+        if (noMatch > 0) parts.push(`${noMatch} had no AniList match`);
+        if (failed > 0) parts.push(`${failed} failed — tap again to retry the rest`);
+        showNotification(parts.join(' · '), failed > 0 ? 'error' : 'success');
+    } finally {
+        idRepairRunning = false;
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+}
+
+// Wire the Settings button (guarded, like the other
+// additive blocks, in case the markup is ever absent).
+(function idRepairInit() {
+    const btn = document.getElementById('id-repair-btn');
+    if (btn) btn.addEventListener('click', () => { idRepairRun(btn); });
+})();
+// End ID REPAIR TOOL
