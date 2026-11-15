@@ -2715,3 +2715,28 @@ span.music-player-thumb {
     .music-player-progress { order: 3; flex-basis: 100%; }
 }
 /* End MUSIC PLAYER */
+
+/* ============================================================
+   PAGE SONGS (added 2026-11-15) — the anime page's
+   "🎵 All Songs" section: the song catalogue's full list
+   for the page's anime (openings, endings, insert songs),
+   rendered with the Music screen's row styles inside the
+   page's chain panel. OG palette/variables only.
+   ============================================================ */
+.pagesongs-block {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+}
+.pagesongs-status {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+}
+/* Page rows are badge + title + artist + play: the Music
+   screen's poster thumb is not repeated down the page —
+   the art lives in the Now Playing bar instead. */
+.pagesongs-block .music-thumb { display: none; }
+.pagesongs-block .music-group-head { margin-top: 12px; }
+.pagesongs-block .music-group-head:first-child { margin-top: 6px; }
+/* End PAGE SONGS */

@@ -9145,3 +9145,310 @@ if (typeof window.playTrailer === 'function') {
     }
 })();
 // End MUSIC PLAYER
+
+// ============================================================
+// PAGE SONGS — "🎵 All Songs" section on the anime page:
+// every song the community song catalogue (AniSongDB) has
+// for THIS anime — openings, endings AND insert songs —
+// combined onto the page alongside the 🎵 Theme Songs
+// block. Appended at end of file like the other ports;
+// existing code is touched only through the two additive
+// wrappers at the bottom of this block (the lazyLoadDetails
+// chain, and the themes renderer for placement).
+//
+// LOOKUP (verified live 2026-11-15 against the catalogue's
+// published OpenAPI spec and real calls): the API offers
+// NO request by AniList id — its id-based requests take
+// MyAnimeList / ANN / AMQ ids only, and our mal_id is never
+// a MyAnimeList id, so those endpoints are never used here.
+// Instead the page searches by the anime's own titles
+// (POST /api/search_request — the same call the Music
+// screen makes) and keeps ONLY the entries whose
+// linked_ids match this page's anime: linked_ids.anilist
+// for AniList-era entries (the shared animePageAniListId
+// ladder), linked_ids.kitsu for unrepaired Kitsu-era
+// entries (whose mal_id IS a Kitsu id). Strict filtering
+// means a search can never leak another anime's songs onto
+// the page. Manual entries (no id at all) get no section,
+// silently. Live smoke: "Attack on Titan" → 45 raw results
+// → exactly the 10 songs whose linked AniList id is 16498
+// (2 OP incl. "Guren no Yumiya", 2 ED, 6 IN).
+//
+// Rows are rendered by the Music screen's own list
+// renderer (same grouping, same broadcast/dub dedupe, same
+// play buttons), so a tap builds the shared player's queue
+// from this section's songs in displayed order and the
+// existing resolver routes playback unchanged (OP/ED via
+// the themes audio first, insert songs via the catalogue
+// file). Each queue track is stamped with the page's own
+// poster, so the Now Playing bar shows this anime's art.
+// Results — including "no songs" — are cached 7 days in
+// aniclipse_pagesongs_cache_v1, keyed by the resolved id;
+// failures are never cached and show one quiet line.
+//
+// USER-VISIBLE COPY RULE: as everywhere in this app, no
+// provider is ever named in a rendered string.
+// ============================================================
+
+const PAGESONGS_CACHE_KEY = 'aniclipse_pagesongs_cache_v1';
+const PAGESONGS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const pageSongsInFlight = new Set();
+
+// ---------- cache (same pattern as the other caches) ----------
+
+function pageSongsLoadCache() {
+    try {
+        const raw = localStorage.getItem(PAGESONGS_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function pageSongsSaveCache(cache) {
+    try {
+        localStorage.setItem(PAGESONGS_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) { /* storage unavailable — the feature degrades silently */ }
+}
+
+// The cached track array for a key, or null on a miss /
+// expired entry. An empty array is a valid hit (the anime
+// is known to have no songs in the catalogue).
+function pageSongsCacheGet(key) {
+    const entry = pageSongsLoadCache()[key];
+    if (!entry || typeof entry.t !== 'number') return null;
+    if (Date.now() - entry.t >= PAGESONGS_CACHE_TTL_MS) return null;
+    if (!Array.isArray(entry.tracks)) return null;
+    return entry.tracks;
+}
+
+function pageSongsCacheSet(key, tracks) {
+    const cache = pageSongsLoadCache();
+    cache[key] = { t: Date.now(), tracks: tracks };
+    pageSongsSaveCache(cache);
+}
+
+// ---------- the section element ----------
+
+// The section lives in the page's chain panel, directly
+// after the 🎵 Theme Songs block — or, when the page has
+// no themes block, where it would have been: right before
+// the streaming links, alongside the other enrichment
+// blocks. Anchored on the page's streaming-links container,
+// exactly like the themes and episode-grid blocks.
+function pageSongsEnsureSection(animeId) {
+    const linksContainer = document.getElementById(`streaming-links-${animeId}`);
+    if (!linksContainer || !linksContainer.parentElement) return null;
+    const parent = linksContainer.parentElement;
+    let block = parent.querySelector('.pagesongs-block');
+    if (!block) {
+        block = document.createElement('div');
+        block.className = 'pagesongs-block';
+        const themesBlock = parent.querySelector('.themes-block');
+        if (themesBlock) {
+            if (themesBlock.nextSibling) parent.insertBefore(block, themesBlock.nextSibling);
+            else parent.appendChild(block);
+        } else {
+            parent.insertBefore(block, linksContainer);
+        }
+    }
+    return block;
+}
+
+// The themes block renders asynchronously too and can land
+// after this section (or be removed when a page has no
+// themes) — whenever it settles, this section sits directly
+// after it.
+function pageSongsReposition() {
+    const panel = document.getElementById('anime-page-chain-panel');
+    if (!panel) return;
+    const themesBlock = panel.querySelector('.themes-block');
+    const songsBlock = panel.querySelector('.pagesongs-block');
+    if (!themesBlock || !songsBlock) return;
+    if (themesBlock.nextElementSibling !== songsBlock) {
+        panel.insertBefore(songsBlock, themesBlock.nextElementSibling);
+    }
+}
+
+// ---------- lookup ----------
+
+// The anime's own names, best search first: the English
+// title (what the catalogue's English names match), then
+// every stored title variant (romaji, native), then the
+// display title. Duplicates and placeholders are dropped.
+function pageSongsTitles(anime) {
+    const out = [];
+    const push = (t) => {
+        const s = (t === null || t === undefined) ? '' : String(t).trim();
+        if (s && s !== 'Unknown Title' && out.indexOf(s) === -1) out.push(s);
+    };
+    try { push(getEnglishTitle(anime)); } catch (e) { /* no usable title */ }
+    (Array.isArray(anime.titles) ? anime.titles : []).forEach(t => { if (t) push(t.title); });
+    push(anime.title);
+    return out;
+}
+
+// Search the catalogue by each of the anime's titles until
+// one returns entries linked to this anime, then flatten
+// them with the Music screen's own track builder (grouping
+// order, broadcast/dub dedupe, resolver inputs). Resolves
+// { ok:true, tracks } — tracks empty when the catalogue
+// simply has nothing for this anime — or { ok:false } when
+// every search failed (offline / service down).
+async function pageSongsFetchTracks(anime, matchField, matchId) {
+    const titles = pageSongsTitles(anime);
+    let anySuccess = false;
+    for (const title of titles) {
+        try {
+            const list = await musicDbPost('/search_request', {
+                anime_search_filter: { search: title, partial_match: true, match_case: false },
+                and_logic: true,
+                ignore_duplicate: true
+            });
+            anySuccess = true;
+            const entries = (Array.isArray(list) ? list : []).filter(e =>
+                e && e.linked_ids && Number(e.linked_ids[matchField]) === matchId);
+            if (entries.length) return { ok: true, tracks: musicProcessEntries(entries) };
+        } catch (e) { /* try the next title */ }
+    }
+    return anySuccess ? { ok: true, tracks: [] } : { ok: false, tracks: null };
+}
+
+// ---------- rendering ----------
+
+// The page's own poster — the best art already on screen
+// for this anime. (The page paints a generic placeholder
+// when it has no real poster; that one doesn't count —
+// the same rule the themes queue uses.)
+function pageSongsPagePoster() {
+    const pageScreen = document.getElementById('anime-page-screen');
+    const posterImg = pageScreen ? pageScreen.querySelector('#anime-page-poster') : null;
+    const src = posterImg ? (posterImg.getAttribute('src') || '') : '';
+    return (src && src.indexOf('via.placeholder.com') === -1) ? src : '';
+}
+
+function pageSongsPaintStatus(block, text) {
+    const status = block.querySelector('.pagesongs-status');
+    if (status) status.textContent = text;
+    const list = block.querySelector('.pagesongs-list');
+    if (list) list.innerHTML = '';
+}
+
+function pageSongsRenderTracks(block, tracks) {
+    const status = block.querySelector('.pagesongs-status');
+    if (status) status.textContent = '';
+    const list = block.querySelector('.pagesongs-list');
+    if (!list) return;
+    // Stamp the page poster on COPIES of the tracks, so the
+    // Now Playing bar (and lock screen) show this anime's
+    // art while the cached tracks stay clean.
+    const poster = pageSongsPagePoster();
+    const stamped = tracks.map(t => {
+        const copy = Object.assign({}, t);
+        if (poster) copy.poster = poster;
+        return copy;
+    });
+    musicRenderList(list, stamped, true, null);
+    pageSongsReposition();
+}
+
+// ---------- loader (chained onto the details loader) ----------
+
+function pageSongsMaybeLoad(animeId, animeSource) {
+    const anime = (typeof resolveAnimeForDetails === 'function') ? resolveAnimeForDetails(animeId, animeSource) : null;
+    if (!anime || anime.isManual) return;
+
+    // Which catalogue identity is this page's anime? The
+    // AniList ladder first; an unrepaired Kitsu-era entry
+    // falls back to its Kitsu id (mal_id IS a Kitsu id for
+    // those entries — and only for those).
+    let key = null;
+    let matchField = null;
+    let matchId = null;
+    const anilistId = animePageAniListId(anime);
+    if (anilistId) {
+        key = 'anilist:' + anilistId;
+        matchField = 'anilist';
+        matchId = anilistId;
+    } else {
+        const src = anime.source || animeSource || 'kitsu';
+        const kitsuId = parseInt(anime.mal_id, 10);
+        if (src !== 'anilist' && !isNaN(kitsuId) && kitsuId > 0) {
+            key = 'kitsu:' + kitsuId;
+            matchField = 'kitsu';
+            matchId = kitsuId;
+        }
+    }
+    if (!key) return; // no usable id → no section, silently
+
+    // Bare-id entries (opened from an id alone) carry no
+    // titles until the page's Media query upgrades them —
+    // and the chain re-runs when it does. Searching now
+    // could only find nothing and cache that nothing for a
+    // week, so this open waits for the re-run.
+    if (matchField === 'anilist' && animePageSyntheticIds.has(matchId)) return;
+    if (!pageSongsTitles(anime).length) return;
+
+    const block = pageSongsEnsureSection(animeId);
+    if (!block) return;
+    if (block.dataset.psKey !== key) {
+        block.dataset.psKey = key;
+        block.innerHTML = `
+            <div class="themes-head"><strong>🎵 All Songs</strong></div>
+            <div class="pagesongs-status">Loading songs…</div>
+            <div class="pagesongs-list"></div>`;
+        pageSongsReposition();
+    }
+
+    const cached = pageSongsCacheGet(key);
+    if (cached) {
+        if (cached.length) pageSongsRenderTracks(block, cached);
+        else pageSongsPaintStatus(block, 'No songs found for this anime yet.');
+        return;
+    }
+    if (pageSongsInFlight.has(key)) return;
+    pageSongsInFlight.add(key);
+    pageSongsFetchTracks(anime, matchField, matchId)
+        .then(result => {
+            if (result.ok) pageSongsCacheSet(key, result.tracks);
+            // The user may have moved to another page while
+            // the catalogue answered — paint only when this
+            // page's section is still stamped for this anime.
+            const current = pageSongsEnsureSection(animeId);
+            if (!current || current.dataset.psKey !== key) return;
+            if (!result.ok) pageSongsPaintStatus(current, "Songs couldn't load right now.");
+            else if (!result.tracks.length) pageSongsPaintStatus(current, 'No songs found for this anime yet.');
+            else pageSongsRenderTracks(current, result.tracks);
+        })
+        .catch(() => { /* the fetch helper never rejects; belt-and-braces */ })
+        .finally(() => { pageSongsInFlight.delete(key); });
+}
+
+// ---------- hooks ----------
+
+// Placement: whenever the themes block renders (or is
+// removed), settle this section directly after it.
+if (typeof themesRenderBlock === 'function') {
+    const pageSongsPrevThemesRenderBlock = themesRenderBlock;
+    themesRenderBlock = function() {
+        const result = pageSongsPrevThemesRenderBlock.apply(this, arguments);
+        try { pageSongsReposition(); } catch (e) { /* placement is best-effort */ }
+        return result;
+    };
+}
+
+// Hook the details lazy-loader additively, after every
+// earlier port: the section loads with the page's other
+// enrichment, once the shell has painted.
+if (typeof window.lazyLoadDetails === 'function') {
+    const pageSongsPrevLazyLoadDetails = window.lazyLoadDetails;
+    window.lazyLoadDetails = function(animeId, animeSource) {
+        const result = pageSongsPrevLazyLoadDetails.apply(this, arguments);
+        try { pageSongsMaybeLoad(animeId, animeSource); } catch (e) { /* never break details */ }
+        return result;
+    };
+}
+// End PAGE SONGS
