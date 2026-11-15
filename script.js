@@ -8103,12 +8103,12 @@ if (typeof window.switchToScreen === 'function') {
 // MUSIC PLAYER — a "🎵 Anime Music" screen (song search +
 // this season's songs) feeding ONE shared audio player for
 // the whole app, plus 🎧 audio buttons on the anime page's
-// Theme Songs rows. The screen is a full-screen takeover
-// (a separate little music app inside the app): all app
-// chrome hides while it is open, its fixed ✕ Close button
-// is the only app control, and song rows + the player bar
-// carry the anime's poster art (one batched art query per
-// rendered set, cached inside the music cache entry).
+// Theme Songs rows. The screen is an ordinary in-app screen
+// like Backlog: the app chrome stays visible while it is
+// open and leaving it is just tapping another top-bar
+// button. Song rows + the player bar carry the anime's
+// poster art (one batched art query per rendered set,
+// cached inside the music cache entry).
 // Appended at end of file like the other ports; no
 // existing code is modified except the themes query/render
 // (audio field) above and the wrappers at the bottom of
@@ -8962,41 +8962,18 @@ function musicPlayThemesQueue(block, idx) {
 
 // ---------- navigation ----------
 
-// The Music screen is a full-screen takeover, mirroring
-// the anime page: while it is open, ALL app chrome hides
-// (the music-open body class) and the only app control is
-// its fixed ✕ Close button, top-left. It presents as a
-// separate little music app inside the app — search, this
-// season and the player all live in that world — and
-// closing it returns to the exact screen the user came
-// from, with the music still playing.
-let musicOrigin = 'challenge';
-
-function musicDetectOrigin() {
-    const map = {
-        'challenge-screen': 'challenge',
-        'backlog-manager-screen': 'backlog',
-        'anipace-log-screen': 'anipace',
-        'schedule-screen': 'schedule',
-        'anime-social-lounge': 'lounge'
-    };
-    const ids = Object.keys(map);
-    for (let i = 0; i < ids.length; i++) {
-        const el = document.getElementById(ids[i]);
-        if (el && !el.classList.contains('hidden')) return map[ids[i]];
-    }
-    return 'challenge';
-}
-
-// The single funnel for leaving the Music takeover:
-// restore the chrome, put the screen away, restore its
-// nav entry. Every exit path (✕ Close, any programmatic
-// screen switch, the anime page opening) goes through
-// here, so no path can leave the chrome hidden or the
-// screen stuck open. All operations are idempotent, so
-// running it when Music is already closed is near-free.
+// The Music screen is an ordinary in-app screen, exactly
+// like Backlog or AniPace: the app chrome stays visible
+// while it is open, there is no exit button, and leaving
+// it is just tapping another top-bar screen button (the
+// music itself keeps playing — the player bar is shared
+// across the whole app). The two helpers below are the
+// whole integration: show mirrors the base switcher's
+// chrome management for the one screen it doesn't know
+// about, hide simply puts the screen away again. Both
+// are idempotent, so running hide when Music is already
+// closed is near-free.
 function musicHideScreen() {
-    document.body.classList.remove('music-open');
     const screen = document.getElementById('music-screen');
     if (screen) screen.classList.add('hidden');
     const musicBtn = document.getElementById('switch-to-music-btn');
@@ -9008,13 +8985,9 @@ function musicHideScreen() {
 // restore every nav button except Music's own, hide the
 // Jump-to-Today shortcut, drop the Backlog theme, retitle
 // the header. Leaving the anime page goes through the
-// page's own hide (pauses its videos, restores chrome) —
-// only one takeover is ever active at a time.
+// page's own hide (pauses its videos, restores chrome).
 function musicShowScreen() {
     const screen = document.getElementById('music-screen');
-    // Remember where the user came from (if the screen is
-    // somehow already showing, keep the earlier origin).
-    if (screen && screen.classList.contains('hidden')) musicOrigin = musicDetectOrigin();
     try { if (typeof stopLoungeListeners === 'function') stopLoungeListeners(); } catch (e) { /* silent */ }
     try { animePageHide(); } catch (e) { /* page may not be open */ }
     ['challenge-screen', 'backlog-manager-screen', 'anipace-log-screen', 'schedule-screen', 'anime-social-lounge'].forEach(id => {
@@ -9034,22 +9007,14 @@ function musicShowScreen() {
     const headerTitle = document.getElementById('header-title');
     if (headerTitle) headerTitle.textContent = 'Music';
     if (screen) screen.classList.remove('hidden');
-    document.body.classList.add('music-open');
     window.scrollTo(0, 0);
     musicOnShow();
 }
 
-// ✕ Close: leave the takeover and return to the screen
-// the user came from. The music itself keeps playing —
-// the player bar waits on the screen underneath.
-window.closeMusicScreen = function() {
-    musicHideScreen();
-    window.switchToScreen(musicOrigin || 'challenge');
-};
-
 // Chain onto the (already wrapped) screen switcher: the
 // Music screen is ours to show/hide; every other target
-// delegates untouched after the Music takeover is left.
+// delegates untouched after the Music screen is put away,
+// exactly like any other screen being left.
 if (typeof window.switchToScreen === 'function') {
     const musicPrevSwitchToScreen = window.switchToScreen;
     window.switchToScreen = function(screenId) {
@@ -9059,10 +9024,10 @@ if (typeof window.switchToScreen === 'function') {
     };
 }
 
-// The other takeover wins cleanly too: opening the anime
-// page while Music is open leaves the Music takeover
-// first (screen away, chrome restored), then the page's
-// own takeover applies — never both at once, never stuck.
+// Opening the anime page while Music is showing puts the
+// Music screen away first (like any other screen), then
+// the page's own takeover applies; closing the page lands
+// on its origin screen with the chrome correct.
 if (typeof window.openAnimePage === 'function') {
     const musicPrevOpenAnimePage = window.openAnimePage;
     window.openAnimePage = function() {
@@ -9102,8 +9067,6 @@ if (typeof window.playTrailer === 'function') {
 (function musicInit() {
     const navBtn = document.getElementById('switch-to-music-btn');
     if (navBtn) navBtn.onclick = () => window.switchToScreen('music');
-    const closeBtn = document.getElementById('music-back-btn');
-    if (closeBtn) closeBtn.addEventListener('click', () => { window.closeMusicScreen(); });
     const searchBtn = document.getElementById('music-search-btn');
     if (searchBtn) searchBtn.addEventListener('click', () => musicDoSearch());
     const input = document.getElementById('music-search-input');

@@ -2467,27 +2467,12 @@ body.theme-instant {
    like every other OG block).
    ============================================================ */
 
-/* --- Full-screen takeover (mirrors the anime page): while
-   the Music screen is open, ALL app chrome (header, rank
-   badge, top navigation bar) is hidden. The screen is its
-   own little music app; its fixed ✕ Close button — top-left
-   — is the only app control, and the player bar stays
-   visible inside this world. --- */
-body.music-open header,
-body.music-open .top-bar,
-body.music-open #rank-badge {
-    display: none !important;
-}
-#music-screen {
-    padding-top: 56px; /* room for the fixed Close button */
-}
-#music-back-btn {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    z-index: 1400;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-}
+/* --- The Music screen is an ordinary in-app screen, like
+   Backlog or AniPace: the app chrome (header, rank badge,
+   top navigation bar) stays visible while it is open, and
+   leaving it is just tapping another top-bar button. It
+   needs no screen-specific layout rules — the shared
+   .container styling applies, like every other screen. --- */
 .music-subtitle {
     color: var(--text-secondary);
     margin-bottom: 20px;
