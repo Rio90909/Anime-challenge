@@ -1817,3 +1817,186 @@ input[type="date"]::-webkit-outer-spin-button {
     cursor: pointer;
 }
 .friend-menu button:hover { background: rgba(255,255,255,0.05); }
+
+
+/* ============================================================
+   THEME SONGS + EPISODE GRID (OG port) — details-panel blocks
+   added 2026-11-15, styled with the OG palette/variables
+   only (they inherit the amber Backlog theme automatically
+   through var(--primary-color), like every other OG block).
+   ============================================================ */
+
+/* --- Theme Songs --- */
+.themes-block {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+}
+.themes-head {
+    font-size: 11px;
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.themes-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+}
+.themes-chip {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+.themes-chip-op {
+    background: var(--primary-color);
+    color: #0A0E17;
+    border-color: transparent;
+}
+.themes-meta { flex: 1; min-width: 0; }
+.themes-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.themes-artist {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.themes-play-btn {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.themes-play-btn:hover {
+    background: var(--primary-color);
+    color: var(--bg-color);
+}
+.themes-player { flex-basis: 100%; margin-top: 8px; }
+.themes-player video {
+    width: 100%;
+    display: block;
+    background: #000000;
+    border-radius: 6px;
+}
+/* End THEME SONGS */
+
+/* --- Episode Grid --- */
+.epgrid-block {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+}
+.epgrid-head {
+    font-size: 11px;
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.epgrid-progress {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+.epgrid-hint {
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    margin-top: 3px;
+}
+.epgrid-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(34px, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+}
+.epgrid-cell {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.epgrid-cell-open:hover,
+.epgrid-cell-next:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+.epgrid-cell-watched {
+    background: var(--primary-color);
+    border-color: transparent;
+    color: #0A0E17;
+    cursor: default;
+}
+.epgrid-cell-watched::after {
+    content: '✓';
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    font-size: 7px;
+    font-weight: 800;
+    opacity: 0.9;
+}
+.epgrid-cell-next {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 1px var(--primary-glow);
+}
+.epgrid-cell-locked {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.epgrid-more-btn {
+    margin-top: 8px;
+    width: 100%;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.epgrid-more-btn:hover {
+    background: var(--primary-color);
+    color: var(--bg-color);
+}
+/* End EPISODE GRID */

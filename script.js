@@ -5700,3 +5700,597 @@ function initLoungeComponents() {
     }
     initFriendsSubtabs();
 }
+// ============================================================
+// THEME SONGS + EPISODE GRID — ported into the OG app from
+// the design-v2 build (user-approved 2026-11-15). Both blocks
+// live inside the Read Story details panel, hooked additively
+// onto window.lazyLoadDetails; no existing code is modified.
+// Styling uses the OG palette/variables only (styles.css:
+// "THEME SONGS + EPISODE GRID (OG port)" section).
+// ============================================================
+
+// ============================================================
+// THEMES — "🎵 Theme Songs" block in the Read Story details
+// panel: the show's opening/ending themes with playable
+// video, powered by the AnimeThemes GraphQL API
+// (POST https://rs.animethemes.moe/graphql, no auth).
+//
+// Query shape VERIFIED LIVE (2026-11-14) against AniList id
+// 16498 (Attack on Titan): filterAnimeByExternalSite(site:
+// ANILIST, id: [id]) returns a LIST of Anime; Anime.themes ->
+// Theme { type (OP / ED / IN), sequence, song { title {
+// native romaji }, staff { ... } }, entries { version,
+// videos { nodes { basename link resolution nc } } } }.
+// Real sample: OP1 "Guren no Yumiya" — Linked Horizon —
+// https://v.animethemes.moe/ShingekiNoKyojin-OP1.webm
+// (1080p, creditless). One POST per title; results —
+// including empty ones — are cached 30 days in
+// aniclipse_themes_cache_v1; network/GraphQL errors are
+// never cached and stay fully silent. Videos are never
+// preloaded: the <video> element (and its src) is only
+// created when the user taps Play.
+//
+// OG ADAPTATION: this build has no anilist_id / repair
+// system, so the AniList id comes from the entry itself —
+// source 'anilist' means mal_id IS the AniList id. Legacy
+// (Kitsu-era) and manual entries render no block at all:
+// a non-AniList id is never sent to AnimeThemes.
+// ============================================================
+
+const THEMES_CACHE_KEY = 'aniclipse_themes_cache_v1';
+const THEMES_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const THEMES_API_URL = 'https://rs.animethemes.moe/graphql';
+
+const THEMES_QUERY = `
+query ($id: [Int!]) {
+    filterAnimeByExternalSite(site: ANILIST, id: $id) {
+        id
+        themes {
+            type
+            sequence
+            song {
+                title { native romaji }
+                staff {
+                    role
+                    as
+                    memberAs
+                    artist { name { main native } }
+                    member { name { main native } }
+                }
+            }
+            entries {
+                version
+                videos { nodes { basename link resolution nc } }
+            }
+        }
+    }
+}`;
+
+const themesInFlight = new Set();
+
+function themesLoadCache() {
+    try {
+        const raw = localStorage.getItem(THEMES_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function themesSaveCache(cache) {
+    try {
+        localStorage.setItem(THEMES_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) { /* storage unavailable — the feature degrades silently */ }
+}
+
+function themesEscapeHtml(text) {
+    return String(text == null ? '' : text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Display name of one song-staff credit: the credited alias
+// wins (group member alias, then the performer's "as"
+// alias), then the member's name, then the artist's name.
+function themesArtistName(staffEntry) {
+    if (!staffEntry) return null;
+    if (staffEntry.memberAs) return staffEntry.memberAs;
+    if (staffEntry.as) return staffEntry.as;
+    const pick = (n) => (n ? (n.main || n.native || null) : null);
+    if (staffEntry.member && staffEntry.member.name) return pick(staffEntry.member.name);
+    if (staffEntry.artist && staffEntry.artist.name) return pick(staffEntry.artist.name);
+    return null;
+}
+
+// Performer names for a song (the "Performance" role in
+// AnimeThemes data); falls back to every credited name
+// when a song has no explicit performance credits.
+function themesArtistsFor(song) {
+    const staff = (song && Array.isArray(song.staff)) ? song.staff : [];
+    let names = staff.filter(s => s && s.role === 'Performance').map(themesArtistName).filter(Boolean);
+    if (!names.length) names = staff.map(themesArtistName).filter(Boolean);
+    return names.filter((name, i) => names.indexOf(name) === i);
+}
+
+// Choose the one playable video for a theme: canonical
+// entry version first (v1 before v2…), then the best
+// resolution at or under 1080p (higher resolutions are
+// penalized, not preferred), then creditless (nc) cuts.
+function themesPickVideo(theme) {
+    const candidates = [];
+    ((theme && theme.entries) || []).forEach(entry => {
+        const version = (entry && typeof entry.version === 'number') ? entry.version : 1;
+        const nodes = (entry && entry.videos && Array.isArray(entry.videos.nodes)) ? entry.videos.nodes : [];
+        nodes.forEach(v => {
+            if (v && v.link) candidates.push({ link: v.link, res: (typeof v.resolution === 'number') ? v.resolution : null, nc: !!v.nc, version: version });
+        });
+    });
+    if (!candidates.length) return null;
+    const resScore = (res) => {
+        if (!res) return 0;
+        return res <= 1080 ? res : 1080 - (res - 1080);
+    };
+    candidates.sort((a, b) =>
+        (a.version - b.version) ||
+        (resScore(b.res) - resScore(a.res)) ||
+        ((b.nc ? 1 : 0) - (a.nc ? 1 : 0)));
+    const best = candidates[0];
+    return { link: best.link, res: best.res, nc: best.nc };
+}
+
+// Flatten the GraphQL response into render-ready rows:
+// OPs first, then EDs, each by sequence. IN (insert songs)
+// are left out — the block is openings and endings only.
+function themesProcessResponse(data) {
+    const list = (data && Array.isArray(data.filterAnimeByExternalSite)) ? data.filterAnimeByExternalSite : [];
+    const anime = list[0];
+    if (!anime || !Array.isArray(anime.themes)) return [];
+    const out = [];
+    anime.themes.forEach(t => {
+        if (!t || (t.type !== 'OP' && t.type !== 'ED')) return;
+        const song = t.song || {};
+        const titleObj = song.title || {};
+        const video = themesPickVideo(t);
+        out.push({
+            type: t.type,
+            seq: (typeof t.sequence === 'number') ? t.sequence : null,
+            title: titleObj.romaji || titleObj.native || '',
+            artists: themesArtistsFor(song),
+            video: video
+        });
+    });
+    out.sort((a, b) => (a.type === b.type)
+        ? ((a.seq || 0) - (b.seq || 0))
+        : (a.type === 'OP' ? -1 : 1));
+    return out;
+}
+
+// Close whichever theme (if any) is currently playing in
+// this block: pause it, drop the element (which also drops
+// the buffered video bytes) and reset its button.
+function themesClosePlayer(block) {
+    block.querySelectorAll('.themes-row').forEach(row => {
+        const player = row.querySelector('.themes-player');
+        const btn = row.querySelector('.themes-play-btn');
+        if (player) {
+            const video = player.querySelector('video');
+            if (video) { try { video.pause(); } catch (e) { /* already gone */ } }
+            player.innerHTML = '';
+            player.hidden = true;
+        }
+        if (btn && btn.dataset.open === '1') {
+            btn.dataset.open = '';
+            btn.textContent = btn.dataset.label || '▶ Play';
+        }
+    });
+}
+
+function themesTogglePlay(block, idx) {
+    const themes = block._themesList || [];
+    const theme = themes[idx];
+    if (!theme || !theme.video) return;
+    const row = block.querySelector(`.themes-row[data-idx="${idx}"]`);
+    if (!row) return;
+    const btn = row.querySelector('.themes-play-btn');
+    const player = row.querySelector('.themes-player');
+    if (!btn || !player) return;
+    if (btn.dataset.open === '1') {
+        themesClosePlayer(block);
+        return;
+    }
+    themesClosePlayer(block);
+    const video = document.createElement('video');
+    video.controls = true;
+    video.preload = 'none';
+    video.playsInline = true;
+    video.src = theme.video.link; // set only now — on the user's tap
+    player.appendChild(video);
+    player.hidden = false;
+    btn.dataset.open = '1';
+    btn.textContent = '✕ Close';
+    const playAttempt = video.play();
+    if (playAttempt && typeof playAttempt.catch === 'function') playAttempt.catch(() => { /* user can press the native play button */ });
+}
+
+function themesRenderBlock(animeId, themes) {
+    const linksContainer = document.getElementById(`streaming-links-${animeId}`);
+    if (!linksContainer || !linksContainer.parentElement) return;
+    const parent = linksContainer.parentElement;
+    let block = parent.querySelector('.themes-block');
+    if (!themes || !themes.length) {
+        if (block) block.remove();
+        return;
+    }
+    if (!block) {
+        block = document.createElement('div');
+        block.className = 'themes-block';
+        parent.insertBefore(block, linksContainer);
+    }
+    block._themesList = themes;
+    const rows = themes.map((t, idx) => {
+        const chipLabel = t.seq ? `${t.type}${t.seq}` : t.type;
+        const chipClass = t.type === 'OP' ? 'themes-chip themes-chip-op' : 'themes-chip';
+        const title = t.title || (t.type === 'OP' ? 'Opening theme' : 'Ending theme');
+        const artistLine = t.artists && t.artists.length
+            ? `<div class="themes-artist">${themesEscapeHtml(t.artists.join(', '))}</div>`
+            : '';
+        const playBtn = t.video
+            ? `<button class="themes-play-btn" type="button" data-idx="${idx}" data-label="▶ Play${t.video.res ? ` · ${t.video.res}p` : ''}">▶ Play${t.video.res ? ` · ${t.video.res}p` : ''}</button>`
+            : '';
+        return `
+        <div class="themes-row" data-idx="${idx}">
+            <span class="${chipClass}">${chipLabel}</span>
+            <div class="themes-meta">
+                <div class="themes-title">${themesEscapeHtml(title)}</div>
+                ${artistLine}
+            </div>
+            ${playBtn}
+            <div class="themes-player" hidden></div>
+        </div>`;
+    }).join('');
+    block.innerHTML = `
+        <div class="themes-head"><strong>🎵 Theme Songs</strong></div>
+        ${rows}`;
+    block.querySelectorAll('.themes-play-btn').forEach(btn => {
+        btn.addEventListener('click', () => themesTogglePlay(block, parseInt(btn.dataset.idx, 10)));
+    });
+}
+
+// The entry's AniList id, OG rules: AniList-sourced entries
+// carry it in mal_id. Anything else (legacy Kitsu-era,
+// manual) has no AniList id here and gets no lookup — never
+// send a foreign id space to AnimeThemes.
+function themesAniListId(anime) {
+    if (!anime || anime.isManual) return null;
+    if ((anime.source || 'kitsu') !== 'anilist') return null;
+    const n = parseInt(anime.mal_id, 10);
+    return (!isNaN(n) && n > 0) ? n : null;
+}
+
+function themesMaybeLoad(animeId, animeSource) {
+    const anime = (typeof resolveAnimeForDetails === 'function') ? resolveAnimeForDetails(animeId, animeSource) : null;
+    if (!anime || anime.isManual) return;
+    const idNum = themesAniListId(anime);
+    if (!idNum) return;
+    const cache = themesLoadCache();
+    const hit = cache[String(idNum)];
+    if (hit && (Date.now() - (hit.t || 0)) < THEMES_CACHE_TTL_MS) {
+        themesRenderBlock(animeId, hit.themes);
+        return;
+    }
+    if (themesInFlight.has(idNum)) return;
+    themesInFlight.add(idNum);
+    fetch(THEMES_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ query: THEMES_QUERY, variables: { id: [idNum] } })
+    })
+        .then(res => {
+            if (!res || !res.ok) throw new Error('AnimeThemes HTTP error');
+            return res.json();
+        })
+        .then(json => {
+            if (!json || (!json.data && json.errors)) throw new Error('AnimeThemes GraphQL error');
+            const themes = themesProcessResponse(json.data);
+            // Cache the result — including "no themes" — so
+            // each title is asked about at most once a month.
+            const store = themesLoadCache();
+            store[String(idNum)] = { t: Date.now(), themes: themes };
+            themesSaveCache(store);
+            themesRenderBlock(animeId, themes);
+        })
+        .catch(() => { /* silent: offline / API down — no block is better than an error */ })
+        .finally(() => { themesInFlight.delete(idNum); });
+}
+
+// Hook the details lazy-loader additively: the theme songs
+// land in the same panel, at the same moment, above the
+// streaming links.
+if (typeof window.lazyLoadDetails === 'function') {
+    const themesPrevLazyLoadDetails = window.lazyLoadDetails;
+    window.lazyLoadDetails = function(animeId, animeSource) {
+        const result = themesPrevLazyLoadDetails.apply(this, arguments);
+        try { themesMaybeLoad(animeId, animeSource); } catch (e) { /* never break details */ }
+        return result;
+    };
+}
+// End THEMES
+
+// ============================================================
+// EPISODE GRID — "📺 Episodes" tap-to-log check-off grid in
+// the Read Story details panel. One numbered cell per
+// episode: cells already logged are filled, the next episode
+// carries an accent outline, and tapping any unwatched
+// released cell logs every episode up to it through the
+// app's ONE canonical log path — the AniPace quick-log form,
+// exactly like the app's other quick-log flows. ADVANCE
+// ONLY, by design: AniPace history is append-only, so there
+// is deliberately no un-log — un-logging would desync XP,
+// streaks and achievements. While a show is airing, cells
+// past the released count (nextAiringEpisode on the resolved
+// object — no new API calls anywhere in this feature)
+// render dimmed and are not tappable. Long shows render in
+// chunks of 100 behind a "Show more" button. Manual entries
+// are included (their total is the count typed at creation).
+// Every failure silent.
+// ============================================================
+
+// EPGRID PURE LOGIC START — plain-number helpers only; this
+// section is exercised by the Node harness, so it must stay
+// free of DOM / app-state references.
+const EPGRID_CHUNK = 100;
+
+function epgridSanitizeTotal(rawTotal) {
+    const t = parseInt(rawTotal, 10);
+    return (!isNaN(t) && t > 0) ? t : 0;
+}
+
+// Episodes actually out: the next airing episode number
+// minus one when the resolved object carries
+// nextAiringEpisode, otherwise the full total (unknown =
+// everything tappable).
+function epgridReleasedCount(total, nextEpEpisode) {
+    const t = epgridSanitizeTotal(total);
+    const n = parseInt(nextEpEpisode, 10);
+    if (!isNaN(n) && n > 0) return Math.max(0, Math.min(t, n - 1));
+    return t;
+}
+
+function epgridClampWatched(watched, total) {
+    const w = parseInt(watched, 10);
+    const t = epgridSanitizeTotal(total);
+    if (isNaN(w) || w < 0) return 0;
+    return Math.min(w, t);
+}
+
+// Cells rendered initially: one full chunk, widened in whole
+// chunks so the next unwatched cell (watched + 1) is always
+// on screen even when progress sits deep inside a long show.
+function epgridInitialShown(total, watched) {
+    const t = epgridSanitizeTotal(total);
+    const need = epgridClampWatched(watched, t) + 1;
+    const chunks = Math.max(1, Math.ceil(need / EPGRID_CHUNK));
+    return Math.min(t, chunks * EPGRID_CHUNK);
+}
+
+// Cells rendered after one "Show more" tap.
+function epgridMoreShown(total, shown) {
+    const t = epgridSanitizeTotal(total);
+    const s = parseInt(shown, 10);
+    return Math.min(t, (isNaN(s) || s < 0 ? 0 : s) + EPGRID_CHUNK);
+}
+
+// Cell states: watched (already logged) / locked (not out
+// yet) / next (the very next episode) / open (released and
+// unwatched). A logged cell stays "watched" even past the
+// released cap — the log is the truth.
+function epgridCellState(n, watched, released) {
+    if (n <= watched) return 'watched';
+    if (n > released) return 'locked';
+    if (n === watched + 1) return 'next';
+    return 'open';
+}
+
+// Episodes a tap on cell n would log; 0 = not tappable
+// (already watched, or not released yet). Advance only: the
+// result is never negative.
+function epgridDelta(n, watched, released) {
+    const st = epgridCellState(n, watched, released);
+    if (st !== 'next' && st !== 'open') return 0;
+    return n - watched;
+}
+// EPGRID PURE LOGIC END
+
+// --- Watched-count support (ported with the grid): the
+// per-title episode record is the AniPace history, matched
+// against every title variant, raised to any stored
+// watched_episodes found on the title's own copies. ---
+
+// Same identity rule getUniqueAnime() merges by: manual
+// entries by title, everything else by mal_id.
+function upnextEntryKey(item) {
+    if (!item) return '';
+    return item.isManual
+        ? 'manual:' + String(item.title || '').toLowerCase().trim()
+        : 'id:' + String(item.mal_id);
+}
+
+// Every stored copy of a title (challenge days + backlog) —
+// progress physically lives on the copies, not on the merged
+// library entry.
+function upnextAllCopies(anime) {
+    const key = upnextEntryKey(anime);
+    const copies = [];
+    try {
+        Object.values(challengeData.days || {}).forEach(day => {
+            (day.watched || []).forEach(item => { if (upnextEntryKey(item) === key) copies.push(item); });
+        });
+        (challengeData.backlog || []).forEach(item => { if (upnextEntryKey(item) === key) copies.push(item); });
+    } catch (e) { /* return whatever was collected */ }
+    return copies;
+}
+
+function upnextTitleVariants(anime) {
+    const variants = new Set();
+    const add = t => { const n = normalizeSearchText(t || ''); if (n) variants.add(n); };
+    add(anime.title);
+    add(getEnglishTitle(anime));
+    (anime.titles || []).forEach(t => { if (t && t.title) add(t.title); });
+    return variants;
+}
+
+// AniPace history is the app's per-title episode record: how
+// many episodes were logged under this title (matched
+// against every title variant, normalized like the app's own
+// search), and when the most recent log happened.
+function upnextHistoryStats(anime) {
+    const variants = upnextTitleVariants(anime);
+    let episodes = 0;
+    let lastTs = 0;
+    try {
+        const history = (typeof anipaceData !== 'undefined' && anipaceData && Array.isArray(anipaceData.history)) ? anipaceData.history : [];
+        history.forEach(h => {
+            if (!h || !h.animeName) return;
+            if (!variants.has(normalizeSearchText(h.animeName))) return;
+            episodes += (parseInt(h.episodes, 10) || 0);
+            const ts = h.timestamp ? new Date(h.timestamp).getTime() : 0;
+            if (!isNaN(ts) && ts > lastTs) lastTs = ts;
+        });
+    } catch (e) { /* unreadable history reads as no logs */ }
+    return { episodes: episodes, lastTs: lastTs };
+}
+
+// Per-title watched count: AniPace history summed over
+// every title variant, raised to any stored
+// watched_episodes found on the title's own copies.
+function epgridWatchedCount(anime) {
+    let watched = 0;
+    try {
+        watched = upnextHistoryStats(anime).episodes;
+        upnextAllCopies(anime).forEach(copy => {
+            const w = parseInt(copy.watched_episodes, 10);
+            if (!isNaN(w) && w > watched) watched = w;
+        });
+    } catch (e) { /* unreadable progress reads as zero */ }
+    return watched;
+}
+
+// Logs `count` episodes of the title through the AniPace
+// quick-log form — the canonical submit, so XP / challenge /
+// streak / achievements / sync all update identically. The
+// duration box is cleared first so the default per-episode
+// length applies. This function writes no data itself; the
+// form's own handler does everything.
+function epgridLogEpisodes(anime, count) {
+    const form = document.getElementById('anipace-log-form');
+    const nameInput = document.getElementById('anipace-anime-name-input');
+    const countInput = document.getElementById('anipace-episode-count-input');
+    const durationInput = document.getElementById('anipace-episode-duration-input');
+    if (!form || !nameInput || !countInput || !(count > 0)) return false;
+    nameInput.value = getEnglishTitle(anime);
+    countInput.value = String(count);
+    if (durationInput) durationInput.value = '';
+    if (typeof form.requestSubmit === 'function') form.requestSubmit();
+    else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    return true;
+}
+
+function epgridRender(animeId, animeSource) {
+    const anime = (typeof resolveAnimeForDetails === 'function') ? resolveAnimeForDetails(animeId, animeSource) : null;
+    if (!anime) return;
+    const linksContainer = document.getElementById(`streaming-links-${animeId}`);
+    const charsContainer = document.getElementById(`characters-${animeId}`);
+    const anchor = linksContainer || charsContainer;
+    if (!anchor || !anchor.parentElement) return;
+    const parent = anchor.parentElement;
+    let block = parent.querySelector('.epgrid-block');
+    // Total episodes come from the resolved object itself:
+    // AniList-era entries carry it, manual entries carry the
+    // count typed at creation. Unknown total renders nothing.
+    const total = epgridSanitizeTotal(anime.episodes);
+    if (!total) { if (block) block.remove(); return; }
+
+    const released = epgridReleasedCount(total, anime.nextAiringEpisode ? anime.nextAiringEpisode.episode : null);
+    const watched = epgridClampWatched(epgridWatchedCount(anime), total);
+
+    if (!block) {
+        block = document.createElement('div');
+        block.className = 'epgrid-block';
+        // Directly above the streaming links, where every
+        // other details enrichment block anchors.
+        parent.insertBefore(block, anchor);
+    }
+
+    // The chunk window lives on the element so it survives
+    // the re-render after every log; it always covers
+    // progress plus the next unwatched cell.
+    let shown = parseInt(block.dataset.epgridShown, 10);
+    if (isNaN(shown) || shown <= 0) shown = epgridInitialShown(total, watched);
+    shown = Math.min(total, Math.max(shown, epgridInitialShown(total, watched)));
+    block.dataset.epgridShown = String(shown);
+
+    let cells = '';
+    for (let n = 1; n <= shown; n++) {
+        const st = epgridCellState(n, watched, released);
+        const tip = st === 'watched' ? 'Already logged'
+            : st === 'locked' ? 'Not out yet'
+            : `Log up to episode ${n}`;
+        cells += `<button type="button" class="epgrid-cell epgrid-cell-${st}" data-epgrid-n="${n}" title="${tip}">${n}</button>`;
+    }
+    const remaining = total - shown;
+    const progressText = released < total
+        ? `${watched}/${total} watched · ${released} out so far`
+        : `${watched}/${total} watched`;
+    const hint = watched >= total
+        ? 'All episodes logged 🎉'
+        : watched >= released
+            ? 'All released episodes logged 🎉'
+            : `Tap a number to log up to it — next is Ep ${watched + 1}`;
+    block.innerHTML = `
+        <div class="epgrid-head"><strong>📺 Episodes</strong><span class="epgrid-progress">${progressText}</span></div>
+        <div class="epgrid-hint">${hint}</div>
+        <div class="epgrid-grid">${cells}</div>
+        ${remaining > 0 ? `<button type="button" class="epgrid-more-btn">Show more (${remaining} more)</button>` : ''}`;
+
+    block.querySelectorAll('.epgrid-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+            if (block.dataset.epgridBusy === '1') return;
+            const n = parseInt(cell.dataset.epgridN, 10);
+            // Recompute against the freshest state at tap time.
+            const fresh = (typeof resolveAnimeForDetails === 'function') ? resolveAnimeForDetails(animeId, animeSource) : anime;
+            if (!fresh) return;
+            const wNow = epgridClampWatched(epgridWatchedCount(fresh), total);
+            const rNow = epgridReleasedCount(total, fresh.nextAiringEpisode ? fresh.nextAiringEpisode.episode : null);
+            const delta = epgridDelta(n, wNow, rNow);
+            if (delta <= 0) return; // watched or not out yet — advance only, never un-log
+            block.dataset.epgridBusy = '1';
+            if (!epgridLogEpisodes(fresh, delta)) { delete block.dataset.epgridBusy; return; }
+            // The canonical handler takes effect synchronously;
+            // re-render on the next tick so the new count shows.
+            setTimeout(() => {
+                try { epgridRender(animeId, animeSource); } catch (e) { /* silent */ }
+                delete block.dataset.epgridBusy;
+            }, 0);
+        });
+    });
+    const moreBtn = block.querySelector('.epgrid-more-btn');
+    if (moreBtn) {
+        moreBtn.addEventListener('click', () => {
+            block.dataset.epgridShown = String(epgridMoreShown(total, parseInt(block.dataset.epgridShown, 10) || shown));
+            try { epgridRender(animeId, animeSource); } catch (e) { /* silent */ }
+        });
+    }
+}
+
+// Hook the details lazy-loader additively, chaining after
+// the original loader and the themes wrapper: the grid
+// lands in the same panel, above the streaming links.
+if (typeof window.lazyLoadDetails === 'function') {
+    const epgridPrevLazyLoadDetails = window.lazyLoadDetails;
+    window.lazyLoadDetails = function(animeId, animeSource) {
+        const result = epgridPrevLazyLoadDetails.apply(this, arguments);
+        try { epgridRender(animeId, animeSource); } catch (e) { /* never break details */ }
+        return result;
+    };
+}
+// End EPISODE GRID
