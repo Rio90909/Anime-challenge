@@ -1792,7 +1792,7 @@ function renderAllAnimeList() {
                         </div>
                         ${synopsis ? `
                         <div class="backlog-synopsis-container" style="margin-top: 8px; width: 100%; box-sizing: border-box;">
-                            <button class="backlog-synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')">Read Story ▾</button>
+                            <button class="backlog-synopsis-toggle-btn" onclick="openAnimePage('${anime.mal_id}', '${anime.source || 'kitsu'}')">Read Story ▾</button>
                             <div class="backlog-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); padding: 8px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); box-sizing: border-box; max-width: 100%; word-break: break-word; overflow-wrap: break-word; overflow-x: hidden;">
                                 <!-- Global Ranking Badges & Age Guide -->
                                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -1876,6 +1876,16 @@ function renderAllAnimeList() {
                 showNotification(`Saved your score for ${getEnglishTitle(anime)}.`, 'success');
             };
             controlsDiv.appendChild(rateBtn);
+
+            // Full anime page (added with the Anime Page build): every
+            // backlog entry — manual ones included, they have no Read
+            // Story button — gets a Details button opening the page.
+            const detailsBtn = document.createElement('button');
+            detailsBtn.className = 'add-btn manual-add-btn';
+            detailsBtn.style.cssText = 'padding: 4px 10px; font-size: 11px; height: auto; margin: 0;';
+            detailsBtn.textContent = '📖 Details';
+            detailsBtn.onclick = () => { if (typeof window.openAnimePageEntry === 'function') window.openAnimePageEntry(anime); };
+            controlsDiv.appendChild(detailsBtn);
 
             if (isBacklogSource && !isDailySource) {
                 const moveBtn = document.createElement('button');
@@ -2010,7 +2020,7 @@ function createDayEntry(date) {
                         </div>
                         ${synopsis ? `
                         <div class="anime-synopsis-container">
-                            <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this)">Read Story ▾</button>
+                            <button class="synopsis-toggle-btn" onclick="openAnimePage('${anime.mal_id}', '${anime.source || 'kitsu'}')">Read Story ▾</button>
                             <p class="anime-synopsis-text hidden">${synopsis}</p>
                         </div>
                         ` : ''}
@@ -2323,7 +2333,7 @@ function renderSurpriseModal(anime) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 10px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <button class="synopsis-toggle-btn" onclick="openAnimePage('${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
                 <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left; ${anime.coverImage ? `background-image: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)), url('${anime.coverImage}'); background-size: cover; background-position: center;` : ''}">
                     <!-- Global Ranking Badges & Age Guide -->
                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -2908,7 +2918,7 @@ function renderScheduleGrid(gridId, animeList) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <button class="synopsis-toggle-btn" onclick="openAnimePage('${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
                 <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left; ${anime.coverImage ? `background-image: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)), url('${anime.coverImage}'); background-size: cover; background-position: center;` : ''}">
                     <!-- Global Ranking Badges & Age Guide -->
                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -3069,7 +3079,7 @@ function renderTrendGrid(gridId, animeList) {
             </div>
             ${anime.synopsis ? `
             <div class="anime-synopsis-container" style="margin-top: 4px; margin-bottom: 12px; width: 100%; text-align: left;">
-                <button class="synopsis-toggle-btn" onclick="toggleSynopsis(this, '${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
+                <button class="synopsis-toggle-btn" onclick="openAnimePage('${anime.mal_id}', '${anime.source || 'kitsu'}')" style="font-size: 11px; font-weight: bold; background: none; border: none; padding: 0; color: var(--primary-color); cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px;">Read Story ▾</button>
                 <div class="anime-synopsis-text hidden" style="margin: 6px 0 0 0; font-size: 11.5px; line-height: 1.4; color: var(--text-secondary); background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border-left: 2px solid var(--primary-color); text-align: left; ${anime.coverImage ? `background-image: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)), url('${anime.coverImage}'); background-size: cover; background-position: center;` : ''}">
                     <!-- Global Ranking Badges & Age Guide -->
                     <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
@@ -5966,13 +5976,11 @@ function themesRenderBlock(animeId, themes) {
 // gets no lookup — never send a foreign id space to
 // AnimeThemes.
 function themesAniListId(anime) {
-    if (!anime || anime.isManual) return null;
-    if ((anime.source || '') === 'anilist') {
-        const n = parseInt(anime.mal_id, 10);
-        return (!isNaN(n) && n > 0) ? n : null;
-    }
-    const repaired = parseInt(anime.anilist_id, 10);
-    return (!isNaN(repaired) && repaired > 0) ? repaired : null;
+    // Shared resolution ladder (defined in the ANIME PAGE block
+    // at the end of this file): source 'anilist' → mal_id; else
+    // a positive anilist_id (the Fix Old Shows repair field);
+    // else null. Manual entries resolve to null.
+    return animePageAniListId(anime);
 }
 
 function themesMaybeLoad(animeId, animeSource) {
@@ -6471,3 +6479,1381 @@ async function idRepairRun(btn) {
     if (btn) btn.addEventListener('click', () => { idRepairRun(btn); });
 })();
 // End ID REPAIR TOOL
+
+// ============================================================
+// FULL ANIME PAGE — clicking any anime (Backlog, watched/day
+// lists, Discover, search results) now opens a dedicated
+// full-screen page for that title instead of the small inline
+// Read Story pop-up (user-confirmed 2026-11-15). The old
+// toggleSynopsis machinery stays intact underneath; only the
+// user-facing buttons were re-routed (openAnimePage /
+// openAnimePageEntry). The page is a sixth app screen in
+// index.html (#anime-page-screen), shown/hidden with the same
+// hidden-class mechanism switchToScreen uses, with a Back
+// button returning to the screen the user came from.
+//
+// SECTIONS: header (banner + poster + titles), the user's own
+// score/progress line, Story, Details grid, Genres & Tags
+// chips, 📊 score distribution, 🎭 characters & voice actors,
+// then the existing lazyLoadDetails chain panel (🎵 Theme
+// Songs + 📺 Episode Grid + streaming links — those blocks
+// anchor on the page's own streaming-links container), 🔗
+// franchise chain + recommendations, and 📝 private notes.
+//
+// API DISCIPLINE: ONE combined AniList Media query per page
+// open carries the page's own fields; score distribution /
+// cast / recommendations keep their proven separate CACHED
+// calls (7d / 30d / 7d); everything is lazy — nothing fetches
+// until the page opens — and entries with no AniList id
+// (manual, unrepaired legacy) open with local data only and
+// fire zero API requests. Styling: OG palette only (styles.css
+// "FULL ANIME PAGE" section).
+// ============================================================
+
+// The one shared AniList-id resolution ladder, used by the
+// theme songs block above and by every page section below:
+// (a) AniList-sourced entries carry the id in mal_id;
+// (b) legacy Kitsu-era entries repaired by the Settings "Fix
+// Old Shows" tool carry it in the anilist_id field;
+// (c) anything else (unrepaired legacy, manual) has no
+// AniList id — a foreign id is never sent to AniList.
+function animePageAniListId(anime) {
+    if (!anime) return null;
+    if ((anime.source || '') === 'anilist') {
+        const n = parseInt(anime.mal_id, 10);
+        return (!isNaN(n) && n > 0) ? n : null;
+    }
+    const repaired = parseInt(anime.anilist_id, 10);
+    return (!isNaN(repaired) && repaired > 0) ? repaired : null;
+}
+
+// ---------- 📊 SCORE DISTRIBUTION (ported) ----------
+// AniList community score histogram for the page. Logic and
+// cache are the proven Read Story port: Media.stats
+// .scoreDistribution buckets (score 10..100), results —
+// including empty ones — cached 7 days in
+// aniclipse_stats_cache_v1; errors never cached, fully silent.
+
+const SCOREDIST_CACHE_KEY = 'aniclipse_stats_cache_v1';
+const SCOREDIST_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const SCOREDIST_QUERY = `
+query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        id
+        averageScore
+        stats {
+            scoreDistribution { score amount }
+        }
+    }
+}`;
+
+const scoredistInFlight = new Set();
+
+function scoredistLoadCache() {
+    try {
+        const raw = localStorage.getItem(SCOREDIST_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function scoredistSaveCache(cache) {
+    try {
+        localStorage.setItem(SCOREDIST_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) { /* storage unavailable — the feature degrades silently */ }
+}
+
+// Average on AniList's 0–100 scale: the fetched value first,
+// then the normalized object's own fields (averageRating is
+// the 0–100 value as a string; score is the same on 0–10).
+function scoredistAvgFor(anime, fetchedAvg) {
+    if (typeof fetchedAvg === 'number' && !isNaN(fetchedAvg) && fetchedAvg > 0) return Math.round(fetchedAvg);
+    if (anime) {
+        const ar = parseFloat(anime.averageRating);
+        if (!isNaN(ar) && ar > 0) return Math.round(ar);
+        if (typeof anime.score === 'number' && anime.score > 0) return Math.round(anime.score * 10);
+    }
+    return null;
+}
+
+function animePageRenderScoreDist(anime, avg, dist) {
+    const container = document.getElementById('anime-page-scoredist');
+    if (!container) return;
+    const buckets = [];
+    let maxAmount = 0;
+    let totalVotes = 0;
+    for (let s = 10; s <= 100; s += 10) {
+        const found = (dist || []).find(d => d && d.s === s);
+        const amount = found ? (parseInt(found.a, 10) || 0) : 0;
+        buckets.push({ score: s, amount: amount });
+        if (amount > maxAmount) maxAmount = amount;
+        totalVotes += amount;
+    }
+    if (totalVotes <= 0 || maxAmount <= 0) {
+        container.innerHTML = '';
+        return;
+    }
+    const avgText = (avg !== null && avg !== undefined) ? `<span class="scoredist-avg">Avg ${avg}</span>` : '';
+    const bars = buckets.map(b => {
+        const pct = Math.max(3, Math.round((b.amount / maxAmount) * 100));
+        return `<div class="scoredist-bar" style="height: ${pct}%" title="Score ${b.score / 10}: ${b.amount} votes"></div>`;
+    }).join('');
+    const labels = buckets.map(b => `<span>${b.score / 10}</span>`).join('');
+    container.innerHTML = `
+    <div class="scoredist-block">
+        <div class="scoredist-head"><strong>📊 AniList community scores</strong>${avgText}</div>
+        <div class="scoredist-bars">${bars}</div>
+        <div class="scoredist-labels">${labels}</div>
+    </div>`;
+}
+
+function animePageLoadScoreDist(anime, idNum, token) {
+    const cache = scoredistLoadCache();
+    const hit = cache[String(idNum)];
+    if (hit && (Date.now() - (hit.t || 0)) < SCOREDIST_CACHE_TTL_MS) {
+        animePageRenderScoreDist(anime, scoredistAvgFor(anime, hit.avg), hit.dist);
+        return;
+    }
+    if (scoredistInFlight.has(idNum)) return;
+    scoredistInFlight.add(idNum);
+    anilistGraphQL(SCOREDIST_QUERY, { id: idNum })
+        .then(data => {
+            const media = (data && data.Media) ? data.Media : null;
+            const rawDist = (media && media.stats && Array.isArray(media.stats.scoreDistribution)) ? media.stats.scoreDistribution : null;
+            // Cache the result — including "no distribution" —
+            // so each title is asked about at most once a week.
+            const dist = rawDist ? rawDist.map(d => ({ s: d.score, a: d.amount })) : null;
+            const avg = (media && typeof media.averageScore === 'number') ? media.averageScore : null;
+            const store = scoredistLoadCache();
+            store[String(idNum)] = { t: Date.now(), avg: avg, dist: dist };
+            scoredistSaveCache(store);
+            if (token === animePageToken) animePageRenderScoreDist(anime, scoredistAvgFor(anime, avg), dist);
+        })
+        .catch(() => { /* silent: offline / rate limited — no block is better than an error */ })
+        .finally(() => { scoredistInFlight.delete(idNum); });
+}
+
+// ---------- 🎭 CHARACTERS & VOICE ACTORS (ported) ----------
+// Top-12 characters with their Japanese voice actors, from
+// AniList. One GraphQL call per title through the app's own
+// anilistGraphQL(); results — including empty ones — are
+// cached 30 days in aniclipse_characters_cache_v1; errors are
+// never cached and stay fully silent.
+
+const CAST_CACHE_KEY = 'aniclipse_characters_cache_v1';
+const CAST_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const CAST_LIMIT = 12;
+
+const CAST_QUERY = `
+query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        characters(sort: [ROLE, RELEVANCE], page: 1, perPage: 12) {
+            edges {
+                role
+                node { id name { full } image { medium } }
+                voiceActors(language: JAPANESE, sort: [RELEVANCE]) { id name { full } image { medium } }
+            }
+        }
+    }
+}`;
+
+const castInFlight = new Set();
+
+function castLoadCache() {
+    try {
+        const raw = localStorage.getItem(CAST_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function castSaveCache(cache) {
+    try {
+        localStorage.setItem(CAST_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) { /* storage unavailable — the feature degrades silently */ }
+}
+
+// Chip bucket for an AniList CharacterRole: MAIN gets the
+// gradient chip; SUPPORTING and BACKGROUND share the glass
+// "Supporting" chip.
+function castRoleBucket(role) {
+    return role === 'MAIN' ? 'MAIN' : 'SUPPORTING';
+}
+
+// Flatten an AniList Media.characters response into
+// render-ready rows, capped at CAST_LIMIT. Defensive: any
+// malformed level degrades to fewer/simpler rows, never a
+// throw. The first listed Japanese VA is the credited voice.
+function castProcessResponse(data) {
+    const media = (data && typeof data === 'object') ? data.Media : null;
+    const edges = (media && media.characters && Array.isArray(media.characters.edges)) ? media.characters.edges : [];
+    const out = [];
+    edges.forEach(edge => {
+        if (!edge || !edge.node) return;
+        const node = edge.node;
+        const name = (node.name && typeof node.name.full === 'string' && node.name.full.trim()) ? node.name.full.trim() : '';
+        if (!name) return;
+        const vas = Array.isArray(edge.voiceActors) ? edge.voiceActors : [];
+        const va = vas.find(v => v && v.name && typeof v.name.full === 'string' && v.name.full.trim()) || null;
+        out.push({
+            name: name,
+            img: (node.image && typeof node.image.medium === 'string') ? node.image.medium : '',
+            role: castRoleBucket(edge.role),
+            vaName: va ? va.name.full.trim() : '',
+            vaImg: (va && va.image && typeof va.image.medium === 'string') ? va.image.medium : ''
+        });
+    });
+    return out.slice(0, CAST_LIMIT);
+}
+
+function animePageRenderCast(chars) {
+    const container = document.getElementById('anime-page-cast');
+    if (!container) return;
+    if (!chars || !chars.length) {
+        container.innerHTML = '';
+        return;
+    }
+    const cards = chars.map(c => {
+        const chipClass = c.role === 'MAIN' ? 'cast-chip cast-chip-main' : 'cast-chip';
+        const chipLabel = c.role === 'MAIN' ? 'Main' : 'Supporting';
+        const vaLine = c.vaName ? `
+            <div class="cast-va">
+                <img class="cast-va-img" src="${themesEscapeHtml(c.vaImg || 'https://via.placeholder.com/28x28?text=CV')}" alt="" loading="lazy">
+                <span class="cast-va-name"><span class="cast-va-label">CV</span> ${themesEscapeHtml(c.vaName)}</span>
+            </div>` : '';
+        return `
+        <div class="cast-card">
+            <img class="cast-img" src="${themesEscapeHtml(c.img || 'https://via.placeholder.com/92x112?text=No+Image')}" alt="${themesEscapeHtml(c.name)}" loading="lazy">
+            <div class="cast-name" title="${themesEscapeHtml(c.name)}">${themesEscapeHtml(c.name)}</div>
+            <span class="${chipClass}">${chipLabel}</span>
+            ${vaLine}
+        </div>`;
+    }).join('');
+    container.innerHTML = `
+    <div class="cast-block">
+        <div class="cast-head"><strong>🎭 Characters & Voice Actors</strong></div>
+        <div class="cast-scroll">${cards}</div>
+    </div>`;
+}
+
+function animePageLoadCast(anime, idNum, token) {
+    const cache = castLoadCache();
+    const hit = cache[String(idNum)];
+    if (hit && (Date.now() - (hit.t || 0)) < CAST_CACHE_TTL_MS) {
+        animePageRenderCast(hit.chars);
+        return;
+    }
+    if (castInFlight.has(idNum)) return;
+    castInFlight.add(idNum);
+    anilistGraphQL(CAST_QUERY, { id: idNum })
+        .then(data => {
+            const chars = castProcessResponse(data);
+            // Cache the result — including "no cast listed" —
+            // so each title is asked about at most once a month.
+            const store = castLoadCache();
+            store[String(idNum)] = { t: Date.now(), chars: chars };
+            castSaveCache(store);
+            if (token === animePageToken) animePageRenderCast(chars);
+        })
+        .catch(() => { /* silent: offline / rate limited — errors are never cached */ })
+        .finally(() => { castInFlight.delete(idNum); });
+}
+
+// ---------- 🔗 STORY SO FAR + ✨ BECAUSE YOU WATCHED (ported) ----------
+// Franchise chain ("🔗 The Story So Far") + recommendations
+// rail ("✨ Because you watched …") for the page. ONE combined
+// AniList query per title carries both connections; results
+// (including empty ones) are cached for 7 days in
+// aniclipse_recs_cache_v1; network errors are never cached and
+// stay fully silent. The "+ Add" buttons run the app's
+// canonical Discover add (duplicate guard, rating prompt,
+// backlog push, saveData / updateAllDisplays /
+// processAchievements, same notification).
+
+const RECS_CACHE_KEY = 'aniclipse_recs_cache_v1';
+const RECS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// AniList schema: Media.recommendations is a
+// RecommendationConnection; each edge's node is a
+// Recommendation whose `rating` is the community score for
+// that pairing and whose `mediaRecommendation` is the
+// suggested Media. Media.relations is a MediaConnection whose
+// edges carry `relationType` + `node`. Both media selections
+// reuse ANILIST_MEDIA_FIELDS so normalizeAniListResponse
+// rebuilds the exact object shape Discover adds.
+const RECS_QUERY = `
+query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        id
+        recommendations(page: 1, perPage: 25) {
+            edges {
+                node {
+                    rating
+                    mediaRecommendation {
+                        ${ANILIST_MEDIA_FIELDS}
+                    }
+                }
+            }
+        }
+        relations {
+            edges {
+                relationType
+                node {
+                    ${ANILIST_MEDIA_FIELDS}
+                }
+            }
+        }
+    }
+}`;
+
+// Used only when an "+ Add" is clicked on a card that was
+// rendered from the cache in a later session (the full
+// normalized object is no longer in memory).
+const RECS_SINGLE_QUERY = `
+query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        ${ANILIST_MEDIA_FIELDS}
+    }
+}`;
+
+// Relation types worth showing; CHARACTER / OTHER / SOURCE /
+// ADAPTATION / CONTAINS / COMPILATION are noise for a viewer.
+const RECS_KEEP_RELATIONS = ['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'ALTERNATIVE', 'SPIN_OFF', 'SUMMARY'];
+const RECS_RELATION_LABELS = {
+    PREQUEL: 'Prequel',
+    SEQUEL: 'Sequel',
+    PARENT: 'Parent story',
+    SIDE_STORY: 'Side story',
+    ALTERNATIVE: 'Alternative',
+    SPIN_OFF: 'Spin-off',
+    SUMMARY: 'Summary'
+};
+// Order for the relations that sit outside the main
+// prequel → sequel line.
+const RECS_OTHER_ORDER = ['PARENT', 'SIDE_STORY', 'ALTERNATIVE', 'SPIN_OFF', 'SUMMARY'];
+
+const recsInFlight = new Set();
+// Full normalized media objects behind the rendered cards,
+// keyed by AniList id, so an "+ Add" click reuses the exact
+// object (and object shape) a Discover add would use.
+const recsMediaById = new Map();
+
+function recsLoadCache() {
+    try {
+        const raw = localStorage.getItem(RECS_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function recsSaveCache(cache) {
+    try {
+        localStorage.setItem(RECS_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) { /* storage unavailable — the feature degrades silently */ }
+}
+
+// Genre names of a normalized/stored anime, tolerant of both
+// [{ name }] objects and plain strings.
+function recsGenreNames(anime) {
+    return ((anime && anime.genres) || [])
+        .map(g => (typeof g === 'string' ? g : (g && g.name)))
+        .filter(Boolean);
+}
+
+// The reason a title is recommended: shared genres with the
+// source title first (its two strongest overlaps), then the
+// shared format, then the generic fan line.
+function recsReasonFor(sourceAnime, recAnime) {
+    const sourceGenres = recsGenreNames(sourceAnime);
+    const recGenres = recsGenreNames(recAnime);
+    const shared = sourceGenres.filter(name => recGenres.indexOf(name) !== -1);
+    if (shared.length >= 2) return `${shared[0]} · ${shared[1]} in common`;
+    if (shared.length === 1) return `${shared[0]} in common`;
+    if (sourceAnime && recAnime && sourceAnime.type && sourceAnime.type === recAnime.type) {
+        const label = { TV: 'TV series', Movie: 'movie', OVA: 'OVA', ONA: 'ONA', Special: 'special', Music: 'music video' }[recAnime.type] || 'series';
+        return `Another ${label} to try`;
+    }
+    return 'Loved by fans of this show';
+}
+
+// AniList ids (as strings) of everything in the user's
+// library with a known AniList id — drives the
+// "✓ In your library" state.
+function recsLibraryIdSet() {
+    const set = new Set();
+    try {
+        getUniqueAnime().forEach(item => {
+            const id = animePageAniListId(item);
+            if (id) set.add(String(id));
+        });
+    } catch (e) { /* library unavailable — everything just shows "+ Add" */ }
+    return set;
+}
+
+function recsNormalizeOne(media) {
+    if (!media) return null;
+    try {
+        const normalized = normalizeAniListResponse({ media: [media] });
+        return (normalized && normalized[0]) || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function recsTrimRec(normalized, rating, reason) {
+    return {
+        id: normalized.mal_id,
+        rating: (typeof rating === 'number' && !isNaN(rating)) ? rating : 0,
+        title: getEnglishTitle(normalized),
+        img: (normalized.images && normalized.images.jpg && (normalized.images.jpg.small_image_url || normalized.images.jpg.image_url)) || '',
+        avg: (normalized.averageRating !== null && normalized.averageRating !== undefined && normalized.averageRating !== '')
+            ? Math.round(parseFloat(normalized.averageRating)) : null,
+        reason: reason
+    };
+}
+
+function recsTrimChainItem(normalized, relationType) {
+    return {
+        id: normalized.mal_id,
+        rel: relationType,
+        title: getEnglishTitle(normalized),
+        img: (normalized.images && normalized.images.jpg && (normalized.images.jpg.small_image_url || normalized.images.jpg.image_url)) || '',
+        type: normalized.type || '',
+        year: normalized.year || null,
+        eps: (typeof normalized.episodes === 'number' && normalized.episodes > 0) ? normalized.episodes : null,
+        status: normalized.airingStatus || 'unknown'
+    };
+}
+
+// Turns the combined query response into the trimmed records
+// the cache stores, registering every full normalized object
+// in recsMediaById along the way. Adult titles are dropped,
+// matching Discover's isAdult: false filter.
+function recsProcessMedia(media, sourceAnime, sourceId) {
+    const recEdges = (media && media.recommendations && media.recommendations.edges) || [];
+    const bestById = new Map();
+    recEdges.forEach(edge => {
+        const node = edge && edge.node;
+        const raw = node && node.mediaRecommendation;
+        if (!raw || !raw.id || raw.id === sourceId || raw.isAdult) return;
+        const prev = bestById.get(raw.id);
+        if (!prev || (node.rating || 0) > (prev.rating || 0)) {
+            bestById.set(raw.id, { raw: raw, rating: node.rating || 0 });
+        }
+    });
+    const recs = Array.from(bestById.values())
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 12)
+        .map(entry => {
+            const normalized = recsNormalizeOne(entry.raw);
+            if (!normalized) return null;
+            recsMediaById.set(normalized.mal_id, normalized);
+            return recsTrimRec(normalized, entry.rating, recsReasonFor(sourceAnime, normalized));
+        })
+        .filter(Boolean);
+
+    const relEdges = (media && media.relations && media.relations.edges) || [];
+    const chainById = new Map();
+    relEdges.forEach(edge => {
+        const raw = edge && edge.node;
+        const rel = edge && edge.relationType;
+        if (!raw || !raw.id || raw.id === sourceId || raw.isAdult) return;
+        if (RECS_KEEP_RELATIONS.indexOf(rel) === -1) return;
+        const prev = chainById.get(raw.id);
+        if (prev && RECS_KEEP_RELATIONS.indexOf(prev.rel) <= RECS_KEEP_RELATIONS.indexOf(rel)) return;
+        chainById.set(raw.id, { raw: raw, rel: rel });
+    });
+    const byYearAsc = (a, b) => ((a.year || 9999) - (b.year || 9999)) || a.title.localeCompare(b.title);
+    const chainItems = Array.from(chainById.values())
+        .map(entry => {
+            const normalized = recsNormalizeOne(entry.raw);
+            if (!normalized) return null;
+            recsMediaById.set(normalized.mal_id, normalized);
+            return recsTrimChainItem(normalized, entry.rel);
+        })
+        .filter(Boolean);
+    const prequels = chainItems.filter(i => i.rel === 'PREQUEL').sort(byYearAsc);
+    const sequels = chainItems.filter(i => i.rel === 'SEQUEL').sort(byYearAsc);
+    const others = chainItems
+        .filter(i => RECS_OTHER_ORDER.indexOf(i.rel) !== -1)
+        .sort((a, b) => (RECS_OTHER_ORDER.indexOf(a.rel) - RECS_OTHER_ORDER.indexOf(b.rel)) || byYearAsc(a, b));
+
+    return { recs: recs, chain: prequels.concat(sequels, others), mainCount: prequels.length + sequels.length };
+}
+
+function recsCardButtonHtml(item, ownedSet) {
+    if (ownedSet.has(String(item.id))) {
+        return `<button class="recs-owned-btn" disabled>✓ In your library</button>`;
+    }
+    return `<button class="recs-add-btn" data-media-id="${item.id}">+ Add</button>`;
+}
+
+function animePageRenderRecs(sourceAnime, data) {
+    const container = document.getElementById('anime-page-recs');
+    if (!container) return;
+    const recs = (data && data.recs) || [];
+    const chain = (data && data.chain) || [];
+    if (recs.length === 0 && chain.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    const ownedSet = recsLibraryIdSet();
+    const sourceTitle = getEnglishTitle(sourceAnime);
+    let html = '';
+
+    if (recs.length > 0) {
+        const cards = recs.map(item => `
+            <div class="recs-card">
+                <img class="recs-card-img" src="${escapeHTML(item.img || 'https://via.placeholder.com/92x128?text=No+Image')}" alt="Poster" loading="lazy">
+                <div class="recs-card-title" title="${escapeHTML(item.title)}">${escapeHTML(item.title)}</div>
+                <div class="recs-card-score">${item.avg !== null && item.avg !== undefined ? `⭐ ${item.avg}%` : '⭐ N/A'}</div>
+                <div class="recs-card-reason">${escapeHTML(item.reason || 'Loved by fans of this show')}</div>
+                ${recsCardButtonHtml(item, ownedSet)}
+            </div>`).join('');
+        html += `
+            <div class="recs-head"><strong>✨ Because you watched ${escapeHTML(sourceTitle)}</strong></div>
+            <div class="recs-rail">${cards}</div>`;
+    }
+
+    if (chain.length > 0) {
+        const currentItem = {
+            id: animePageAniListId(sourceAnime),
+            rel: 'CURRENT',
+            title: sourceTitle,
+            img: (sourceAnime.images && sourceAnime.images.jpg && (sourceAnime.images.jpg.small_image_url || sourceAnime.images.jpg.image_url)) || '',
+            type: sourceAnime.type || '',
+            year: sourceAnime.year || null,
+            eps: (typeof sourceAnime.episodes === 'number' && sourceAnime.episodes > 0) ? sourceAnime.episodes : null
+        };
+        const mainCount = (data && typeof data.mainCount === 'number') ? data.mainCount : 0;
+        const prequels = chain.filter(i => i.rel === 'PREQUEL');
+        const sequels = chain.filter(i => i.rel === 'SEQUEL');
+        const others = chain.filter(i => RECS_OTHER_ORDER.indexOf(i.rel) !== -1);
+        const sequence = prequels.concat([currentItem], sequels);
+        const itemHtml = (item) => {
+            const isCurrent = item.rel === 'CURRENT';
+            const label = isCurrent ? 'You are here' : (RECS_RELATION_LABELS[item.rel] || item.rel);
+            const meta = [item.year, item.type, item.eps ? `${item.eps} eps` : ''].filter(Boolean).join(' · ');
+            return `
+            <div class="recs-chain-item${isCurrent ? ' recs-chain-current' : ''}">
+                <div class="recs-chain-label${isCurrent ? ' recs-chain-label-current' : ''}">${label}</div>
+                <img class="recs-card-img" src="${escapeHTML(item.img || 'https://via.placeholder.com/92x128?text=No+Image')}" alt="Poster" loading="lazy">
+                <div class="recs-card-title" title="${escapeHTML(item.title)}">${escapeHTML(item.title)}</div>
+                <div class="recs-chain-meta">${escapeHTML(meta)}</div>
+                ${isCurrent ? '' : recsCardButtonHtml(item, ownedSet)}
+            </div>`;
+        };
+        let strip = '';
+        sequence.forEach((item, idx) => {
+            if (idx > 0) strip += '<div class="recs-chain-arrow">→</div>';
+            strip += itemHtml(item);
+        });
+        if (others.length > 0) {
+            if (mainCount > 0 || sequence.length > 1) strip += '<div class="recs-chain-divider"></div>';
+            strip += others.map(itemHtml).join('');
+        }
+        html += `
+            <div class="recs-head"><strong>🔗 The Story So Far</strong></div>
+            <div class="recs-chain">${strip}</div>`;
+    }
+
+    container.innerHTML = `<div class="recs-block">${html}</div>`;
+    container.querySelectorAll('.recs-add-btn').forEach(btn => {
+        btn.onclick = () => { recsHandleAdd(parseInt(btn.getAttribute('data-media-id'), 10), btn); };
+    });
+}
+
+// The "+ Add" click: run the app's canonical Discover add —
+// duplicate guard, rating prompt, backlog push, saveData /
+// updateAllDisplays / processAchievements, same notification —
+// on the normalized object for this title.
+function recsHandleAdd(mediaId, btn) {
+    const anime = recsMediaById.get(mediaId);
+    if (anime) {
+        recsAddNormalized(anime);
+        return;
+    }
+    // Rendered from the cache in a later session: fetch the one
+    // title, normalize it, then add it the same way.
+    if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+    anilistGraphQL(RECS_SINGLE_QUERY, { id: mediaId })
+        .then(data => {
+            const normalized = recsNormalizeOne(data && data.Media);
+            if (!normalized) throw new Error('No media');
+            recsMediaById.set(normalized.mal_id, normalized);
+            recsAddNormalized(normalized);
+        })
+        .catch(() => {
+            if (btn) { btn.disabled = false; btn.textContent = '+ Add'; }
+            showNotification('Failed to add. Check internet connection.', 'error');
+        });
+}
+
+function recsAddNormalized(anime) {
+    const title = getEnglishTitle(anime);
+    if (isDuplicateAnime(anime)) {
+        showNotification('This anime is already in your backlog or challenge watch list!', 'error');
+        recsMarkOwnedEverywhere(anime.mal_id);
+        return;
+    }
+    const rating = promptForRating(title);
+    const newAnime = { ...anime, date_added: new Date().toISOString() };
+    if (rating !== null) newAnime.user_score = rating;
+
+    challengeData.backlog.push(newAnime);
+    saveData();
+    updateAllDisplays();
+    processAchievements();
+    showNotification(`Added ${title} to your backlog watch list!`);
+    recsMarkOwnedEverywhere(anime.mal_id);
+}
+
+function recsMarkOwnedEverywhere(mediaId) {
+    document.querySelectorAll(`.recs-add-btn[data-media-id="${mediaId}"]`).forEach(btn => {
+        btn.disabled = true;
+        btn.textContent = '✓ In your library';
+        btn.classList.remove('recs-add-btn');
+        btn.classList.add('recs-owned-btn');
+        btn.onclick = null;
+    });
+}
+
+function animePageLoadRecs(anime, idNum, token) {
+    const cache = recsLoadCache();
+    const hit = cache[String(idNum)];
+    if (hit && (Date.now() - (hit.t || 0)) < RECS_CACHE_TTL_MS) {
+        animePageRenderRecs(anime, { recs: hit.recs, chain: hit.chain, mainCount: hit.mainCount });
+        return;
+    }
+    if (recsInFlight.has(idNum)) return;
+    recsInFlight.add(idNum);
+    anilistGraphQL(RECS_QUERY, { id: idNum })
+        .then(data => {
+            const media = (data && data.Media) ? data.Media : null;
+            const processed = media ? recsProcessMedia(media, anime, idNum) : { recs: [], chain: [], mainCount: 0 };
+            // Cache the result — including "nothing useful" —
+            // so each title is asked about at most once a week.
+            const store = recsLoadCache();
+            store[String(idNum)] = { t: Date.now(), recs: processed.recs, chain: processed.chain, mainCount: processed.mainCount };
+            recsSaveCache(store);
+            if (token === animePageToken) animePageRenderRecs(anime, processed);
+        })
+        .catch(() => { /* silent: offline / rate limited — no block is better than an error */ })
+        .finally(() => { recsInFlight.delete(idNum); });
+}
+
+// ---------- 📝 MY NOTES (ported) ----------
+// A private free-text note per anime, written and read on the
+// anime page, with a small 📝 chip on backlog cards that carry
+// a note.
+//
+// STORAGE: a new top-level field on challengeData,
+// customNotes = { [storeKey]: { key, text, updatedAt } },
+// keyed by the app identity rule (upnextEntryKey: manual →
+// 'manual:' + lowercased trimmed title, else 'id:' + mal_id)
+// — NOT by AniList id, so notes work for every library title:
+// AniList-era, repaired, legacy and manual alike. The load
+// paths spread-merge challengeData without whitelisting, and
+// saves go ONLY through saveData(), so notes sync to the
+// cloud and ride along in backups like the other custom
+// fields.
+//
+// FIREBASE KEY SAFETY: saveData() writes via Firebase .set(),
+// where object keys become path segments and . $ # [ ] / are
+// illegal — a manual entry titled e.g. "Fate/stay night" used
+// verbatim as a property name would break the WHOLE cloud
+// save. Property names are therefore the entryKey with those
+// characters (and % itself) %-escaped (notesStoreKey);
+// ordinary keys like "id:16498" pass through unchanged, and
+// every record also stores its true key, which lookups verify
+// — an escaped-key collision reads as a miss, never as another
+// show's note.
+//
+// PRIVACY: notes live only inside the user's own
+// challengeData. syncUserProfileAndLeaderboard() builds its
+// profile/leaderboard payloads from explicit field lists
+// (each entry mapped to mal_id/title/user_score/type/
+// isManual), so a note can never leak onto the public
+// surfaces friends see.
+
+// NOTES PURE LOGIC START — plain-data helpers only; this
+// section is exercised by the Node harness, so it must stay
+// free of DOM / app-state references.
+const NOTES_MAX_LEN = 2000;
+
+// Firebase path segments cannot contain . $ # [ ] / — escape
+// those (and the escape character % itself) as %XX. Identity
+// for every ordinary key.
+const NOTES_UNSAFE_KEY_CHARS = /[%.$#\[\]\/]/g;
+function notesStoreKey(entryKey) {
+    return String(entryKey == null ? '' : entryKey).replace(NOTES_UNSAFE_KEY_CHARS, ch => '%' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0'));
+}
+
+function notesNormalizeText(raw) {
+    if (typeof raw !== 'string') return '';
+    return raw.length > NOTES_MAX_LEN ? raw.slice(0, NOTES_MAX_LEN) : raw;
+}
+
+// One stored record, cleaned. A record whose text is empty
+// (or not a string at all) is not a note — it normalizes to
+// null and drops out of the map.
+function notesNormalizeRecord(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const text = notesNormalizeText(raw.text);
+    if (!text.trim()) return null;
+    return {
+        key: typeof raw.key === 'string' ? raw.key : null,
+        text: text,
+        updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : null
+    };
+}
+
+// Accepts the stored value in any shape it can plausibly
+// come back in (object map, Firebase numeric-keyed object,
+// array, garbage) and always returns a clean map. Corrupt
+// entries are dropped — never a throw.
+function notesNormalizeMap(raw) {
+    let src = raw;
+    if (Array.isArray(src)) {
+        const obj = {};
+        src.forEach((v, i) => { obj[String(i)] = v; });
+        src = obj;
+    }
+    if (!src || typeof src !== 'object') return {};
+    const out = {};
+    Object.keys(src).forEach(prop => {
+        const rec = notesNormalizeRecord(src[prop]);
+        if (!rec) return;
+        // A record that knows its true key is filed under that
+        // key's canonical property — for well-formed data that
+        // IS the property it arrived under, and for odd shapes
+        // (e.g. an array, whose records sit under numeric
+        // properties) it makes the note findable again.
+        out[rec.key ? notesStoreKey(rec.key) : prop] = rec;
+    });
+    return out;
+}
+
+function notesGetRecord(map, entryKey) {
+    if (!entryKey) return null;
+    const rec = (map || {})[notesStoreKey(entryKey)] || null;
+    // Paranoia: if the stored record carries a true key that
+    // is not this title's, treat it as a miss (escaped-key
+    // collision) rather than showing another show's note.
+    if (rec && rec.key && rec.key !== entryKey) return null;
+    return rec;
+}
+
+// Returns a NEW map with the note for entryKey set — or
+// removed, when the trimmed text is empty (an emptied note
+// is a deleted note). The input map is never mutated.
+function notesUpsert(map, entryKey, text, nowIso) {
+    const out = {};
+    const src = (map && typeof map === 'object' && !Array.isArray(map)) ? map : {};
+    Object.keys(src).forEach(k => { out[k] = src[k]; });
+    if (!entryKey) return out;
+    const prop = notesStoreKey(entryKey);
+    const clean = (typeof text === 'string' ? text : '').trim();
+    if (!clean) {
+        delete out[prop];
+        return out;
+    }
+    out[prop] = {
+        key: entryKey,
+        text: clean.length > NOTES_MAX_LEN ? clean.slice(0, NOTES_MAX_LEN) : clean,
+        updatedAt: typeof nowIso === 'string' ? nowIso : null
+    };
+    return out;
+}
+
+// Builds a normalized-title → entryKey index from
+// [{ key, titles: [normalizedTitle, ...] }] pairs. A title
+// claimed by two DIFFERENT keys is ambiguous: it is removed
+// from the index and reported in `ambiguous`, so callers can
+// skip it instead of guessing which show a card belongs to.
+function notesBuildTitleIndex(pairs) {
+    const index = {};
+    const ambiguous = {};
+    (Array.isArray(pairs) ? pairs : []).forEach(pair => {
+        if (!pair || !pair.key || !Array.isArray(pair.titles)) return;
+        pair.titles.forEach(t => {
+            if (!t || typeof t !== 'string') return;
+            if (Object.prototype.hasOwnProperty.call(ambiguous, t)) return;
+            if (Object.prototype.hasOwnProperty.call(index, t) && index[t] !== pair.key) {
+                delete index[t];
+                ambiguous[t] = true;
+                return;
+            }
+            index[t] = pair.key;
+        });
+    });
+    return { index: index, ambiguous: ambiguous };
+}
+
+function notesKeyFromTitle(titleIndex, normalizedTitle) {
+    if (!titleIndex || !normalizedTitle) return null;
+    if (titleIndex.ambiguous && titleIndex.ambiguous[normalizedTitle]) return null;
+    return (titleIndex.index && titleIndex.index[normalizedTitle]) || null;
+}
+// NOTES PURE LOGIC END
+
+function notesLoad() {
+    try {
+        return notesNormalizeMap(typeof challengeData !== 'undefined' ? challengeData.customNotes : undefined);
+    } catch (e) {
+        return {};
+    }
+}
+
+// Saves go ONLY through the app's saveData() (localStorage +
+// Firebase), exactly like the other custom fields.
+function notesSave(map) {
+    try {
+        challengeData.customNotes = map;
+        if (typeof saveData === 'function') saveData();
+    } catch (e) { /* notes are best-effort — never break the app over them */ }
+}
+
+function notesHandleSave(entryKey, textarea, btn) {
+    const next = notesUpsert(notesLoad(), entryKey, textarea ? textarea.value : '', new Date().toISOString());
+    notesSave(next);
+    // Keep any visible backlog 📝 chips truthful right away.
+    try { notesDecorateBacklog(); } catch (e) { /* silent */ }
+    if (btn) {
+        if (btn._notesTimer) clearTimeout(btn._notesTimer);
+        btn.textContent = 'Saved ✓';
+        btn.disabled = true;
+        btn._notesTimer = setTimeout(() => {
+            btn.textContent = 'Save Note';
+            btn.disabled = false;
+        }, 1500);
+    }
+}
+
+// ---------- 📝 BACKLOG CHIP ----------
+// Cards carry no data attributes, so a card is matched to
+// its entry by the most robust signals the rendered DOM
+// offers, in order: (1) the streaming-links container id,
+// which is literally `streaming-links-${anime.mal_id}` from
+// the same entry object the identity key is built from;
+// (2) the card's displayed title, resolved through a
+// normalized-title index of the library — a title shared by
+// two different entries is ambiguous and its cards are
+// skipped rather than guessed. Every step is fail-safe.
+
+function notesTitleIndex() {
+    const pairs = [];
+    try {
+        getUniqueAnime().forEach(anime => {
+            if (!anime) return;
+            const key = (typeof upnextEntryKey === 'function') ? upnextEntryKey(anime) : '';
+            if (!key) return;
+            const titles = [];
+            const push = t => {
+                const n = (typeof normalizeSearchText === 'function')
+                    ? normalizeSearchText(t || '')
+                    : String(t || '').toLowerCase().trim();
+                if (n && titles.indexOf(n) === -1) titles.push(n);
+            };
+            if (typeof getEnglishTitle === 'function') push(getEnglishTitle(anime));
+            push(anime.title);
+            if (titles.length) pairs.push({ key: key, titles: titles });
+        });
+    } catch (e) { /* an unbuildable index just means title matching is unavailable */ }
+    return notesBuildTitleIndex(pairs);
+}
+
+function notesCardKey(card, titleIndex) {
+    const linksEl = card.querySelector('[id^="streaming-links-"]');
+    if (linksEl && linksEl.id) {
+        const suffix = linksEl.id.slice('streaming-links-'.length);
+        if (suffix && suffix !== 'null' && suffix !== 'undefined') return 'id:' + suffix;
+    }
+    const titleEl = card.querySelector('.backlog-title');
+    if (titleEl) {
+        const n = (typeof normalizeSearchText === 'function')
+            ? normalizeSearchText(titleEl.textContent || '')
+            : String(titleEl.textContent || '').toLowerCase().trim();
+        return notesKeyFromTitle(titleIndex, n);
+    }
+    return null;
+}
+
+function notesDecorateBacklog() {
+    const container = document.getElementById('all-anime-list-container');
+    if (!container) return;
+    const map = notesLoad();
+    if (!Object.keys(map).length) return;
+    const titleIndex = notesTitleIndex();
+    container.querySelectorAll('.backlog-anime-list-item').forEach(card => {
+        try {
+            if (card.querySelector('.notes-chip')) return; // idempotent
+            const key = notesCardKey(card, titleIndex);
+            if (!key) return;
+            if (!notesGetRecord(map, key)) return;
+            const badges = card.querySelector('.backlog-badges-container');
+            if (!badges) return;
+            const chip = document.createElement('span');
+            chip.className = 'backlog-tag notes-chip';
+            chip.textContent = '📝 Note';
+            chip.title = 'You have a private note on this show';
+            badges.appendChild(chip);
+        } catch (e) { /* one bad card must never break the grid */ }
+    });
+}
+
+// Chain after the backlog renderer: after every grid render,
+// cards whose entry has a note get their 📝 chip.
+if (typeof window.renderAllAnimeList === 'function') {
+    const notesPrevRenderAllAnimeList = window.renderAllAnimeList;
+    window.renderAllAnimeList = function() {
+        const result = notesPrevRenderAllAnimeList.apply(this, arguments);
+        try { notesDecorateBacklog(); } catch (e) { /* chips must never break the grid */ }
+        return result;
+    };
+}
+try { notesDecorateBacklog(); } catch (e) { /* backlog may not be rendered yet on some paths */ }
+
+// ---------- THE PAGE ----------
+
+// ONE combined AniList query per page open carries every
+// field the page itself renders (header art, story, details
+// grid, genres/tags). Relations deliberately stay with the
+// cached recommendations query above — fetching them twice
+// would waste the user's rate budget.
+const ANIME_PAGE_QUERY = `
+query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+        id
+        title { romaji english native }
+        bannerImage
+        coverImage { extraLarge large medium }
+        description
+        format
+        status
+        season
+        seasonYear
+        episodes
+        duration
+        source
+        averageScore
+        meanScore
+        popularity
+        genres
+        tags { name rank isGeneralSpoiler isMediaSpoiler }
+        nextAiringEpisode { episode at }
+        studios { edges { isMain node { name } } nodes { name } }
+    }
+}`;
+
+const ANIME_PAGE_FORMAT_LABELS = { TV: 'TV', TV_SHORT: 'TV Short', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music' };
+const ANIME_PAGE_STATUS_LABELS = { FINISHED: 'Finished', RELEASING: 'Currently Airing', NOT_YET_RELEASED: 'Not Yet Released', CANCELLED: 'Cancelled' };
+const ANIME_PAGE_STORED_STATUS_LABELS = { current: 'Currently Airing', finished: 'Finished', upcoming: 'Not Yet Released', unknown: '' };
+const ANIME_PAGE_SEASON_LABELS = { WINTER: 'Winter', SPRING: 'Spring', SUMMER: 'Summer', FALL: 'Fall' };
+const ANIME_PAGE_SOURCE_LABELS = { ORIGINAL: 'Original', MANGA: 'Manga', LIGHT_NOVEL: 'Light Novel', VISUAL_NOVEL: 'Visual Novel', VIDEO_GAME: 'Video Game', NOVEL: 'Novel', WEB_NOVEL: 'Web Novel', DOUJINSHI: 'Doujinshi', GAME: 'Game', PICTURE_BOOK: 'Picture Book', RADIO: 'Radio', COMIC: 'Comic', OTHER: 'Other' };
+
+let animePageToken = 0;
+let animePageOrigin = 'challenge';
+let animePageCurrentKey = null;
+let animePageCurrentSource = null;
+
+function animePageDetectOrigin() {
+    const map = {
+        'challenge-screen': 'challenge',
+        'backlog-manager-screen': 'backlog',
+        'anipace-log-screen': 'anipace',
+        'schedule-screen': 'schedule',
+        'anime-social-lounge': 'lounge'
+    };
+    const ids = Object.keys(map);
+    for (let i = 0; i < ids.length; i++) {
+        const el = document.getElementById(ids[i]);
+        if (el && !el.classList.contains('hidden')) return map[ids[i]];
+    }
+    return 'challenge';
+}
+
+// The enrichment chain (base loader + themes + episode grid)
+// looks its containers up by document id, and the old inline
+// panels use the same ids. Any container with the page's ids
+// that lives OUTSIDE the page (a stale search-results detail
+// view, an inline backlog panel) is renamed aside so the
+// chain renders into the page. Those panels are never opened
+// any more — every details button routes here — and the
+// lists re-render fresh containers on their next render.
+function animePageDedupeContainers(pageKey) {
+    const page = document.getElementById('anime-page-screen');
+    if (!page) return;
+    ['streaming-links-', 'characters-'].forEach(prefix => {
+        const id = prefix + pageKey;
+        document.querySelectorAll('[id="' + id + '"]').forEach(el => {
+            if (!page.contains(el)) el.id = id + '__inline';
+        });
+    });
+}
+
+function animePageBuildSkeleton(pageKey) {
+    const content = document.getElementById('anime-page-content');
+    if (!content) return;
+    content.innerHTML = `
+        <div class="anime-page-banner" id="anime-page-banner"></div>
+        <div class="anime-page-head">
+            <img class="anime-page-poster" id="anime-page-poster" alt="Poster">
+            <div class="anime-page-titles">
+                <h2 class="anime-page-title" id="anime-page-title"></h2>
+                <div class="anime-page-romaji" id="anime-page-romaji"></div>
+                <div class="anime-page-userline" id="anime-page-userline"></div>
+            </div>
+        </div>
+        <div class="anime-page-section" id="anime-page-story-section">
+            <div class="anime-page-section-head"><strong>📖 Story</strong></div>
+            <p class="anime-page-story" id="anime-page-story"></p>
+        </div>
+        <div class="anime-page-section" id="anime-page-meta-section">
+            <div class="anime-page-section-head"><strong>ℹ️ Details</strong></div>
+            <div class="anime-page-meta-grid" id="anime-page-meta"></div>
+        </div>
+        <div class="anime-page-section" id="anime-page-labels-section">
+            <div class="anime-page-section-head"><strong>🏷️ Genres & Tags</strong></div>
+            <div class="anime-page-chips" id="anime-page-chips"></div>
+        </div>
+        <div id="anime-page-scoredist"></div>
+        <div id="anime-page-cast"></div>
+        <div class="anime-page-chain-panel" id="anime-page-chain-panel">
+            <div class="anime-tags-row" style="display: none;"></div>
+            <div class="streaming-links-container" id="streaming-links-${pageKey}"></div>
+        </div>
+        <div id="anime-page-recs"></div>
+        <div id="anime-page-notes"></div>`;
+}
+
+// The chain panel carries an (empty, hidden) .anime-tags-row
+// marker: the base loader inserts its own plain-text tags row
+// into the panel only when the panel has none — the page
+// shows genres/tags properly as chips in their own section,
+// so the marker keeps the panel free of a duplicate row.
+
+function animePageMetaHtml(rows) {
+    return rows
+        .filter(r => r[1] !== null && r[1] !== undefined && String(r[1]).trim() !== '')
+        .map(r => `<div class="anime-page-meta-item"><div class="anime-page-meta-label">${themesEscapeHtml(r[0])}</div><div class="anime-page-meta-value">${themesEscapeHtml(String(r[1]))}</div></div>`)
+        .join('');
+}
+
+function animePageChipsHtml(genres, tags) {
+    const g = (genres || []).map(name => `<span class="anime-page-chip">${themesEscapeHtml(name)}</span>`).join('');
+    const t = (tags || []).map(name => `<span class="anime-page-chip anime-page-chip-tag">${themesEscapeHtml(name)}</span>`).join('');
+    return g + t;
+}
+
+function animePageSetBannerAndPoster(bannerUrl, posterUrl) {
+    const banner = document.getElementById('anime-page-banner');
+    if (banner) {
+        banner.innerHTML = bannerUrl ? `<img class="anime-page-banner-img" src="${themesEscapeHtml(bannerUrl)}" alt="">` : '';
+    }
+    const poster = document.getElementById('anime-page-poster');
+    if (poster) poster.src = posterUrl || 'https://via.placeholder.com/160x224?text=No+Image';
+}
+
+function animePageSetTitles(englishTitle, romajiTitle) {
+    const titleEl = document.getElementById('anime-page-title');
+    if (titleEl) titleEl.textContent = englishTitle || 'Unknown Title';
+    const romajiEl = document.getElementById('anime-page-romaji');
+    if (romajiEl) {
+        if (romajiTitle && romajiTitle !== englishTitle) {
+            romajiEl.textContent = romajiTitle;
+            romajiEl.style.display = '';
+        } else {
+            romajiEl.textContent = '';
+            romajiEl.style.display = 'none';
+        }
+    }
+}
+
+function animePageSetStory(text) {
+    const section = document.getElementById('anime-page-story-section');
+    const storyEl = document.getElementById('anime-page-story');
+    if (!section || !storyEl) return;
+    if (text && String(text).trim()) {
+        storyEl.textContent = String(text);
+        section.style.display = '';
+    } else {
+        storyEl.textContent = '';
+        section.style.display = 'none';
+    }
+}
+
+function animePageSetMeta(rows) {
+    const section = document.getElementById('anime-page-meta-section');
+    const grid = document.getElementById('anime-page-meta');
+    if (!section || !grid) return;
+    const html = animePageMetaHtml(rows);
+    grid.innerHTML = html;
+    section.style.display = html ? '' : 'none';
+}
+
+function animePageSetChips(genres, tags) {
+    const section = document.getElementById('anime-page-labels-section');
+    const chips = document.getElementById('anime-page-chips');
+    if (!section || !chips) return;
+    const html = animePageChipsHtml(genres, tags);
+    chips.innerHTML = html;
+    section.style.display = html ? '' : 'none';
+}
+
+// The user's own data for this title: his score (stored on
+// the library copies) and his watched progress (the AniPace
+// history via the episode grid's counter). Fresh Discover
+// results that are not in his library show no line.
+function animePagePaintUserLine(anime) {
+    const el = document.getElementById('anime-page-userline');
+    if (!el) return;
+    let stored = null;
+    try {
+        const key = upnextEntryKey(anime);
+        stored = getUniqueAnime().find(item => upnextEntryKey(item) === key) || null;
+    } catch (e) { stored = null; }
+    const score = (stored && stored.user_score) || anime.user_score || null;
+    let watched = 0;
+    try { watched = epgridWatchedCount(anime); } catch (e) { watched = 0; }
+    const total = epgridSanitizeTotal(anime.episodes);
+    const parts = [];
+    if (score) parts.push(`⭐ My Score: ${score}`);
+    if (total > 0 && watched > 0) parts.push(`📺 Watched ${watched}/${total} episodes`);
+    else if (total > 0 && stored) parts.push(`📺 0/${total} episodes watched`);
+    if (!parts.length && stored) parts.push('📚 In your library');
+    el.textContent = parts.join(' · ');
+    el.style.display = parts.length ? '' : 'none';
+}
+
+// First paint, from the resolved object alone (stored data
+// for library entries, the normalized API object for fresh
+// results) — the page is complete before any fetch returns.
+function animePagePaintStored(anime) {
+    const english = getEnglishTitle(anime);
+    const romajiEntry = (anime.titles || []).find(t => t && t.type === 'Default');
+    const romaji = romajiEntry ? romajiEntry.title : (anime.title && anime.title !== english ? anime.title : '');
+    animePageSetTitles(english, romaji);
+    const posterUrl = (anime.images && anime.images.jpg && (anime.images.jpg.image_url || anime.images.jpg.small_image_url)) || '';
+    animePageSetBannerAndPoster(anime.coverImage || '', posterUrl);
+    animePageSetStory(anime.synopsis || '');
+    const studioName = (anime.studios && anime.studios[0] && anime.studios[0].name) || '';
+    animePageSetMeta([
+        ['Format', anime.type || ''],
+        ['Status', ANIME_PAGE_STORED_STATUS_LABELS[anime.airingStatus] || ''],
+        ['Year', anime.year || ''],
+        ['Episodes', (anime.episodes !== null && anime.episodes !== undefined && anime.episodes !== '') ? String(anime.episodes) : ''],
+        ['Duration', anime.episodeLength ? `${anime.episodeLength} min / ep` : ''],
+        ['Studio', studioName],
+        ['Score', (anime.score !== null && anime.score !== undefined && anime.score !== '') ? String(anime.score) : '']
+    ]);
+    const genres = (anime.genres || []).map(g => (typeof g === 'string' ? g : (g && g.name))).filter(Boolean);
+    const tags = (anime.tags || []).slice(0, 10).map(t => (typeof t === 'string' ? t : (t && t.name))).filter(Boolean);
+    animePageSetChips(genres, tags);
+    animePagePaintUserLine(anime);
+}
+
+// Upgrade paint, from the page's one combined Media query:
+// bigger art, the full description, and the complete details
+// grid (season, source material, mean score, popularity).
+function animePagePaintMedia(anime, media) {
+    const english = (media.title && (media.title.english || media.title.romaji)) || getEnglishTitle(anime);
+    const romaji = (media.title && media.title.romaji) || '';
+    animePageSetTitles(english, romaji);
+    const posterUrl = (media.coverImage && (media.coverImage.extraLarge || media.coverImage.large || media.coverImage.medium))
+        || (anime.images && anime.images.jpg && anime.images.jpg.image_url) || '';
+    animePageSetBannerAndPoster(media.bannerImage || (media.coverImage && media.coverImage.extraLarge) || '', posterUrl);
+    animePageSetStory(stripHtmlTags(media.description || '') || anime.synopsis || '');
+    const mainStudios = ((media.studios && media.studios.edges) || []).filter(e => e && e.isMain && e.node).map(e => e.node.name);
+    const studioName = mainStudios[0] || ((media.studios && media.studios.nodes && media.studios.nodes[0]) ? media.studios.nodes[0].name : '')
+        || (anime.studios && anime.studios[0] && anime.studios[0].name) || '';
+    const seasonText = media.season ? `${ANIME_PAGE_SEASON_LABELS[media.season] || media.season}${media.seasonYear ? ' ' + media.seasonYear : ''}` : (media.seasonYear ? String(media.seasonYear) : '');
+    animePageSetMeta([
+        ['Format', ANIME_PAGE_FORMAT_LABELS[media.format] || media.format || ''],
+        ['Status', ANIME_PAGE_STATUS_LABELS[media.status] || ''],
+        ['Season', seasonText],
+        ['Episodes', (media.episodes !== null && media.episodes !== undefined) ? String(media.episodes) : ''],
+        ['Duration', media.duration ? `${media.duration} min / ep` : ''],
+        ['Studio', studioName],
+        ['Source', ANIME_PAGE_SOURCE_LABELS[media.source] || ''],
+        ['Average Score', (media.averageScore !== null && media.averageScore !== undefined) ? `${media.averageScore}%` : ''],
+        ['Mean Score', (media.meanScore !== null && media.meanScore !== undefined) ? `${media.meanScore}%` : ''],
+        ['Popularity', (media.popularity !== null && media.popularity !== undefined) ? Number(media.popularity).toLocaleString('en-US') + ' members' : '']
+    ]);
+    const genres = Array.isArray(media.genres) ? media.genres : [];
+    const tags = (media.tags || [])
+        .filter(t => t && t.name && !t.isGeneralSpoiler && !t.isMediaSpoiler)
+        .sort((a, b) => (b.rank || 0) - (a.rank || 0))
+        .slice(0, 12)
+        .map(t => t.name);
+    animePageSetChips(genres, tags);
+}
+
+function animePageLoadMedia(anime, idNum, token) {
+    anilistGraphQL(ANIME_PAGE_QUERY, { id: idNum })
+        .then(data => {
+            if (token !== animePageToken) return;
+            const media = (data && data.Media) ? data.Media : null;
+            if (!media) return;
+            animePagePaintMedia(anime, media);
+            // Airing shows: hand the grid the released-count
+            // marker (in memory only, exactly like the old
+            // Read Story enrichment) and re-render it so
+            // unreleased cells lock.
+            if (media.nextAiringEpisode) {
+                try {
+                    anime.nextAiringEpisode = media.nextAiringEpisode;
+                    if (typeof epgridRender === 'function' && animePageCurrentKey !== null) {
+                        epgridRender(animePageCurrentKey, animePageCurrentSource);
+                    }
+                } catch (e) { /* the grid keeps its total-only state */ }
+            }
+        })
+        .catch(() => { /* silent: the stored-data paint stays */ });
+}
+
+// 📝 Notes section of the page (works for every entry type).
+function animePageRenderNotes(anime) {
+    const container = document.getElementById('anime-page-notes');
+    if (!container) return;
+    const entryKey = (typeof upnextEntryKey === 'function') ? upnextEntryKey(anime) : '';
+    if (!entryKey) { container.innerHTML = ''; return; }
+    container.innerHTML = `
+    <div class="notes-block">
+        <div class="notes-head"><strong>📝 My Notes</strong><span class="notes-private">Private · only you can see these</span></div>
+        <textarea class="notes-textarea" rows="3" maxlength="${NOTES_MAX_LEN}" placeholder="Your private notes on this show…"></textarea>
+        <div class="notes-actions"><button type="button" class="notes-save-btn">Save Note</button></div>
+    </div>`;
+    const textarea = container.querySelector('.notes-textarea');
+    const rec = notesGetRecord(notesLoad(), entryKey);
+    if (textarea && rec) textarea.value = rec.text;
+    const btn = container.querySelector('.notes-save-btn');
+    if (btn) btn.addEventListener('click', () => notesHandleSave(entryKey, textarea, btn));
+}
+
+function animePageHide() {
+    const page = document.getElementById('anime-page-screen');
+    if (!page) return;
+    page.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) { /* already gone */ } });
+    page.classList.add('hidden');
+}
+
+function animePageOpen(anime, animeId, animeSource) {
+    const page = document.getElementById('anime-page-screen');
+    if (!page || !anime) return;
+    const token = ++animePageToken;
+    // Remember where the user came from (if the page itself is
+    // somehow already showing, keep the earlier origin).
+    if (page.classList.contains('hidden')) animePageOrigin = animePageDetectOrigin();
+    // The page replaces whatever modal was open (e.g. the
+    // search-results detail the button was tapped in).
+    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+    if (animePageOrigin === 'lounge' && typeof stopLoungeListeners === 'function') {
+        try { stopLoungeListeners(); } catch (e) { /* silent */ }
+    }
+
+    // The chain key: the entry's own id for regular entries; a
+    // synthetic registry key for manual entries (their mal_id
+    // is null, so id-based resolution could never find them —
+    // and several manual entries share mal_id null, so a naive
+    // lookup could even find the WRONG one).
+    let pageKey;
+    let pageSource;
+    if (anime.isManual || animeId === null || animeId === undefined) {
+        pageKey = 'manual-' + normalizeSearchText(getEnglishTitle(anime)).replace(/\s+/g, '-');
+        pageSource = 'manual';
+        ANIME_DETAILS_REGISTRY['manual:' + pageKey] = anime;
+    } else {
+        pageKey = String(animeId);
+        pageSource = animeSource || anime.source || 'kitsu';
+    }
+    animePageCurrentKey = pageKey;
+    animePageCurrentSource = pageSource;
+
+    animePageDedupeContainers(pageKey);
+    animePageBuildSkeleton(pageKey);
+    animePagePaintStored(anime);
+    animePageRenderNotes(anime);
+
+    // Show the page in place of every app screen (same
+    // hidden-class mechanism as switchToScreen).
+    ['challenge-screen', 'backlog-manager-screen', 'anipace-log-screen', 'schedule-screen', 'anime-social-lounge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    document.body.classList.remove('backlog-active');
+    page.classList.remove('hidden');
+    const headerTitle = document.getElementById('header-title');
+    if (headerTitle) headerTitle.textContent = getEnglishTitle(anime);
+    window.scrollTo(0, 0);
+
+    // The existing enrichment chain — streaming links, 🎵
+    // theme songs, 📺 episode grid — renders into the page's
+    // own panel.
+    try { window.lazyLoadDetails(pageKey, pageSource); } catch (e) { /* never break the page */ }
+
+    // AniList-powered sections, all lazy and cached. No id →
+    // no fetches at all: the page stays with its local data.
+    const idNum = animePageAniListId(anime);
+    if (idNum) {
+        animePageLoadMedia(anime, idNum, token);
+        animePageLoadScoreDist(anime, idNum, token);
+        animePageLoadCast(anime, idNum, token);
+        animePageLoadRecs(anime, idNum, token);
+    }
+}
+
+// Entry point used by every re-routed Read Story / details
+// button (Backlog, watched/day lists, Discover, trends,
+// search results): resolve the entry the same way the old
+// details loader did, then open the page.
+window.openAnimePage = function(animeId, animeSource) {
+    const anime = (typeof resolveAnimeForDetails === 'function') ? resolveAnimeForDetails(animeId, animeSource) : null;
+    if (!anime) {
+        showNotification('Could not open the full page for this anime.', 'error');
+        return;
+    }
+    animePageOpen(anime, animeId, animeSource || anime.source || 'kitsu');
+};
+
+// Entry point for callers that already hold the entry object
+// (the Backlog Details buttons) — the only path that can open
+// manual entries, whose mal_id is null.
+window.openAnimePageEntry = function(anime) {
+    if (!anime) return;
+    animePageOpen(anime, anime.mal_id, anime.source || 'kitsu');
+};
+
+window.closeAnimePage = function() {
+    animePageHide();
+    switchToScreen(animePageOrigin || 'challenge');
+};
+
+// Any ordinary navigation (the top-bar buttons call
+// switchToScreen directly) must also leave the page —
+// otherwise the page would stay visible next to the target
+// screen. Wrap the switcher: hide the page first, then run
+// the original logic untouched.
+if (typeof window.switchToScreen === 'function') {
+    const animePagePrevSwitchToScreen = window.switchToScreen;
+    window.switchToScreen = function(screenId) {
+        try { animePageHide(); } catch (e) { /* never break navigation */ }
+        return animePagePrevSwitchToScreen.apply(this, arguments);
+    };
+}
+
+(function animePageInit() {
+    const backBtn = document.getElementById('anime-page-back-btn');
+    if (backBtn) backBtn.addEventListener('click', () => { window.closeAnimePage(); });
+})();
+// End FULL ANIME PAGE
