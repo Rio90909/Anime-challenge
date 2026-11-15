@@ -8130,6 +8130,18 @@ if (typeof window.switchToScreen === 'function') {
 // the music; a theme VIDEO (or trailer) starting pauses the
 // audio, and audio starting pauses any playing video —
 // never two sounds at once.
+//
+// Playback resolution: the song database stays the
+// catalogue, but its file host is unreachable on some
+// networks, so a database track that links to an anime id
+// first tries to play the SAME song (same type, same
+// sequence number) from the themes service's light audio
+// file — resolved through the shared themes cache, so
+// repeat plays cost no fetch — and only falls back to the
+// database's own file link when there is no match, no id,
+// or the lookup fails. Until the audio element's real
+// duration arrives, the bar's total time shows the
+// database's song length.
 // ============================================================
 
 const MUSIC_CACHE_KEY = 'aniclipse_music_cache_v1';
@@ -8164,7 +8176,12 @@ function musicCacheGet(key) {
     const entry = musicLoadCache()[key];
     if (!entry || typeof entry.t !== 'number') return null;
     if (Date.now() - entry.t >= MUSIC_CACHE_TTL_MS) return null;
-    return Array.isArray(entry.tracks) ? entry.tracks : null;
+    if (!Array.isArray(entry.tracks)) return null;
+    // Entries written before queue rows carried their linked
+    // anime id can't feed the playback resolver — treat them
+    // as a miss so they refetch once, in the new shape.
+    if (entry.tracks.length && !('anilistId' in entry.tracks[0])) return null;
+    return entry.tracks;
 }
 
 function musicCacheSet(key, tracks) {
@@ -8230,6 +8247,15 @@ function musicProcessEntries(entries) {
             seq: t.seq,
             badge: t.kind === 'IN' ? 'IN' : (t.seq ? t.kind + t.seq : t.kind),
             src: e.audio ? (MUSIC_FILE_BASE + e.audio) : null,
+            // Playback-resolver inputs: the entry's linked
+            // anime id (when the database knows it), the raw
+            // type string, and the song's length in seconds
+            // (shown as the total time until the real audio
+            // duration arrives).
+            anilistId: (e.linked_ids && typeof e.linked_ids.anilist === 'number' && e.linked_ids.anilist > 0) ? e.linked_ids.anilist : null,
+            songType: e.songType || '',
+            length: (typeof e.songLength === 'number' && isFinite(e.songLength) && e.songLength > 0) ? e.songLength : null,
+            fromDb: true,
             _dub: !!e.isDub,
             _reb: !!e.isRebroadcast
         };
@@ -8237,7 +8263,18 @@ function musicProcessEntries(entries) {
         const prev = byKey.get(key);
         if (!prev) { byKey.set(key, track); return; }
         const score = (x) => (x.src ? 4 : 0) + (!x._reb ? 2 : 0) + (!x._dub ? 1 : 0);
-        if (score(track) > score(prev)) byKey.set(key, track);
+        // Whichever copy wins, keep the resolver inputs from
+        // the other copy when the winner lacks them (the id
+        // and length are properties of the song, not of one
+        // broadcast variant).
+        if (score(track) > score(prev)) {
+            if (!track.anilistId && prev.anilistId) track.anilistId = prev.anilistId;
+            if (!track.length && prev.length) track.length = prev.length;
+            byKey.set(key, track);
+        } else {
+            if (!prev.anilistId && track.anilistId) prev.anilistId = track.anilistId;
+            if (!prev.length && track.length) prev.length = track.length;
+        }
     });
     const tracks = Array.from(byKey.values());
     const kindOrder = { OP: 0, ED: 1, IN: 2 };
@@ -8268,6 +8305,8 @@ let musicOwner = null; // { kind:'list', renderId } | { kind:'themes', block, id
 let musicPlaying = false;
 let musicSeeking = false;
 let musicErrorStreak = 0;
+let musicResolveToken = 0; // bumped on every playback-intent change; stale resolutions check it
+let musicFailNotified = false; // the "couldn't play" note fires once per queue pass
 
 function musicAudioEl() { return document.getElementById('music-audio'); }
 
@@ -8297,6 +8336,18 @@ function musicUpdateBar() {
     if (titleEl) titleEl.textContent = track ? track.title : '—';
     if (subEl) subEl.textContent = track ? [track.anime, track.artist].filter(Boolean).join(' · ') : '';
     if (pp) pp.textContent = musicPlaying ? '⏸' : '▶';
+}
+
+// A new track starts at 0:00; its total shows the song
+// length the database reported until the audio element's
+// real duration replaces it (loadedmetadata / timeupdate).
+function musicResetTimes(track) {
+    const cur = document.getElementById('music-time-current');
+    if (cur) cur.textContent = '0:00';
+    const tot = document.getElementById('music-time-total');
+    if (tot) tot.textContent = (track && typeof track.length === 'number' && track.length > 0) ? musicFormatTime(track.length) : '0:00';
+    const seek = document.getElementById('music-seek');
+    if (seek && !musicSeeking) seek.value = '0';
 }
 
 function musicHighlight() {
@@ -8342,19 +8393,148 @@ function musicClearMediaSession() {
     try { if ('mediaSession' in navigator) navigator.mediaSession.metadata = null; } catch (e) { /* silent */ }
 }
 
+// ---------- playback resolution ----------
+
+const musicThemesInFlight = new Map();
+
+// The themes list for an AniList id when it is already
+// cached and usable, else null (a fetch is needed). Mirrors
+// the anime-page loader's staleness rule: fresh entries
+// that predate the audio field count as unusable.
+function musicThemesCached(idNum) {
+    const hit = themesLoadCache()[String(idNum)];
+    if (!hit || (Date.now() - (hit.t || 0)) >= THEMES_CACHE_TTL_MS) return null;
+    if (!Array.isArray(hit.themes)) return null;
+    const lacksAudio = hit.themes.length > 0
+        && hit.themes.some(t => t && t.video && t.audio === undefined);
+    return lacksAudio ? null : hit.themes;
+}
+
+// Promise of an anime's themes (cache first, one shared
+// fetch per id, result cached exactly like the anime-page
+// loader writes it — so the page and repeat plays reuse
+// it). Resolves to null when the lookup fails; callers
+// fall back gracefully. Failures are not cached.
+function musicThemesFetch(idNum) {
+    const cached = musicThemesCached(idNum);
+    if (cached !== null) return Promise.resolve(cached);
+    if (musicThemesInFlight.has(idNum)) return musicThemesInFlight.get(idNum);
+    const p = fetch(THEMES_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ query: THEMES_QUERY, variables: { id: [idNum] } })
+    }).then(res => {
+        if (!res || !res.ok) throw new Error('themes HTTP error');
+        return res.json();
+    }).then(json => {
+        if (!json || (!json.data && json.errors)) throw new Error('themes GraphQL error');
+        const themes = themesProcessResponse(json.data);
+        const store = themesLoadCache();
+        store[String(idNum)] = { t: Date.now(), themes: themes };
+        themesSaveCache(store);
+        return themes;
+    }).catch(() => null)
+        .finally(() => { musicThemesInFlight.delete(idNum); });
+    musicThemesInFlight.set(idNum, p);
+    return p;
+}
+
+// Match a database song to the theme of the same kind
+// whose sequence equals it (an unnumbered song or theme
+// counts as the first). Insert songs never match — the
+// themes data covers openings and endings only. Only
+// themes carrying an audio file can win.
+function musicMatchTheme(track, themes) {
+    if (!track || !Array.isArray(themes)) return null;
+    if (track.kind !== 'OP' && track.kind !== 'ED') return null;
+    const want = track.seq ? track.seq : 1;
+    for (const t of themes) {
+        if (!t || t.type !== track.kind || !t.audio) continue;
+        const seq = t.seq ? t.seq : 1;
+        if (seq === want) return t;
+    }
+    return null;
+}
+
+// Decide what actually plays for a queue track. Database
+// tracks try the themes service's light audio first (via
+// the shared themes cache) when the entry links to an
+// anime id and a same-kind, same-sequence theme carries
+// an audio file; anything else — no id, no match, lookup
+// failed — falls back to the database's own file link.
+// `done(url)` runs exactly once, synchronously whenever
+// the answer is already known (themes-queue tracks, no
+// id, warm cache), so plain taps never wait on the network.
+function musicResolveTrackSrc(track, done) {
+    if (!track) { done(null); return; }
+    if (track._resolvedSrc) { done(track._resolvedSrc); return; }
+    const fallback = track.src || null;
+    if (!track.fromDb || !track.anilistId) { track._resolvedSrc = fallback; done(fallback); return; }
+    const cached = musicThemesCached(track.anilistId);
+    if (cached !== null) {
+        const m = musicMatchTheme(track, cached);
+        track._resolvedSrc = (m && m.audio) ? m.audio : fallback;
+        done(track._resolvedSrc);
+        return;
+    }
+    musicThemesFetch(track.anilistId).then(themes => {
+        const m = musicMatchTheme(track, themes);
+        track._resolvedSrc = (m && m.audio) ? m.audio : fallback;
+        done(track._resolvedSrc);
+    });
+}
+
+// One quiet note when a queue gives up on errors — never
+// repeated within the same queue pass, never naming a
+// provider.
+function musicNotifyPlaybackFailure() {
+    if (musicFailNotified) return;
+    musicFailNotified = true;
+    if (typeof showNotification === 'function') {
+        showNotification("These songs couldn't play on this connection.", 'error');
+    }
+}
+
+// A dead link (or a track with nothing playable) skips
+// forward instead of stranding the listener; the streak
+// guard keeps a fully-dead queue from looping, and giving
+// up surfaces the one-time note above.
+function musicSkipOnError() {
+    if (musicIndex < 0) return;
+    musicErrorStreak++;
+    if (musicIndex < musicQueue.length - 1 && musicErrorStreak <= musicQueue.length) {
+        musicPlayAt(musicIndex + 1, true);
+    } else {
+        musicPlaying = false;
+        musicUpdateBar();
+        musicHighlight();
+        musicNotifyPlaybackFailure();
+    }
+}
+
 function musicPlayAt(index, keepErrorStreak) {
     const a = musicAudioEl();
     if (!a || index < 0 || index >= musicQueue.length) return;
     musicIndex = index;
-    if (!keepErrorStreak) musicErrorStreak = 0;
-    a.src = musicQueue[index].src;
-    const p = a.play();
-    if (p && typeof p.catch === 'function') p.catch(() => { /* a later tap can retry */ });
+    if (!keepErrorStreak) { musicErrorStreak = 0; musicFailNotified = false; }
+    const track = musicQueue[index];
+    const token = ++musicResolveToken;
+    // The bar appears immediately with the track's info;
+    // resolution (below) never blocks it.
     musicPlaying = true;
     musicSetBarVisible(true);
     musicUpdateBar();
+    musicResetTimes(track);
     musicHighlight();
     musicUpdateMediaSession();
+    musicResolveTrackSrc(track, (url) => {
+        if (token !== musicResolveToken) return; // superseded by a newer intent
+        if (musicCurrentTrack() !== track) return; // the queue moved on
+        if (!url) { musicSkipOnError(); return; }
+        a.src = url;
+        const p = a.play();
+        if (p && typeof p.catch === 'function') p.catch(() => { /* a later tap can retry */ });
+    });
 }
 
 function musicPlayQueue(tracks, startIndex, owner) {
@@ -8369,7 +8549,18 @@ function musicTogglePlay() {
     const a = musicAudioEl();
     if (!a || musicIndex < 0) return;
     if (musicPlaying) {
-        a.pause();
+        // Pausing is a new intent: cancel any resolution
+        // still in flight so it can't start the song after
+        // the user has stopped it.
+        musicResolveToken++;
+        musicPlaying = false;
+        try { a.pause(); } catch (e) { /* already gone */ }
+        musicUpdateBar();
+        musicHighlight();
+    } else if (!a.getAttribute('src')) {
+        // Nothing loaded yet (an earlier resolution was
+        // cancelled before it landed) — resolve afresh.
+        musicPlayAt(musicIndex);
     } else {
         const p = a.play();
         if (p && typeof p.catch === 'function') p.catch(() => { /* a later tap can retry */ });
@@ -8392,6 +8583,7 @@ function musicPrev() {
 }
 
 function musicClose() {
+    musicResolveToken++; // a pending resolution must not revive a closed player
     const a = musicAudioEl();
     if (a) {
         try { a.pause(); } catch (e) { /* already gone */ }
@@ -8403,14 +8595,24 @@ function musicClose() {
     musicOwner = null;
     musicPlaying = false;
     musicErrorStreak = 0;
+    musicFailNotified = false;
     musicSetBarVisible(false);
     musicHighlight();
     musicClearMediaSession();
 }
 
 function musicPauseAudio() {
+    // A video starting is a new intent: cancel any song
+    // resolution still in flight so the music can't start
+    // over the video a moment later.
+    musicResolveToken++;
     const a = musicAudioEl();
-    if (a && musicPlaying) { try { a.pause(); } catch (e) { /* already gone */ } }
+    if (a && musicPlaying) {
+        try { a.pause(); } catch (e) { /* already gone */ }
+        musicPlaying = false;
+        musicUpdateBar();
+        musicHighlight();
+    }
 }
 
 function musicPauseVideos() {
@@ -8731,15 +8933,7 @@ if (typeof window.playTrailer === 'function') {
             // A dead file link skips forward instead of
             // stranding the listener; the streak guard keeps
             // a fully-dead queue from looping.
-            if (musicIndex < 0) return;
-            musicErrorStreak++;
-            if (musicIndex < musicQueue.length - 1 && musicErrorStreak <= musicQueue.length) {
-                musicPlayAt(musicIndex + 1, true);
-            } else {
-                musicPlaying = false;
-                musicUpdateBar();
-                musicHighlight();
-            }
+            musicSkipOnError();
         });
         a.addEventListener('loadedmetadata', () => {
             const tot = document.getElementById('music-time-total');
