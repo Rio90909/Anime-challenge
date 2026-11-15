@@ -5780,7 +5780,7 @@ query ($id: [Int!]) {
             }
             entries {
                 version
-                videos { nodes { basename link resolution nc } }
+                videos { nodes { basename link resolution nc audio { link mimetype size } } }
             }
         }
     }
@@ -5842,7 +5842,7 @@ function themesPickVideo(theme) {
         const version = (entry && typeof entry.version === 'number') ? entry.version : 1;
         const nodes = (entry && entry.videos && Array.isArray(entry.videos.nodes)) ? entry.videos.nodes : [];
         nodes.forEach(v => {
-            if (v && v.link) candidates.push({ link: v.link, res: (typeof v.resolution === 'number') ? v.resolution : null, nc: !!v.nc, version: version });
+            if (v && v.link) candidates.push({ link: v.link, res: (typeof v.resolution === 'number') ? v.resolution : null, nc: !!v.nc, version: version, audio: (v.audio && v.audio.link) ? v.audio.link : null });
         });
     });
     if (!candidates.length) return null;
@@ -5855,7 +5855,10 @@ function themesPickVideo(theme) {
         (resScore(b.res) - resScore(a.res)) ||
         ((b.nc ? 1 : 0) - (a.nc ? 1 : 0)));
     const best = candidates[0];
-    return { link: best.link, res: best.res, nc: best.nc };
+    // The winning node's own audio track rides along: the 🎧
+    // button (Music Player block, end of file) plays this
+    // light audio file instead of the full video.
+    return { link: best.link, res: best.res, nc: best.nc, audio: best.audio || null };
 }
 
 // Flatten the GraphQL response into render-ready rows:
@@ -5876,7 +5879,8 @@ function themesProcessResponse(data) {
             seq: (typeof t.sequence === 'number') ? t.sequence : null,
             title: titleObj.romaji || titleObj.native || '',
             artists: themesArtistsFor(song),
-            video: video
+            video: video,
+            audio: video ? (video.audio || null) : null
         });
     });
     out.sort((a, b) => (a.type === b.type)
@@ -5932,7 +5936,7 @@ function themesTogglePlay(block, idx) {
     if (playAttempt && typeof playAttempt.catch === 'function') playAttempt.catch(() => { /* user can press the native play button */ });
 }
 
-function themesRenderBlock(animeId, themes) {
+function themesRenderBlock(animeId, themes, animeTitle) {
     const linksContainer = document.getElementById(`streaming-links-${animeId}`);
     if (!linksContainer || !linksContainer.parentElement) return;
     const parent = linksContainer.parentElement;
@@ -5947,6 +5951,7 @@ function themesRenderBlock(animeId, themes) {
         parent.insertBefore(block, linksContainer);
     }
     block._themesList = themes;
+    block._themesAnimeTitle = animeTitle || '';
     const rows = themes.map((t, idx) => {
         const chipLabel = t.seq ? `${t.type}${t.seq}` : t.type;
         const chipClass = t.type === 'OP' ? 'themes-chip themes-chip-op' : 'themes-chip';
@@ -5957,6 +5962,9 @@ function themesRenderBlock(animeId, themes) {
         const playBtn = t.video
             ? `<button class="themes-play-btn" type="button" data-idx="${idx}" data-label="▶ Play${t.video.res ? ` · ${t.video.res}p` : ''}">▶ Play${t.video.res ? ` · ${t.video.res}p` : ''}</button>`
             : '';
+        const audioBtn = t.audio
+            ? `<button class="themes-audio-btn" type="button" data-idx="${idx}">🎧 Audio</button>`
+            : '';
         return `
         <div class="themes-row" data-idx="${idx}">
             <span class="${chipClass}">${chipLabel}</span>
@@ -5965,6 +5973,7 @@ function themesRenderBlock(animeId, themes) {
                 ${artistLine}
             </div>
             ${playBtn}
+            ${audioBtn}
             <div class="themes-player" hidden></div>
         </div>`;
     }).join('');
@@ -5973,6 +5982,11 @@ function themesRenderBlock(animeId, themes) {
         ${rows}`;
     block.querySelectorAll('.themes-play-btn').forEach(btn => {
         btn.addEventListener('click', () => themesTogglePlay(block, parseInt(btn.dataset.idx, 10)));
+    });
+    block.querySelectorAll('.themes-audio-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (typeof musicPlayThemesQueue === 'function') musicPlayThemesQueue(block, parseInt(btn.dataset.idx, 10));
+        });
     });
 }
 
@@ -5996,11 +6010,20 @@ function themesMaybeLoad(animeId, animeSource) {
     if (!anime || anime.isManual) return;
     const idNum = themesAniListId(anime);
     if (!idNum) return;
+    const animeTitle = (() => { try { return getEnglishTitle(anime); } catch (e) { return ''; } })();
     const cache = themesLoadCache();
     const hit = cache[String(idNum)];
     if (hit && (Date.now() - (hit.t || 0)) < THEMES_CACHE_TTL_MS) {
-        themesRenderBlock(animeId, hit.themes);
-        return;
+        // Entries cached before the 🎧 audio upgrade carry no
+        // audio links at all — treat those as stale and refetch
+        // once, so the audio buttons appear without waiting out
+        // the 30-day TTL.
+        const lacksAudio = Array.isArray(hit.themes) && hit.themes.length > 0
+            && hit.themes.some(t => t && t.video && t.audio === undefined);
+        if (!lacksAudio) {
+            themesRenderBlock(animeId, hit.themes, animeTitle);
+            return;
+        }
     }
     if (themesInFlight.has(idNum)) return;
     themesInFlight.add(idNum);
@@ -6021,7 +6044,7 @@ function themesMaybeLoad(animeId, animeSource) {
             const store = themesLoadCache();
             store[String(idNum)] = { t: Date.now(), themes: themes };
             themesSaveCache(store);
-            themesRenderBlock(animeId, themes);
+            themesRenderBlock(animeId, themes, animeTitle);
         })
         .catch(() => { /* silent: offline / API down — no block is better than an error */ })
         .finally(() => { themesInFlight.delete(idNum); });
@@ -8075,3 +8098,663 @@ if (typeof window.switchToScreen === 'function') {
     if (backBtn) backBtn.addEventListener('click', () => { window.closeAnimePage(); });
 })();
 // End FULL ANIME PAGE
+
+// ============================================================
+// MUSIC PLAYER — a "🎵 Music" screen (song search + this
+// season's songs) feeding ONE shared audio player for the
+// whole app, plus 🎧 audio buttons on the anime page's
+// Theme Songs rows. Appended at end of file like the other
+// ports; no existing code is modified except the themes
+// query/render (audio field) above and the two wrappers at
+// the bottom of this block. Styling: styles.css "MUSIC
+// PLAYER" section, OG variables only.
+//
+// Song data comes from a community song database with a
+// public, keyless API (POST /api/search_request and
+// /api/season_request); its entries carry direct audio file
+// basenames that resolve on the database's file host.
+// Responses are cached 7 days in aniclipse_music_cache_v1.
+// The anime page's 🎧 buttons instead play the light native
+// audio file the themes query already returns per theme.
+//
+// USER-VISIBLE COPY RULE: no provider is ever named in a
+// rendered string, label or toast — the UI says "songs",
+// "this season", "the database" at most. (Code comments and
+// URLs are not user-visible.)
+//
+// Playback model: ONE <audio id="music-audio"> element and
+// one queue. Tapping a row makes that list the queue (in
+// displayed order) and plays the row; 'ended' auto-advances;
+// ⏭/⏮ stop at the ends (no wrap); ⏮ restarts the track
+// when more than 3 seconds in. Screen switches never stop
+// the music; a theme VIDEO (or trailer) starting pauses the
+// audio, and audio starting pauses any playing video —
+// never two sounds at once.
+// ============================================================
+
+const MUSIC_CACHE_KEY = 'aniclipse_music_cache_v1';
+const MUSIC_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MUSIC_DB_BASE = 'https://anisongdb.com/api';
+const MUSIC_FILE_BASE = 'https://files.catbox.moe/';
+const MUSIC_SEASON_CAP = 100;
+
+// ---------- cache (same pattern as the themes cache) ----------
+
+function musicLoadCache() {
+    try {
+        const raw = localStorage.getItem(MUSIC_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function musicSaveCache(cache) {
+    try {
+        localStorage.setItem(MUSIC_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) { /* storage unavailable — the feature degrades silently */ }
+}
+
+// Returns the cached track array for a key, or null on a
+// miss / expired entry. An empty array is a valid hit (the
+// season steps back over it without refetching).
+function musicCacheGet(key) {
+    const entry = musicLoadCache()[key];
+    if (!entry || typeof entry.t !== 'number') return null;
+    if (Date.now() - entry.t >= MUSIC_CACHE_TTL_MS) return null;
+    return Array.isArray(entry.tracks) ? entry.tracks : null;
+}
+
+function musicCacheSet(key, tracks) {
+    const cache = musicLoadCache();
+    cache[key] = { t: Date.now(), tracks: tracks };
+    musicSaveCache(cache);
+}
+
+// ---------- seasons ----------
+
+// The app's season convention (the same one its online
+// queries use): WINTER = Dec–Feb, SPRING = Mar–May,
+// SUMMER = Jun–Aug, FALL = Sep–Nov, with December counting
+// as the FOLLOWING year's Winter.
+function musicCurrentSeason(fromDate) {
+    const d = fromDate || new Date();
+    const m = d.getMonth();
+    const y = d.getFullYear();
+    if (m === 11) return { name: 'Winter', year: y + 1 };
+    if (m <= 1) return { name: 'Winter', year: y };
+    if (m <= 4) return { name: 'Spring', year: y };
+    if (m <= 7) return { name: 'Summer', year: y };
+    return { name: 'Fall', year: y };
+}
+
+function musicPrevSeason(season) {
+    const order = ['Winter', 'Spring', 'Summer', 'Fall'];
+    const i = order.indexOf(season.name);
+    if (i <= 0) return { name: 'Fall', year: season.year - 1 };
+    return { name: order[i - 1], year: season.year };
+}
+
+function musicSeasonKey(season) {
+    return season.name + ' ' + season.year;
+}
+
+// ---------- song-database entries → render-ready tracks ----------
+
+function musicParseType(songType) {
+    const s = String(songType || '');
+    let m = s.match(/Opening\s*(\d+)?/i);
+    if (m) return { kind: 'OP', seq: m[1] ? parseInt(m[1], 10) : null };
+    m = s.match(/Ending\s*(\d+)?/i);
+    if (m) return { kind: 'ED', seq: m[1] ? parseInt(m[1], 10) : null };
+    return { kind: 'IN', seq: null };
+}
+
+// Flatten + dedupe + sort: Openings, then Endings, then
+// Insert Songs; within a group by anime, then number, then
+// title. Duplicates of the same song (the database lists
+// broadcast/dub variants) collapse to the best copy:
+// playable first, then the normal broadcast, then non-dub.
+function musicProcessEntries(entries) {
+    const byKey = new Map();
+    (Array.isArray(entries) ? entries : []).forEach(e => {
+        if (!e) return;
+        const t = musicParseType(e.songType);
+        const track = {
+            title: e.songName || 'Unknown Song',
+            anime: e.animeENName || e.animeJPName || '',
+            artist: e.songArtist || '',
+            kind: t.kind,
+            seq: t.seq,
+            badge: t.kind === 'IN' ? 'IN' : (t.seq ? t.kind + t.seq : t.kind),
+            src: e.audio ? (MUSIC_FILE_BASE + e.audio) : null,
+            _dub: !!e.isDub,
+            _reb: !!e.isRebroadcast
+        };
+        const key = (track.anime + '|' + track.badge + '|' + track.title + '|' + track.artist).toLowerCase();
+        const prev = byKey.get(key);
+        if (!prev) { byKey.set(key, track); return; }
+        const score = (x) => (x.src ? 4 : 0) + (!x._reb ? 2 : 0) + (!x._dub ? 1 : 0);
+        if (score(track) > score(prev)) byKey.set(key, track);
+    });
+    const tracks = Array.from(byKey.values());
+    const kindOrder = { OP: 0, ED: 1, IN: 2 };
+    tracks.sort((a, b) =>
+        (kindOrder[a.kind] - kindOrder[b.kind]) ||
+        (a.anime.toLowerCase() < b.anime.toLowerCase() ? -1 : a.anime.toLowerCase() > b.anime.toLowerCase() ? 1 : 0) ||
+        ((a.seq || 0) - (b.seq || 0)) ||
+        (a.title.toLowerCase() < b.title.toLowerCase() ? -1 : a.title.toLowerCase() > b.title.toLowerCase() ? 1 : 0));
+    return tracks;
+}
+
+function musicDbPost(path, payload) {
+    return fetch(MUSIC_DB_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(res => {
+        if (!res || !res.ok) throw new Error('song database HTTP error');
+        return res.json();
+    });
+}
+
+// ---------- shared player ----------
+
+let musicQueue = [];
+let musicIndex = -1;
+let musicOwner = null; // { kind:'list', renderId } | { kind:'themes', block, idxMap }
+let musicPlaying = false;
+let musicSeeking = false;
+let musicErrorStreak = 0;
+
+function musicAudioEl() { return document.getElementById('music-audio'); }
+
+function musicFormatTime(sec) {
+    if (!isFinite(sec) || sec === null || sec === undefined || sec < 0) return '0:00';
+    const total = Math.floor(sec);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function musicCurrentTrack() {
+    return (musicIndex >= 0 && musicIndex < musicQueue.length) ? musicQueue[musicIndex] : null;
+}
+
+function musicSetBarVisible(visible) {
+    const bar = document.getElementById('music-player-bar');
+    if (bar) bar.hidden = !visible;
+    document.body.classList.toggle('music-bar-open', !!visible);
+}
+
+function musicUpdateBar() {
+    const track = musicCurrentTrack();
+    const titleEl = document.getElementById('music-player-title');
+    const subEl = document.getElementById('music-player-sub');
+    const pp = document.getElementById('music-playpause-btn');
+    if (titleEl) titleEl.textContent = track ? track.title : '—';
+    if (subEl) subEl.textContent = track ? [track.anime, track.artist].filter(Boolean).join(' · ') : '';
+    if (pp) pp.textContent = musicPlaying ? '⏸' : '▶';
+}
+
+function musicHighlight() {
+    document.querySelectorAll('.music-row-playing').forEach(r => r.classList.remove('music-row-playing'));
+    document.querySelectorAll('.themes-row-playing').forEach(r => r.classList.remove('themes-row-playing'));
+    document.querySelectorAll('.music-play-btn').forEach(b => { if (b.dataset.baseLabel) b.textContent = b.dataset.baseLabel; });
+    if (musicIndex < 0 || !musicOwner) return;
+    if (musicOwner.kind === 'list') {
+        const row = document.querySelector('.music-row[data-render="' + musicOwner.renderId + '"][data-qidx="' + musicIndex + '"]');
+        if (row) {
+            row.classList.add('music-row-playing');
+            const btn = row.querySelector('.music-play-btn');
+            if (btn) btn.textContent = musicPlaying ? '⏸ Pause' : '▶ Play';
+        }
+    } else if (musicOwner.kind === 'themes') {
+        const block = musicOwner.block;
+        if (block && document.contains(block)) {
+            const themeIdx = musicOwner.idxMap[musicIndex];
+            const row = block.querySelector('.themes-row[data-idx="' + themeIdx + '"]');
+            if (row) row.classList.add('themes-row-playing');
+        }
+    }
+}
+
+function musicUpdateMediaSession() {
+    try {
+        if (!('mediaSession' in navigator) || typeof window.MediaMetadata !== 'function') return;
+        const track = musicCurrentTrack();
+        if (!track) { navigator.mediaSession.metadata = null; return; }
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+            title: track.title || '',
+            artist: track.artist || '',
+            album: track.anime || ''
+        });
+        navigator.mediaSession.setActionHandler('play', () => { const a = musicAudioEl(); if (a) { const p = a.play(); if (p && p.catch) p.catch(() => {}); } });
+        navigator.mediaSession.setActionHandler('pause', () => { const a = musicAudioEl(); if (a) a.pause(); });
+        navigator.mediaSession.setActionHandler('previoustrack', () => musicPrev());
+        navigator.mediaSession.setActionHandler('nexttrack', () => musicNext());
+    } catch (e) { /* Media Session is a progressive enhancement */ }
+}
+
+function musicClearMediaSession() {
+    try { if ('mediaSession' in navigator) navigator.mediaSession.metadata = null; } catch (e) { /* silent */ }
+}
+
+function musicPlayAt(index, keepErrorStreak) {
+    const a = musicAudioEl();
+    if (!a || index < 0 || index >= musicQueue.length) return;
+    musicIndex = index;
+    if (!keepErrorStreak) musicErrorStreak = 0;
+    a.src = musicQueue[index].src;
+    const p = a.play();
+    if (p && typeof p.catch === 'function') p.catch(() => { /* a later tap can retry */ });
+    musicPlaying = true;
+    musicSetBarVisible(true);
+    musicUpdateBar();
+    musicHighlight();
+    musicUpdateMediaSession();
+}
+
+function musicPlayQueue(tracks, startIndex, owner) {
+    if (!tracks || !tracks.length) return;
+    musicQueue = tracks.slice();
+    musicOwner = owner || null;
+    const start = Math.min(Math.max(startIndex || 0, 0), musicQueue.length - 1);
+    musicPlayAt(start);
+}
+
+function musicTogglePlay() {
+    const a = musicAudioEl();
+    if (!a || musicIndex < 0) return;
+    if (musicPlaying) {
+        a.pause();
+    } else {
+        const p = a.play();
+        if (p && typeof p.catch === 'function') p.catch(() => { /* a later tap can retry */ });
+    }
+}
+
+// Ends are stops, not wraps: ⏭ on the last track does
+// nothing, and ⏮ on the first track (or past 3 s in)
+// restarts the current track.
+function musicNext() {
+    if (musicIndex >= 0 && musicIndex < musicQueue.length - 1) musicPlayAt(musicIndex + 1);
+}
+
+function musicPrev() {
+    const a = musicAudioEl();
+    if (!a || musicIndex < 0) return;
+    if (a.currentTime > 3) { a.currentTime = 0; return; }
+    if (musicIndex > 0) musicPlayAt(musicIndex - 1);
+    else a.currentTime = 0;
+}
+
+function musicClose() {
+    const a = musicAudioEl();
+    if (a) {
+        try { a.pause(); } catch (e) { /* already gone */ }
+        a.removeAttribute('src');
+        try { a.load(); } catch (e) { /* not critical */ }
+    }
+    musicQueue = [];
+    musicIndex = -1;
+    musicOwner = null;
+    musicPlaying = false;
+    musicErrorStreak = 0;
+    musicSetBarVisible(false);
+    musicHighlight();
+    musicClearMediaSession();
+}
+
+function musicPauseAudio() {
+    const a = musicAudioEl();
+    if (a && musicPlaying) { try { a.pause(); } catch (e) { /* already gone */ } }
+}
+
+function musicPauseVideos() {
+    document.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) { /* already gone */ } });
+}
+
+// ---------- list rendering ----------
+
+let musicRenderSeq = 0;
+
+function musicRowHtml(track, qidx, renderId) {
+    const sub = [track.anime, track.artist].filter(Boolean).join(' · ');
+    const action = track.src
+        ? `<button class="music-play-btn" type="button" data-qidx="${qidx}" data-base-label="▶ Play">▶ Play</button>`
+        : `<span class="music-unavailable">No audio</span>`;
+    return `
+    <div class="music-row" data-render="${renderId}"${track.src ? ` data-qidx="${qidx}"` : ''}>
+        <span class="music-badge${track.kind === 'OP' ? ' music-badge-op' : ''}">${themesEscapeHtml(track.badge)}</span>
+        <div class="music-meta">
+            <div class="music-title">${themesEscapeHtml(track.title)}</div>
+            ${sub ? `<div class="music-sub">${themesEscapeHtml(sub)}</div>` : ''}
+        </div>
+        ${action}
+    </div>`;
+}
+
+// Renders tracks into a container and wires the play
+// buttons. The queue a tap builds is the PLAYABLE tracks in
+// displayed order; each row's data-qidx is its index in
+// that queue. Grouped mode adds Openings/Endings/Insert
+// Songs headings (the queue order matches the grouping,
+// since tracks arrive pre-sorted OP → ED → IN).
+function musicRenderList(container, tracks, grouped) {
+    const renderId = ++musicRenderSeq;
+    const playable = tracks.filter(t => t.src);
+    const qidxOf = new Map();
+    playable.forEach((t, i) => qidxOf.set(t, i));
+    let html = '';
+    if (grouped) {
+        [['OP', 'Openings'], ['ED', 'Endings'], ['IN', 'Insert Songs']].forEach(([kind, label]) => {
+            const rows = tracks.filter(t => t.kind === kind);
+            if (!rows.length) return;
+            html += `<div class="music-group-head">${label}</div>`;
+            rows.forEach(t => { html += musicRowHtml(t, t.src ? qidxOf.get(t) : -1, renderId); });
+        });
+    } else {
+        tracks.forEach(t => { html += musicRowHtml(t, t.src ? qidxOf.get(t) : -1, renderId); });
+    }
+    container.innerHTML = html;
+    container.querySelectorAll('.music-play-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const qi = parseInt(btn.dataset.qidx, 10);
+            if (musicOwner && musicOwner.kind === 'list' && musicOwner.renderId === renderId && qi === musicIndex) {
+                musicTogglePlay();
+            } else {
+                musicPlayQueue(playable, qi, { kind: 'list', renderId: renderId });
+            }
+        });
+    });
+    return renderId;
+}
+
+// ---------- search ----------
+
+let musicSearchSeq = 0;
+
+function musicDoSearch() {
+    const input = document.getElementById('music-search-input');
+    const status = document.getElementById('music-search-status');
+    const results = document.getElementById('music-search-results');
+    if (!input || !results) return;
+    const q = (input.value || '').trim();
+    if (!q) {
+        if (status) status.textContent = '';
+        results.innerHTML = '';
+        return;
+    }
+    const seq = ++musicSearchSeq;
+    const cacheKey = 'search:' + q.toLowerCase();
+    const cached = musicCacheGet(cacheKey);
+    if (cached) {
+        if (status) status.textContent = cached.length ? '' : 'No songs found for that title.';
+        musicRenderList(results, cached, true);
+        return;
+    }
+    if (status) status.textContent = 'Searching…';
+    musicDbPost('/search_request', {
+        anime_search_filter: { search: q, partial_match: true, match_case: false },
+        and_logic: true,
+        ignore_duplicate: true
+    }).then(list => {
+        if (seq !== musicSearchSeq) return;
+        const tracks = musicProcessEntries(Array.isArray(list) ? list : []);
+        musicCacheSet(cacheKey, tracks);
+        if (status) status.textContent = tracks.length ? '' : 'No songs found for that title.';
+        musicRenderList(results, tracks, true);
+    }).catch(() => {
+        if (seq !== musicSearchSeq) return;
+        if (status) status.textContent = 'Could not load songs right now. Please try again.';
+    });
+}
+
+// ---------- this season ----------
+
+let musicSeasonLoaded = false;
+let musicSeasonLoading = false;
+
+function musicOnShow() { musicLoadSeason(); }
+
+function musicLoadSeason() {
+    if (musicSeasonLoaded || musicSeasonLoading) return;
+    const list = document.getElementById('music-season-list');
+    const status = document.getElementById('music-season-status');
+    const nameEl = document.getElementById('music-season-name');
+    if (!list) return;
+    musicSeasonLoading = true;
+    if (status) status.textContent = 'Loading this season\'s songs…';
+    const finish = (season, tracks) => {
+        musicSeasonLoading = false;
+        musicSeasonLoaded = true;
+        if (nameEl) nameEl.textContent = '— ' + musicSeasonKey(season);
+        if (status) status.textContent = tracks.length ? '' : 'No songs found for this season yet.';
+        const shown = tracks.slice(0, MUSIC_SEASON_CAP);
+        musicRenderList(list, shown, false);
+        if (tracks.length > shown.length) {
+            const note = document.createElement('div');
+            note.className = 'music-note';
+            note.textContent = `Showing the first ${shown.length} of ${tracks.length} songs.`;
+            list.appendChild(note);
+        }
+    };
+    const fail = () => {
+        musicSeasonLoading = false;
+        if (status) status.textContent = 'Could not load this season\'s songs right now.';
+    };
+    // The newest season's songs can lag a few weeks in the
+    // database; when the current season comes back empty,
+    // step back season by season (at most 4) to the most
+    // recent season that has songs, and label it honestly.
+    const attempt = (season, triesLeft) => {
+        const cacheKey = 'season:' + musicSeasonKey(season);
+        const cached = musicCacheGet(cacheKey);
+        if (cached !== null) {
+            if (cached.length || triesLeft <= 0) { finish(season, cached); return; }
+            attempt(musicPrevSeason(season), triesLeft - 1);
+            return;
+        }
+        musicDbPost('/season_request', { season: musicSeasonKey(season) })
+            .then(list => {
+                const tracks = musicProcessEntries(Array.isArray(list) ? list : []);
+                musicCacheSet(cacheKey, tracks);
+                if (tracks.length || triesLeft <= 0) { finish(season, tracks); return; }
+                attempt(musicPrevSeason(season), triesLeft - 1);
+            })
+            .catch(fail);
+    };
+    attempt(musicCurrentSeason(), 4);
+}
+
+// ---------- anime-page themes → audio queue ----------
+
+// Queue = the block's themes that carry an audio file, in
+// row order; idxMap maps a queue index back to its theme
+// row index for highlighting. Tapping 🎧 on the track that
+// is already current toggles pause instead of restarting.
+function musicPlayThemesQueue(block, idx) {
+    const themes = (block && block._themesList) || [];
+    const playable = [];
+    const idxMap = [];
+    themes.forEach((t, i) => {
+        if (t && t.audio) {
+            playable.push({
+                title: t.title || (t.type === 'OP' ? 'Opening theme' : 'Ending theme'),
+                anime: block._themesAnimeTitle || '',
+                artist: (t.artists || []).join(', '),
+                src: t.audio
+            });
+            idxMap.push(i);
+        }
+    });
+    const start = idxMap.indexOf(idx);
+    if (start < 0) return;
+    if (musicOwner && musicOwner.kind === 'themes' && musicOwner.block === block && musicOwner.idxMap[musicIndex] === idx) {
+        musicTogglePlay();
+        return;
+    }
+    musicPlayQueue(playable, start, { kind: 'themes', block: block, idxMap: idxMap });
+}
+
+// ---------- navigation ----------
+
+// Mirror of the base switcher's chrome management for the
+// one screen it doesn't know about: hide every screen,
+// restore every nav button except Music's own, hide the
+// Jump-to-Today shortcut, drop the Backlog theme, retitle
+// the header. Leaving the anime page goes through the
+// page's own hide (pauses its videos, restores chrome).
+function musicShowScreen() {
+    try { if (typeof stopLoungeListeners === 'function') stopLoungeListeners(); } catch (e) { /* silent */ }
+    try { animePageHide(); } catch (e) { /* page may not be open */ }
+    ['challenge-screen', 'backlog-manager-screen', 'anipace-log-screen', 'schedule-screen', 'anime-social-lounge'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    ['switch-to-challenge-btn', 'switch-to-backlog-btn', 'switch-to-anipace-btn', 'switch-to-schedule-btn', 'switch-to-lounge-btn'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.classList.remove('hidden');
+    });
+    const musicBtn = document.getElementById('switch-to-music-btn');
+    if (musicBtn) musicBtn.classList.add('hidden');
+    const jumpBtn = document.getElementById('jump-to-today-btn');
+    if (jumpBtn) jumpBtn.classList.add('hidden');
+    try { animePageInstantTheme(); } catch (e) { /* never break navigation */ }
+    document.body.classList.remove('backlog-active');
+    const headerTitle = document.getElementById('header-title');
+    if (headerTitle) headerTitle.textContent = 'Music';
+    const screen = document.getElementById('music-screen');
+    if (screen) screen.classList.remove('hidden');
+    window.scrollTo(0, 0);
+    musicOnShow();
+}
+
+// Chain onto the (already wrapped) screen switcher: the
+// Music screen is ours to show/hide; every other target
+// delegates untouched after the Music screen is put away.
+if (typeof window.switchToScreen === 'function') {
+    const musicPrevSwitchToScreen = window.switchToScreen;
+    window.switchToScreen = function(screenId) {
+        if (screenId === 'music') { musicShowScreen(); return; }
+        const screen = document.getElementById('music-screen');
+        if (screen) screen.classList.add('hidden');
+        const musicBtn = document.getElementById('switch-to-music-btn');
+        if (musicBtn) musicBtn.classList.remove('hidden');
+        return musicPrevSwitchToScreen.apply(this, arguments);
+    };
+}
+
+// ---------- never two sounds at once ----------
+
+// A theme video (or the trailer) starting pauses the music.
+if (typeof themesTogglePlay === 'function') {
+    const musicPrevThemesTogglePlay = themesTogglePlay;
+    themesTogglePlay = function(block, idx) {
+        const result = musicPrevThemesTogglePlay.apply(this, arguments);
+        try { if (block && block.querySelector('video')) musicPauseAudio(); } catch (e) { /* silent */ }
+        return result;
+    };
+}
+if (typeof window.playTrailer === 'function') {
+    const musicPrevPlayTrailer = window.playTrailer;
+    window.playTrailer = function() {
+        try { musicPauseAudio(); } catch (e) { /* silent */ }
+        return musicPrevPlayTrailer.apply(this, arguments);
+    };
+}
+
+// ---------- init ----------
+
+(function musicInit() {
+    const navBtn = document.getElementById('switch-to-music-btn');
+    if (navBtn) navBtn.onclick = () => window.switchToScreen('music');
+    const searchBtn = document.getElementById('music-search-btn');
+    if (searchBtn) searchBtn.addEventListener('click', () => musicDoSearch());
+    const input = document.getElementById('music-search-input');
+    if (input) {
+        input.addEventListener('input', debounce(() => musicDoSearch(), 400));
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') musicDoSearch(); });
+    }
+    const pp = document.getElementById('music-playpause-btn');
+    if (pp) pp.addEventListener('click', () => musicTogglePlay());
+    const nx = document.getElementById('music-next-btn');
+    if (nx) nx.addEventListener('click', () => musicNext());
+    const pv = document.getElementById('music-prev-btn');
+    if (pv) pv.addEventListener('click', () => musicPrev());
+    const cl = document.getElementById('music-close-btn');
+    if (cl) cl.addEventListener('click', () => musicClose());
+    const seek = document.getElementById('music-seek');
+    if (seek) {
+        seek.addEventListener('input', () => {
+            musicSeeking = true;
+            const a = musicAudioEl();
+            const cur = document.getElementById('music-time-current');
+            if (a && cur && isFinite(a.duration) && a.duration > 0) {
+                cur.textContent = musicFormatTime((parseInt(seek.value, 10) / 1000) * a.duration);
+            }
+        });
+        seek.addEventListener('change', () => {
+            const a = musicAudioEl();
+            if (a && isFinite(a.duration) && a.duration > 0) {
+                a.currentTime = (parseInt(seek.value, 10) / 1000) * a.duration;
+            }
+            musicSeeking = false;
+        });
+    }
+    const a = musicAudioEl();
+    if (a) {
+        a.addEventListener('play', () => {
+            musicPlaying = true;
+            musicUpdateBar();
+            musicHighlight();
+            musicPauseVideos();
+        });
+        a.addEventListener('pause', () => {
+            musicPlaying = false;
+            musicUpdateBar();
+            musicHighlight();
+        });
+        a.addEventListener('ended', () => {
+            if (musicIndex >= 0 && musicIndex < musicQueue.length - 1) {
+                musicPlayAt(musicIndex + 1);
+            } else {
+                musicPlaying = false;
+                musicUpdateBar();
+                musicHighlight();
+            }
+        });
+        a.addEventListener('error', () => {
+            // A dead file link skips forward instead of
+            // stranding the listener; the streak guard keeps
+            // a fully-dead queue from looping.
+            if (musicIndex < 0) return;
+            musicErrorStreak++;
+            if (musicIndex < musicQueue.length - 1 && musicErrorStreak <= musicQueue.length) {
+                musicPlayAt(musicIndex + 1, true);
+            } else {
+                musicPlaying = false;
+                musicUpdateBar();
+                musicHighlight();
+            }
+        });
+        a.addEventListener('loadedmetadata', () => {
+            const tot = document.getElementById('music-time-total');
+            if (tot) tot.textContent = musicFormatTime(a.duration);
+        });
+        a.addEventListener('timeupdate', () => {
+            if (musicSeeking) return;
+            const cur = document.getElementById('music-time-current');
+            if (cur) cur.textContent = musicFormatTime(a.currentTime);
+            if (isFinite(a.duration) && a.duration > 0) {
+                if (seek) seek.value = String(Math.round((a.currentTime / a.duration) * 1000));
+                const tot = document.getElementById('music-time-total');
+                if (tot) tot.textContent = musicFormatTime(a.duration);
+            }
+        });
+    }
+})();
+// End MUSIC PLAYER

@@ -211,6 +211,7 @@
         <button id="switch-to-backlog-btn">📚 My Anime Backlog</button> 
         <button id="switch-to-anipace-btn">⚡ Quick Episode Log (AniPace)</button> 
         <button id="switch-to-schedule-btn">🔍 Discover & Trends</button>
+        <button id="switch-to-music-btn">🎵 Music</button>
         <button id="switch-to-lounge-btn">💬 Social Lounge</button>
         <button id="settings-btn">⚙️ Settings</button>
     </nav>
@@ -422,6 +423,20 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div id="music-screen" class="hidden container">
+            <h2>🎵 Music</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Search any anime to play its opening, ending and insert songs — or browse this season's songs below. Music keeps playing while you use the rest of the app.</p>
+            <div class="entry-controls-group" style="margin-bottom: 20px;">
+                <input type="text" id="music-search-input" placeholder="Type anime title to search songs...">
+                <button id="music-search-btn" class="add-btn">Search Songs</button>
+            </div>
+            <div id="music-search-status" class="music-status"></div>
+            <div id="music-search-results"></div>
+            <h3 style="margin-top: 30px;">🔥 This Season <span id="music-season-name" style="color: var(--text-secondary); font-size: 14px; font-weight: normal;"></span></h3>
+            <div id="music-season-status" class="music-status"></div>
+            <div id="music-season-list"></div>
         </div>
 
         <div id="anime-social-lounge" class="hidden container">
@@ -655,6 +670,25 @@
             </div>
         </div>
     </div>
+
+    <div id="music-player-bar" class="music-player-bar" hidden>
+        <div class="music-player-info">
+            <div id="music-player-title" class="music-player-title">—</div>
+            <div id="music-player-sub" class="music-player-sub"></div>
+        </div>
+        <div class="music-player-controls">
+            <button id="music-prev-btn" class="music-ctrl-btn" type="button" aria-label="Previous song">⏮</button>
+            <button id="music-playpause-btn" class="music-ctrl-btn music-playpause" type="button" aria-label="Play or pause">▶</button>
+            <button id="music-next-btn" class="music-ctrl-btn" type="button" aria-label="Next song">⏭</button>
+        </div>
+        <div class="music-player-progress">
+            <span id="music-time-current" class="music-time">0:00</span>
+            <input type="range" id="music-seek" min="0" max="1000" value="0" aria-label="Seek">
+            <span id="music-time-total" class="music-time">0:00</span>
+        </div>
+        <button id="music-close-btn" class="music-ctrl-btn" type="button" aria-label="Stop and close player">✕</button>
+    </div>
+    <audio id="music-audio" preload="metadata"></audio>
 
     <audio id="milestoneSound" src="https://www.soundjay.com/misc/sounds/magic-chime-01.mp3" preload="auto"></audio>
 
