@@ -2879,6 +2879,11 @@ function renderScheduleGrid(gridId, animeList) {
     }
 
     animeList.forEach(anime => {
+        // Items revived from the saved Discover feed (localStorage)
+        // never passed through the response normalizer in this
+        // session, so register them here — otherwise the details
+        // resolver cannot find them and the full page cannot open.
+        registerAnimeForDetails(anime);
         const item = document.createElement('div');
         item.className = 'search-result-item';
         const title = getEnglishTitle(anime);
@@ -3014,6 +3019,9 @@ function renderTrendGrid(gridId, animeList) {
     }
 
     animeList.forEach((anime, index) => {
+        // Same saved-feed registration as renderScheduleGrid:
+        // cached items must be resolvable by the details loader.
+        registerAnimeForDetails(anime);
         const item = document.createElement('div');
         item.className = 'search-result-item trend-card';
         const title = getEnglishTitle(anime);
@@ -6429,10 +6437,10 @@ async function idRepairRun(btn) {
     if (idRepairRunning) return;
     const candidates = idRepairCollectCandidates();
     if (candidates.length === 0) {
-        showNotification('All your old shows already have AniList ids — nothing to fix.');
+        showNotification('All your old shows already have their online ids — nothing to fix.');
         return;
     }
-    const ok = confirm(`Fix ${candidates.length} old show${candidates.length === 1 ? '' : 's'}?\n\nEach show added before the AniList switch is looked up in Kitsu's official id mappings, and its AniList id is added — nothing you already have is changed. This unlocks theme songs and other extras for them.\n\nIt runs one show at a time and is safe to interrupt: tap the button again later to continue where it left off.`);
+    const ok = confirm(`Fix ${candidates.length} old show${candidates.length === 1 ? '' : 's'}?\n\nEach show added a while ago is looked up in the official id mappings, and its current online id is added — nothing you already have is changed. This unlocks theme songs and other extras for them.\n\nIt runs one show at a time and is safe to interrupt: tap the button again later to continue where it left off.`);
     if (!ok) return;
     idRepairRunning = true;
     const originalText = btn ? btn.textContent : '';
@@ -6460,7 +6468,7 @@ async function idRepairRun(btn) {
         const alreadyFine = idRepairCountAlreadyRepaired() - fixed;
         const parts = [`Fixed ${fixed} show${fixed === 1 ? '' : 's'}`];
         if (alreadyFine > 0) parts.push(`${alreadyFine} already fine`);
-        if (noMatch > 0) parts.push(`${noMatch} had no AniList match`);
+        if (noMatch > 0) parts.push(`${noMatch} had no online match`);
         if (failed > 0) parts.push(`${failed} failed — tap again to retry the rest`);
         showNotification(parts.join(' · '), failed > 0 ? 'error' : 'success');
     } finally {
@@ -6605,7 +6613,7 @@ function animePageRenderScoreDist(anime, avg, dist) {
     const labels = buckets.map(b => `<span>${b.score / 10}</span>`).join('');
     container.innerHTML = `
     <div class="scoredist-block">
-        <div class="scoredist-head"><strong>📊 AniList community scores</strong>${avgText}</div>
+        <div class="scoredist-head"><strong>📊 Community scores</strong>${avgText}</div>
         <div class="scoredist-bars">${bars}</div>
         <div class="scoredist-labels">${labels}</div>
     </div>`;
@@ -7351,7 +7359,42 @@ function notesHandleSave(entryKey, textarea, btn) {
 // two different entries is ambiguous and its cards are
 // skipped rather than guessed. Every step is fail-safe.
 
+// The title index costs a full library walk plus title
+// normalization per entry, and the backlog re-renders often
+// (every screen switch, search keystroke, sort, rate, remove).
+// Memoize it: the index depends only on the library's keys and
+// titles, and library contents change exclusively through
+// saveData() writes — so a save-stamp plus the stored-entry
+// count is a sound cache key. The stamp wrapper delegates
+// untouched; it only counts.
+let notesTitleIndexCache = null;
+let notesTitleIndexCacheKey = null;
+let notesSaveStamp = 0;
+if (typeof saveData === 'function') {
+    const notesPrevSaveData = saveData;
+    saveData = function() {
+        notesSaveStamp++;
+        return notesPrevSaveData.apply(this, arguments);
+    };
+}
+function notesLibraryCount() {
+    try {
+        let n = 0;
+        const days = (typeof challengeData !== 'undefined' && challengeData && challengeData.days) || {};
+        Object.keys(days).forEach(k => {
+            const d = days[k];
+            if (d && Array.isArray(d.watched)) n += d.watched.length;
+        });
+        if (typeof challengeData !== 'undefined' && challengeData && Array.isArray(challengeData.backlog)) n += challengeData.backlog.length;
+        return n;
+    } catch (e) {
+        return -1;
+    }
+}
+
 function notesTitleIndex() {
+    const cacheKey = notesSaveStamp + ':' + notesLibraryCount();
+    if (notesTitleIndexCache && notesTitleIndexCacheKey === cacheKey) return notesTitleIndexCache;
     const pairs = [];
     try {
         getUniqueAnime().forEach(anime => {
@@ -7370,7 +7413,10 @@ function notesTitleIndex() {
             if (titles.length) pairs.push({ key: key, titles: titles });
         });
     } catch (e) { /* an unbuildable index just means title matching is unavailable */ }
-    return notesBuildTitleIndex(pairs);
+    const built = notesBuildTitleIndex(pairs);
+    notesTitleIndexCache = built;
+    notesTitleIndexCacheKey = cacheKey;
+    return built;
 }
 
 function notesCardKey(card, titleIndex) {
@@ -7466,6 +7512,11 @@ let animePageToken = 0;
 let animePageOrigin = 'challenge';
 let animePageCurrentKey = null;
 let animePageCurrentSource = null;
+// Ids whose page was opened from a bare online id (the entry
+// object itself was never registered this session — see the
+// fallback in openAnimePage). Their entry objects are upgraded
+// with real data when the page's Media query returns.
+const animePageSyntheticIds = new Set();
 
 function animePageDetectOrigin() {
     const map = {
@@ -7515,6 +7566,7 @@ function animePageBuildSkeleton(pageKey) {
                 <div class="anime-page-userline" id="anime-page-userline"></div>
             </div>
         </div>
+        <div id="anime-page-actions"></div>
         <div class="anime-page-section" id="anime-page-story-section">
             <div class="anime-page-section-head"><strong>📖 Story</strong></div>
             <p class="anime-page-story" id="anime-page-story"></p>
@@ -7636,6 +7688,90 @@ function animePagePaintUserLine(anime) {
     el.style.display = parts.length ? '' : 'none';
 }
 
+// The card action area, carried onto the page so opening a
+// fresh Discover / Trends / search result never loses the
+// affordances its card offered: the tracked-status badge for
+// titles already in the library, or the very same + Log Today
+// / + Backlog buttons (same handlers, same notifications) for
+// titles that are not. Library entries reached from Backlog
+// or the day lists already report a tracked status, so they
+// simply get the badge. Bare-id fallback entries have no data
+// yet — their actions render once the Media query upgrades
+// the entry (see animePageLoadMedia).
+function animePageRenderActions(anime) {
+    const container = document.getElementById('anime-page-actions');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!anime || anime.isManual) return;
+    let status = null;
+    try { status = getAnimeTrackedStatus(anime); } catch (e) { status = null; }
+    if (status === 'completed') {
+        container.innerHTML = `
+            <div style="margin-top: 14px; padding: 10px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-color); color: var(--success-color); font-weight: bold; font-size: 11px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; box-shadow: inset 0 0 4px rgba(16,185,129,0.15);">
+                ✓ Completed Challenge
+            </div>`;
+        return;
+    }
+    if (status === 'backlog') {
+        container.innerHTML = `
+            <div style="margin-top: 14px; padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid #A0AEC0; color: #FFFFFF; font-weight: bold; font-size: 11px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                ✓ Tracked in Backlog
+            </div>`;
+        return;
+    }
+    if (!anime.mal_id) return;
+    if (animePageSyntheticIds.has(parseInt(anime.mal_id, 10))) return; // data still loading
+    const title = getEnglishTitle(anime);
+    container.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 14px;">
+            <button class="add-to-challenge-quick-btn" style="background: linear-gradient(135deg, var(--success-color), #059669); color: #FFF; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Log Today</button>
+            <button class="add-to-backlog-quick-btn" style="background: linear-gradient(135deg, var(--primary-color), #FFA000); color: #000; width: 100%; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: transform 0.2s;">+ Backlog</button>
+        </div>`;
+    const chalBtn = container.querySelector('.add-to-challenge-quick-btn');
+    if (chalBtn) {
+        chalBtn.onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
+
+            const todayKey = getLocalDateString(new Date());
+            challengeData.days[todayKey] = challengeData.days[todayKey] || { watched: [] };
+            challengeData.days[todayKey].watched.push(newAnime);
+
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Logged ${title} to today's watch list!`);
+            animePageRenderActions(anime);
+            animePagePaintUserLine(anime);
+        };
+    }
+    const blBtn = container.querySelector('.add-to-backlog-quick-btn');
+    if (blBtn) {
+        blBtn.onclick = () => {
+            if (isDuplicateAnime(anime)) {
+                showNotification("This anime is already in your backlog or challenge watch list!", "error");
+                return;
+            }
+            const rating = promptForRating(title);
+            const newAnime = { ...anime, date_added: new Date().toISOString() };
+            if (rating !== null) newAnime.user_score = rating;
+
+            challengeData.backlog.push(newAnime);
+            saveData();
+            updateAllDisplays();
+            processAchievements();
+            showNotification(`Added ${title} to your backlog watch list!`);
+            animePageRenderActions(anime);
+            animePagePaintUserLine(anime);
+        };
+    }
+}
+
 // First paint, from the resolved object alone (stored data
 // for library entries, the normalized API object for fresh
 // results) — the page is complete before any fetch returns.
@@ -7706,6 +7842,27 @@ function animePageLoadMedia(anime, idNum, token) {
             const media = (data && data.Media) ? data.Media : null;
             if (!media) return;
             animePagePaintMedia(anime, media);
+            // Bare-id fallback entries (opened from an id alone):
+            // upgrade the entry object with the real normalized
+            // data so the add-to-library actions and the chain's
+            // title-based streaming lookup work with true data,
+            // then re-run the chain for this page (the streaming
+            // container's loaded flag is cleared first, since its
+            // lookup ran before the title existed).
+            if (animePageSyntheticIds.has(idNum)) {
+                animePageSyntheticIds.delete(idNum);
+                try {
+                    const normalized = normalizeAniListResponse({ media: [media] });
+                    if (normalized && normalized[0]) {
+                        Object.assign(anime, normalized[0]);
+                        registerAnimeForDetails(anime);
+                        animePageRenderActions(anime);
+                        const linksEl = document.getElementById('streaming-links-' + animePageCurrentKey);
+                        if (linksEl) delete linksEl.dataset.loaded;
+                        try { window.lazyLoadDetails(animePageCurrentKey, animePageCurrentSource); } catch (e) { /* the chain is best-effort */ }
+                    }
+                } catch (e) { /* the painted page stays as-is */ }
+            }
             // Airing shows: hand the grid the released-count
             // marker (in memory only, exactly like the old
             // Read Story enrichment) and re-render it so
@@ -7741,9 +7898,35 @@ function animePageRenderNotes(anime) {
     if (btn) btn.addEventListener('click', () => notesHandleSave(entryKey, textarea, btn));
 }
 
+// Run fn on the next frame (setTimeout fallback for
+// environments without requestAnimationFrame).
+function animePageRaf(fn) {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fn);
+    else setTimeout(fn, 16);
+}
+
+// The body carries a 0.5s background transition (the OG theme
+// fade). During a screen switch that fade reads as lag — most
+// visibly on the dark→light Backlog switch, where the whole
+// screen washed from black to white over half a second. While
+// switching, suppress the transition so the new theme applies
+// atomically with the switch itself; restore it two frames
+// later, once the new theme has painted.
+function animePageInstantTheme() {
+    document.body.classList.add('theme-instant');
+    animePageRaf(() => animePageRaf(() => {
+        document.body.classList.remove('theme-instant');
+    }));
+}
+
 function animePageHide() {
     const page = document.getElementById('anime-page-screen');
-    if (!page) return;
+    // Leaving the page always restores the app chrome, whatever
+    // path was taken to leave. When the page is already hidden
+    // there is nothing more to do — this runs on every screen
+    // switch, so it stays near-free in that case.
+    document.body.classList.remove('anime-page-open');
+    if (!page || page.classList.contains('hidden')) return;
     page.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) { /* already gone */ } });
     page.classList.add('hidden');
 }
@@ -7783,34 +7966,48 @@ function animePageOpen(anime, animeId, animeSource) {
     animePageDedupeContainers(pageKey);
     animePageBuildSkeleton(pageKey);
     animePagePaintStored(anime);
+    animePageRenderActions(anime);
     animePageRenderNotes(anime);
 
     // Show the page in place of every app screen (same
-    // hidden-class mechanism as switchToScreen).
+    // hidden-class mechanism as switchToScreen), and hide ALL
+    // app chrome while it is open (the anime-page-open body
+    // class): the page is a true full-screen takeover whose
+    // only app control is its fixed ← Back button.
     ['challenge-screen', 'backlog-manager-screen', 'anipace-log-screen', 'schedule-screen', 'anime-social-lounge'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
+    animePageInstantTheme();
     document.body.classList.remove('backlog-active');
     page.classList.remove('hidden');
+    document.body.classList.add('anime-page-open');
     const headerTitle = document.getElementById('header-title');
     if (headerTitle) headerTitle.textContent = getEnglishTitle(anime);
     window.scrollTo(0, 0);
 
-    // The existing enrichment chain — streaming links, 🎵
-    // theme songs, 📺 episode grid — renders into the page's
-    // own panel.
-    try { window.lazyLoadDetails(pageKey, pageSource); } catch (e) { /* never break the page */ }
+    // Enrichment runs one frame later, so the tap paints the
+    // page shell (header art, story, details, notes) first and
+    // the heavier synchronous work — the lazyLoadDetails chain
+    // (streaming links, 🎵 theme songs, 📺 episode grid) and
+    // the cached section loads — fills in right after, instead
+    // of blocking the tap itself. The token + visibility guard
+    // keeps a stale open from filling a page already left.
+    animePageRaf(() => {
+        if (token !== animePageToken) return;
+        if (page.classList.contains('hidden')) return;
+        try { window.lazyLoadDetails(pageKey, pageSource); } catch (e) { /* never break the page */ }
 
-    // AniList-powered sections, all lazy and cached. No id →
-    // no fetches at all: the page stays with its local data.
-    const idNum = animePageAniListId(anime);
-    if (idNum) {
-        animePageLoadMedia(anime, idNum, token);
-        animePageLoadScoreDist(anime, idNum, token);
-        animePageLoadCast(anime, idNum, token);
-        animePageLoadRecs(anime, idNum, token);
-    }
+        // Online-powered sections, all lazy and cached. No id →
+        // no fetches at all: the page stays with its local data.
+        const idNum = animePageAniListId(anime);
+        if (idNum) {
+            animePageLoadMedia(anime, idNum, token);
+            animePageLoadScoreDist(anime, idNum, token);
+            animePageLoadCast(anime, idNum, token);
+            animePageLoadRecs(anime, idNum, token);
+        }
+    });
 }
 
 // Entry point used by every re-routed Read Story / details
@@ -7818,8 +8015,26 @@ function animePageOpen(anime, animeId, animeSource) {
 // search results): resolve the entry the same way the old
 // details loader did, then open the page.
 window.openAnimePage = function(animeId, animeSource) {
-    const anime = (typeof resolveAnimeForDetails === 'function') ? resolveAnimeForDetails(animeId, animeSource) : null;
+    let anime = (typeof resolveAnimeForDetails === 'function') ? resolveAnimeForDetails(animeId, animeSource) : null;
     if (!anime) {
+        // Belt-and-braces for feed cards: an item rendered from
+        // the saved feed may never have been registered in this
+        // session (the renderers register what they draw, but no
+        // card carrying an online id may ever dead-end here).
+        // A bare online id is enough to open the page — the
+        // combined Media query fills in every section, and the
+        // entry object is upgraded with real data when it lands.
+        const src = animeSource || 'kitsu';
+        const idNum = parseInt(animeId, 10);
+        if (src === 'anilist' && !isNaN(idNum) && idNum > 0) {
+            anime = { mal_id: idNum, source: 'anilist', title: '', titles: [], genres: [], tags: [], studios: [], isManual: false };
+            animePageSyntheticIds.add(idNum);
+            registerAnimeForDetails(anime);
+        }
+    }
+    if (!anime) {
+        // Reserved for genuinely unresolvable entries: no usable
+        // id at all and no local copy anywhere.
         showNotification('Could not open the full page for this anime.', 'error');
         return;
     }
@@ -7848,6 +8063,9 @@ if (typeof window.switchToScreen === 'function') {
     const animePagePrevSwitchToScreen = window.switchToScreen;
     window.switchToScreen = function(screenId) {
         try { animePageHide(); } catch (e) { /* never break navigation */ }
+        // The theme (dark ⇄ light Backlog) applies atomically
+        // with the switch — no half-second background fade.
+        try { animePageInstantTheme(); } catch (e) { /* never break navigation */ }
         return animePagePrevSwitchToScreen.apply(this, arguments);
     };
 }

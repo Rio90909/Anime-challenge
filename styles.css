@@ -2009,6 +2009,33 @@ input[type="date"]::-webkit-outer-spin-button {
    styled with the OG palette/variables only.
    ============================================================ */
 
+/* --- Full-screen takeover: while the page is open, ALL app
+   chrome (header, rank badge, top navigation bar) is hidden.
+   The page is the only thing on screen, and its fixed Back
+   button — top-left — is the only app control. --- */
+body.anime-page-open header,
+body.anime-page-open .top-bar,
+body.anime-page-open #rank-badge {
+    display: none !important;
+}
+#anime-page-screen {
+    padding-top: 56px; /* room for the fixed Back button */
+}
+#anime-page-back-btn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1400;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+/* Screen switches apply the theme (dark ⇄ light Backlog)
+   instantly instead of through the body's 0.5s background
+   fade — the fade read as lag on every switch. The class is
+   added for the switch and removed two frames later. */
+body.theme-instant {
+    transition: none !important;
+}
+
 /* --- Page frame --- */
 .anime-page-banner {
     position: relative;
