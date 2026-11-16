@@ -2361,6 +2361,11 @@ body.theme-instant {
     cursor: default;
 }
 .recs-chain-item { position: relative; }
+.recs-card-link { cursor: pointer; }
+.recs-card-link:hover .recs-card-img,
+.recs-card-link:active .recs-card-img {
+    border-color: var(--primary-color);
+}
 .recs-chain-current .recs-card-img {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 1px var(--primary-color);

@@ -7044,7 +7044,7 @@ function animePageRenderRecs(sourceAnime, data) {
 
     if (recs.length > 0) {
         const cards = recs.map(item => `
-            <div class="recs-card">
+            <div class="recs-card recs-card-link" data-media-id="${item.id}">
                 <img class="recs-card-img" src="${escapeHTML(item.img || 'https://via.placeholder.com/92x128?text=No+Image')}" alt="Poster" loading="lazy">
                 <div class="recs-card-title" title="${escapeHTML(item.title)}">${escapeHTML(item.title)}</div>
                 <div class="recs-card-score">${item.avg !== null && item.avg !== undefined ? `⭐ ${item.avg}%` : '⭐ N/A'}</div>
@@ -7076,7 +7076,7 @@ function animePageRenderRecs(sourceAnime, data) {
             const label = isCurrent ? 'You are here' : (RECS_RELATION_LABELS[item.rel] || item.rel);
             const meta = [item.year, item.type, item.eps ? `${item.eps} eps` : ''].filter(Boolean).join(' · ');
             return `
-            <div class="recs-chain-item${isCurrent ? ' recs-chain-current' : ''}">
+            <div class="recs-chain-item${isCurrent ? ' recs-chain-current' : ' recs-card-link'}"${isCurrent ? '' : ` data-media-id="${item.id}"`}>
                 <div class="recs-chain-label${isCurrent ? ' recs-chain-label-current' : ''}">${label}</div>
                 <img class="recs-card-img" src="${escapeHTML(item.img || 'https://via.placeholder.com/92x128?text=No+Image')}" alt="Poster" loading="lazy">
                 <div class="recs-card-title" title="${escapeHTML(item.title)}">${escapeHTML(item.title)}</div>
@@ -7100,8 +7100,35 @@ function animePageRenderRecs(sourceAnime, data) {
 
     container.innerHTML = `<div class="recs-block">${html}</div>`;
     container.querySelectorAll('.recs-add-btn').forEach(btn => {
-        btn.onclick = () => { recsHandleAdd(parseInt(btn.getAttribute('data-media-id'), 10), btn); };
+        btn.onclick = (e) => {
+            // The button is an action, never a door: the tap
+            // must not also trigger the card's navigation.
+            if (e && e.stopPropagation) e.stopPropagation();
+            recsHandleAdd(parseInt(btn.getAttribute('data-media-id'), 10), btn);
+        };
     });
+    container.querySelectorAll('.recs-card-link').forEach(card => {
+        card.addEventListener('click', () => {
+            const mid = parseInt(card.getAttribute('data-media-id'), 10);
+            if (!isNaN(mid) && mid > 0) animePageOpenFromCard(mid);
+        });
+    });
+}
+
+// A tap on a recommendation / chain card itself is a door:
+// it opens that anime's own full page (chained browsing —
+// the current page is pushed onto the browsing stack, so
+// ← Back returns here). The normalized object is reused
+// when this session fetched it; otherwise the bare-id path
+// — the same one Discover cards take — opens the page and
+// the combined Media query fills it in.
+function animePageOpenFromCard(mediaId) {
+    const anime = recsMediaById.get(mediaId);
+    if (anime && typeof window.openAnimePageEntry === 'function') {
+        window.openAnimePageEntry(anime);
+        return;
+    }
+    if (typeof window.openAnimePage === 'function') window.openAnimePage(mediaId, 'anilist');
 }
 
 // The "+ Add" click: run the app's canonical Discover add —
@@ -7535,6 +7562,19 @@ let animePageToken = 0;
 let animePageOrigin = 'challenge';
 let animePageCurrentKey = null;
 let animePageCurrentSource = null;
+let animePageCurrentAnime = null;
+let animePageCurrentId = null;
+// Chained browsing: tapping a recommendation / franchise-
+// chain card on the page opens that anime's own page, and
+// the page being left is pushed here so ← Back walks back
+// through the chain before exiting to the origin screen.
+// Entries are { anime, animeId, animeSource, scrollY }.
+// Every non-Back exit funnels through animePageHide, which
+// clears the stack — a chain can never go stale.
+const animePageStack = [];
+// True only while a Back-restore open is running, so the
+// restore itself never pushes the page it is leaving.
+let animePageRestoring = false;
 // Ids whose page was opened from a bare online id (the entry
 // object itself was never registered this session — see the
 // fallback in openAnimePage). Their entry objects are upgraded
@@ -7948,6 +7988,12 @@ function animePageHide() {
     // path was taken to leave. When the page is already hidden
     // there is nothing more to do — this runs on every screen
     // switch, so it stays near-free in that case.
+    // Every exit through here is a full exit (a top-bar switch,
+    // the Music screen opening, a final ← Back): the browsing
+    // chain ends, so no stale chain can leak into the next
+    // page open. (A mid-chain ← Back never comes through
+    // here — it re-opens the previous page directly.)
+    animePageStack.length = 0;
     document.body.classList.remove('anime-page-open');
     if (!page || page.classList.contains('hidden')) return;
     page.querySelectorAll('video').forEach(v => { try { v.pause(); } catch (e) { /* already gone */ } });
@@ -7983,8 +8029,25 @@ function animePageOpen(anime, animeId, animeSource) {
         pageKey = String(animeId);
         pageSource = animeSource || anime.source || 'kitsu';
     }
+    // Chained browsing: opening another anime's page while
+    // this one is showing (a recommendation / chain card tap)
+    // pushes the page being left, so ← Back can walk back to
+    // it. A fresh open (page hidden) starts a new chain; a
+    // Back-restore open (animePageRestoring) never pushes.
+    if (page.classList.contains('hidden')) {
+        animePageStack.length = 0;
+    } else if (!animePageRestoring && animePageCurrentAnime && animePageCurrentKey !== null && pageKey !== animePageCurrentKey) {
+        animePageStack.push({
+            anime: animePageCurrentAnime,
+            animeId: animePageCurrentId,
+            animeSource: animePageCurrentSource,
+            scrollY: (typeof window.scrollY === 'number' && window.scrollY > 0) ? window.scrollY : 0
+        });
+    }
     animePageCurrentKey = pageKey;
     animePageCurrentSource = pageSource;
+    animePageCurrentAnime = anime;
+    animePageCurrentId = animeId;
 
     animePageDedupeContainers(pageKey);
     animePageBuildSkeleton(pageKey);
@@ -8073,6 +8136,29 @@ window.openAnimePageEntry = function(anime) {
 };
 
 window.closeAnimePage = function() {
+    // Mid-chain ← Back: re-open the previous anime's page
+    // instead of leaving. The takeover (and any playing
+    // music) carries across untouched; the popped page's
+    // sections reload from their caches, and its scroll
+    // position is restored once it has painted.
+    if (animePageStack.length > 0) {
+        const prev = animePageStack.pop();
+        if (prev && prev.anime) {
+            animePageRestoring = true;
+            try {
+                animePageOpen(prev.anime, prev.animeId, prev.animeSource);
+            } finally {
+                animePageRestoring = false;
+            }
+            const y = prev.scrollY || 0;
+            if (y > 0) {
+                animePageRaf(() => animePageRaf(() => {
+                    try { window.scrollTo(0, y); } catch (e) { /* silent */ }
+                }));
+            }
+            return;
+        }
+    }
     animePageHide();
     switchToScreen(animePageOrigin || 'challenge');
 };
