@@ -9174,6 +9174,26 @@ if (typeof window.playTrailer === 'function') {
 // → exactly the 10 songs whose linked AniList id is 16498
 // (2 OP incl. "Guren no Yumiya", 2 ED, 6 IN).
 //
+// SEARCH-SHAPE FIX (diagnosed live 2026-11-15, after the
+// section showed for some anime but not others): the
+// catalogue's word matcher is poisoned by (a) punctuation
+// in the search string — "Naruto: Shippuden" and "Naruto:
+// Shippuuden" return ZERO results while "Naruto Shippuden"
+// returns 69 — and (b) words its stored names don't carry:
+// it files some seasons under the parent name, so "Jujutsu
+// Kaisen Season 2" / "2nd Season" return ZERO while the
+// base "Jujutsu Kaisen" returns both seasons' songs,
+// separated per-entry by their linked ids (S2's 6 entries
+// carry the S2 id). The loader therefore tries each title
+// in several shapes (as stored, punctuation-stripped, and
+// base title with the season/part suffix removed), and —
+// only when no shape yields a linked-id match — falls back
+// to strong title agreement between the catalogue's own
+// anime names and this page's titles. An "empty" result is
+// cached only when every search truly came back empty;
+// raw results that were all filtered out signal a matching
+// problem, not an absent anime, and are never frozen.
+//
 // Rows are rendered by the Music screen's own list
 // renderer (same grouping, same broadcast/dub dedupe, same
 // play buttons), so a tap builds the shared player's queue
@@ -9182,8 +9202,9 @@ if (typeof window.playTrailer === 'function') {
 // the themes audio first, insert songs via the catalogue
 // file). Each queue track is stamped with the page's own
 // poster, so the Now Playing bar shows this anime's art.
-// Results — including "no songs" — are cached 7 days in
-// aniclipse_pagesongs_cache_v1, keyed by the resolved id;
+// Results are cached 7 days in aniclipse_pagesongs_cache_v1,
+// keyed by the resolved id; a "no songs" result is cached
+// only when every search truly came back empty, and
 // failures are never cached and show one quiet line.
 //
 // USER-VISIBLE COPY RULE: as everywhere in this app, no
@@ -9192,6 +9213,12 @@ if (typeof window.playTrailer === 'function') {
 
 const PAGESONGS_CACHE_KEY = 'aniclipse_pagesongs_cache_v1';
 const PAGESONGS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+// Cache entries are stamped with this version. Entries
+// written before the title-variant lookup fix carry no
+// stamp and may hold false "no songs" empties (the old
+// lookup's poisoned searches) — they are treated as a
+// miss once and replaced by a stamped entry.
+const PAGESONGS_CACHE_VER = 2;
 
 const pageSongsInFlight = new Set();
 
@@ -9222,12 +9249,13 @@ function pageSongsCacheGet(key) {
     if (!entry || typeof entry.t !== 'number') return null;
     if (Date.now() - entry.t >= PAGESONGS_CACHE_TTL_MS) return null;
     if (!Array.isArray(entry.tracks)) return null;
+    if (entry.v !== PAGESONGS_CACHE_VER) return null; // pre-fix entry — recheck once
     return entry.tracks;
 }
 
 function pageSongsCacheSet(key, tracks) {
     const cache = pageSongsLoadCache();
-    cache[key] = { t: Date.now(), tracks: tracks };
+    cache[key] = { t: Date.now(), v: PAGESONGS_CACHE_VER, tracks: tracks };
     pageSongsSaveCache(cache);
 }
 
@@ -9291,30 +9319,114 @@ function pageSongsTitles(anime) {
     return out;
 }
 
-// Search the catalogue by each of the anime's titles until
-// one returns entries linked to this anime, then flatten
-// them with the Music screen's own track builder (grouping
-// order, broadcast/dub dedupe, resolver inputs). Resolves
-// { ok:true, tracks } — tracks empty when the catalogue
-// simply has nothing for this anime — or { ok:false } when
-// every search failed (offline / service down).
+// A title with any trailing season/part marker removed
+// ("Jujutsu Kaisen 2nd Season" → "Jujutsu Kaisen",
+// "JUJUTSU KAISEN Season 2" → "JUJUTSU KAISEN"). The word
+// markers are required, so titles that merely end in a
+// number ("Mob Psycho 100") are left untouched.
+function pageSongsBaseTitle(t) {
+    const re = /[\s:\-–—]*(\d+(st|nd|rd|th)\s+season|season\s+(\d+|[ivx]+)|part\s+\d+|cour\s+\d+|\d+(st|nd|rd|th)\s+cour)\s*$/i;
+    let cur = String(t || '');
+    let prev = null;
+    while (prev !== cur) { prev = cur; cur = cur.replace(re, '').trim(); }
+    return cur;
+}
+
+// Every search shape worth trying for this anime, best
+// first: each stored title as-is, punctuation-stripped
+// (the catalogue's matcher chokes on ":", "-", …), and as
+// a base title with the season/part suffix removed (raw
+// and stripped) — the catalogue files some seasons under
+// the parent name only. Deduped, capped.
+function pageSongsSearchVariants(anime) {
+    const out = [];
+    const seen = new Set();
+    const push = (v) => {
+        const s = (v === null || v === undefined) ? '' : String(v).trim();
+        if (s.length < 2) return;
+        const k = s.toLowerCase();
+        if (seen.has(k)) return;
+        seen.add(k);
+        out.push(s);
+    };
+    pageSongsTitles(anime).forEach(t => {
+        push(t);
+        push(normalizeSearchText(t));
+        const b = pageSongsBaseTitle(t);
+        if (b && b !== t) { push(b); push(normalizeSearchText(b)); }
+    });
+    return out.slice(0, 12);
+}
+
+// Last-resort acceptance, used only when NO search shape
+// produced a linked-id match: an entry is accepted when
+// the catalogue's own anime name for it strongly agrees
+// with one of this page's titles — normalized equality, or
+// containment where the shorter side is at least 70% of
+// the longer ("jujutsu kaisen" for a "Jujutsu Kaisen 2nd
+// Season" page passes; "naruto" against the stored name
+// "Naruto Shippuuden" does not, so a sibling season's
+// songs can't wander onto the parent page, and a different
+// anime's songs can never pass at all).
+function pageSongsTitleAgreement(entries, anime) {
+    const wanted = new Set();
+    pageSongsTitles(anime).forEach(t => {
+        const a = normalizeSearchText(t);
+        const b = normalizeSearchText(pageSongsBaseTitle(t));
+        if (a) wanted.add(a);
+        if (b) wanted.add(b);
+    });
+    const agrees = (name) => {
+        const n = normalizeSearchText(name || '');
+        if (!n) return false;
+        for (const w of wanted) {
+            if (n === w) return true;
+            const shorter = Math.min(n.length, w.length);
+            if (shorter >= 4 && (n.indexOf(w) !== -1 || w.indexOf(n) !== -1) &&
+                shorter / Math.max(n.length, w.length) >= 0.7) return true;
+        }
+        return false;
+    };
+    return (Array.isArray(entries) ? entries : []).filter(e =>
+        e && (agrees(e.animeENName) || agrees(e.animeJPName)));
+}
+
+// Search the catalogue by each of the anime's title shapes
+// until one returns entries linked to this anime, then
+// flatten them with the Music screen's own track builder
+// (grouping order, broadcast/dub dedupe, resolver inputs).
+// Resolves { ok:true, cacheable, tracks } — tracks empty
+// when the catalogue simply has nothing for this anime —
+// or { ok:false } when every search failed (offline /
+// service down). cacheable is false for an empty result
+// that came from searches which DID return songs (all
+// filtered out): a matching problem must not be frozen
+// into the week-long cache.
 async function pageSongsFetchTracks(anime, matchField, matchId) {
-    const titles = pageSongsTitles(anime);
+    const variants = pageSongsSearchVariants(anime);
     let anySuccess = false;
-    for (const title of titles) {
+    let anyRaw = false;
+    const pool = [];
+    for (const variant of variants) {
         try {
             const list = await musicDbPost('/search_request', {
-                anime_search_filter: { search: title, partial_match: true, match_case: false },
+                anime_search_filter: { search: variant, partial_match: true, match_case: false },
                 and_logic: true,
                 ignore_duplicate: true
             });
             anySuccess = true;
-            const entries = (Array.isArray(list) ? list : []).filter(e =>
+            const arr = Array.isArray(list) ? list : [];
+            if (arr.length) anyRaw = true;
+            const entries = arr.filter(e =>
                 e && e.linked_ids && Number(e.linked_ids[matchField]) === matchId);
-            if (entries.length) return { ok: true, tracks: musicProcessEntries(entries) };
-        } catch (e) { /* try the next title */ }
+            if (entries.length) return { ok: true, cacheable: true, tracks: musicProcessEntries(entries) };
+            for (const e of arr) pool.push(e);
+        } catch (e) { /* try the next shape */ }
     }
-    return anySuccess ? { ok: true, tracks: [] } : { ok: false, tracks: null };
+    if (!anySuccess) return { ok: false, tracks: null };
+    const agreed = pageSongsTitleAgreement(pool, anime);
+    if (agreed.length) return { ok: true, cacheable: true, tracks: musicProcessEntries(agreed) };
+    return { ok: true, cacheable: !anyRaw, tracks: [] };
 }
 
 // ---------- rendering ----------
@@ -9413,7 +9525,7 @@ function pageSongsMaybeLoad(animeId, animeSource) {
     pageSongsInFlight.add(key);
     pageSongsFetchTracks(anime, matchField, matchId)
         .then(result => {
-            if (result.ok) pageSongsCacheSet(key, result.tracks);
+            if (result.ok && result.cacheable !== false) pageSongsCacheSet(key, result.tracks);
             // The user may have moved to another page while
             // the catalogue answered — paint only when this
             // page's section is still stamped for this anime.
