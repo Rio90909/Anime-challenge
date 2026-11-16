@@ -17,6 +17,10 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
 
+<!-- PWA Install Pack: web app manifest + browser theme colour -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A0E17">
+
 <!-- Instagram / Social Media Link Preview Tags -->
 <meta property="og:title" content="Aniclipse">
 <meta property="og:description" content="Track your anime watching progress with this comprehensive dashboard">
@@ -137,6 +141,14 @@
                 <button id="export-backup-btn" class="add-btn" style="width: 100%; height: 38px; font-size: 13px;">⬇️ Export / Backup Data</button>
                 <button id="import-backup-btn" class="add-btn" style="width: 100%; height: 38px; font-size: 13px; margin-top: 8px;">⬆️ Import / Restore Data</button>
                 <input type="file" id="import-backup-input" accept=".json,application/json" style="display: none;">
+            </div>
+
+            <!-- Install App (added with the PWA install pack port) -->
+            <div class="settings-section" id="install-app-section">
+                <h4>📲 Install App</h4>
+                <p style="color: var(--text-secondary); font-size: 12px; margin: 0 0 10px;">Put Aniclipse on your home screen — it opens full-screen like a real app, with no browser bar, and even opens when you have no internet.</p>
+                <button id="install-app-btn" class="add-btn" style="width: 100%; height: 38px; font-size: 13px;">📲 Install App</button>
+                <p id="install-app-note" class="hidden" style="color: var(--text-secondary); font-size: 12px; margin: 10px 0 0;">To install: open Aniclipse in Chrome → tap the ⋮ menu → Install app.</p>
             </div>
 
             <!-- Library Repair (added with the Fix Old Shows port) -->

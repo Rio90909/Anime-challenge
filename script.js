@@ -9650,3 +9650,94 @@ if (typeof window.lazyLoadDetails === 'function') {
     };
 }
 // End PAGE SONGS
+
+// ============================================================
+// PWA INSTALL PACK — makes Aniclipse installable from the OG
+// build: registers the service worker (sw.js, network-first
+// shell with a full legacy-cache purge on activate) and wires
+// the Settings → 📲 Install App button to the browser's
+// install prompt, with plain manual steps when no prompt is
+// available. Appended at end of file like the other ports;
+// everything is guarded so a browser without any of this
+// support behaves exactly as before. No storage, no data, no
+// existing behaviour is touched.
+// ============================================================
+(function initPwaInstallPack() {
+    try {
+        // ---------- service worker registration ----------
+        var pwaSecureContext = (window.location.protocol === 'https:' ||
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1');
+        if ('serviceWorker' in navigator && pwaSecureContext) {
+            var pwaRegister = function() {
+                try {
+                    navigator.serviceWorker.register('sw.js').catch(function() { /* offline support is a bonus, never a blocker */ });
+                } catch (e) { /* ignore */ }
+            };
+            if (document.readyState === 'complete') pwaRegister();
+            else window.addEventListener('load', pwaRegister);
+        }
+
+        // ---------- install prompt + Settings button ----------
+        var pwaDeferredPrompt = null;
+
+        function pwaIsStandalone() {
+            try {
+                if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+            } catch (e) { /* ignore */ }
+            return window.navigator.standalone === true;
+        }
+
+        function pwaShowInstalledState() {
+            var btn = document.getElementById('install-app-btn');
+            var note = document.getElementById('install-app-note');
+            if (btn) btn.classList.add('hidden');
+            if (note) {
+                note.textContent = '✅ Aniclipse is installed — you are using the app right now.';
+                note.classList.remove('hidden');
+            }
+        }
+
+        window.addEventListener('beforeinstallprompt', function(event) {
+            // Stop Chrome's mini-infobar; the Settings button
+            // becomes the one clear install path.
+            event.preventDefault();
+            pwaDeferredPrompt = event;
+        });
+
+        window.addEventListener('appinstalled', function() {
+            pwaDeferredPrompt = null;
+            pwaShowInstalledState();
+        });
+
+        var installBtn = document.getElementById('install-app-btn');
+        var installNote = document.getElementById('install-app-note');
+        if (pwaIsStandalone()) {
+            pwaShowInstalledState();
+        } else if (installBtn) {
+            installBtn.addEventListener('click', function() {
+                if (pwaDeferredPrompt) {
+                    var promptEvent = pwaDeferredPrompt;
+                    pwaDeferredPrompt = null;
+                    try {
+                        promptEvent.prompt();
+                        if (promptEvent.userChoice && typeof promptEvent.userChoice.then === 'function') {
+                            promptEvent.userChoice.then(function(choice) {
+                                if (choice && choice.outcome === 'accepted') pwaShowInstalledState();
+                            }).catch(function() { /* ignore */ });
+                        }
+                    } catch (e) { /* fall through to the manual steps */ }
+                    return;
+                }
+                // No prompt available (already installed, or the
+                // browser doesn't offer one): show the quiet
+                // manual steps instead of failing silently.
+                if (installNote) installNote.classList.remove('hidden');
+                if (typeof showNotification === 'function') {
+                    showNotification('To install: open Aniclipse in Chrome → tap the ⋮ menu → Install app');
+                }
+            });
+        }
+    } catch (e) { /* the install pack must never break the app */ }
+})();
+// End PWA INSTALL PACK
